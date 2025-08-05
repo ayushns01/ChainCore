@@ -1,462 +1,307 @@
-# ChainCore Multi-Terminal Workflow
+# ChainCore Blockchain - Complete Terminal Guide
 
-Complete guide for running ChainCore blockchain across multiple terminals with manual node control and automatic P2P synchronization.
+Complete step-by-step guide to run the ChainCore blockchain from scratch.
 
-## 🖥️ **Manual Terminal Setup - Full Control**
+## =� Prerequisites
 
-### **Terminal 1: First Node**
+1. **Python Environment Setup**
+```bash
+cd /Users/ayush/Desktop/chain
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+```
+
+2. **Verify Project Structure**
+```bash
+ls -la
+# Should see: network_node.py, wallet_client.py, mining_client.py, src/
+```
+
+## =� Basic Workflow - 8 Terminals
+
+### Terminal 1: Start First Network Node
 ```bash
 cd /Users/ayush/Desktop/chain
 source venv/bin/activate
 python3 network_node.py --node-id core1 --api-port 5000 --p2p-port 8000
 
-# Output shows:
-# 🚀 Starting Network Node core1
-#    P2P Port: 8000
-#    API Port: 5000
-#    Blockchain: 1 blocks
-# ✅ Node running!
+# Wait for output:
+# =� Starting Network Node core1
+#  Node running!
 ```
 
-### **Terminal 2: Second Node (Auto-Syncs with First)**
+### Terminal 2: Start Second Network Node
 ```bash
 cd /Users/ayush/Desktop/chain
 source venv/bin/activate
 python3 network_node.py --node-id core2 --api-port 5001 --p2p-port 8001
 
-# Node automatically discovers and syncs with core1
+# Node automatically syncs with core1
 ```
 
-### **Terminal 3: Third Node (Auto-Syncs with Network)**
+### Terminal 3: Start Third Network Node
 ```bash
 cd /Users/ayush/Desktop/chain
 source venv/bin/activate
 python3 network_node.py --node-id core3 --api-port 5002 --p2p-port 8002
 
-# Node automatically discovers and syncs with existing network
+# Node automatically syncs with existing network
 ```
 
-### **Terminal 4: Wallet Operations**
+### Terminal 4: Create Wallets
 ```bash
 cd /Users/ayush/Desktop/chain
 source venv/bin/activate
 
-# Check balances (initially 0)
-python3 wallet_client.py balance --wallet miner.json
-python3 wallet_client.py balance --wallet miner1.json
-python3 wallet_client.py balance --wallet miner2.json
-python3 wallet_client.py balance --wallet alice.json
-python3 wallet_client.py balance --wallet bob.json
+# Create wallet files (if they don't exist)
+python3 wallet_client.py create --wallet alice.json
+python3 wallet_client.py create --wallet bob.json
+python3 wallet_client.py create --wallet miner1.json
+python3 wallet_client.py create --wallet miner2.json
 
-# Create additional wallets if needed
-python3 wallet_client.py create --wallet new_user.json
+# Check wallet addresses
+python3 wallet_client.py info --wallet alice.json
+python3 wallet_client.py info --wallet bob.json
+python3 wallet_client.py info --wallet miner1.json
+python3 wallet_client.py info --wallet miner2.json
 ```
 
-### **Terminal 5: Competitive Mining Setup**
+### Terminal 5: Start First Miner
 ```bash
 cd /Users/ayush/Desktop/chain
 source venv/bin/activate
 
-# Create multiple miners for competition
-python3 mining_client.py create --wallet miner1.json
-python3 mining_client.py create --wallet miner2.json
+# Get miner1 address first
+MINER1_ADDR=$(python3 -c "import json; print(json.load(open('miner1.json'))['address'])")
+echo "Miner1 Address: $MINER1_ADDR"
 
-# Get miner addresses
-MINER1=$(python3 -c "import json; print(json.load(open('miner1.json'))['address'])")
-MINER2=$(python3 -c "import json; print(json.load(open('miner2.json'))['address'])")
+# Start mining on Node 1
+python3 mining_client.py --wallet $MINER1_ADDR --node http://localhost:5000
 
-echo "Miner1: $MINER1"
-echo "Miner2: $MINER2"
+# Should show: � Mining block... and eventually  Block X mined!
 ```
 
-### **Terminal 6: API Testing & Monitoring**
+### Terminal 6: Start Second Miner (Competitive)
 ```bash
-# Check network status and synchronization
-curl http://localhost:5000/status
-curl http://localhost:5001/status
-curl http://localhost:5002/status
-curl http://localhost:5003/status
-curl http://localhost:5004/status
-curl http://localhost:5005/status
+cd /Users/ayush/Desktop/chain
+source venv/bin/activate
 
-# Check peer connections
-curl http://localhost:5000/peers
-curl http://localhost:5001/peers
-curl http://localhost:5002/peers
+# Get miner2 address
+MINER2_ADDR=$(python3 -c "import json; print(json.load(open('miner2.json'))['address'])")
+echo "Miner2 Address: $MINER2_ADDR"
 
-# Check balances via API (use actual addresses)
-curl http://localhost:5000/balance/17PVoFzAniw34i839GRDzA4gjm9neJRet8  # Miner
-curl http://localhost:5000/balance/1A2CJakwh4n6F7D9Ci8CKmHhRcas7gtFfu   # Alice
-curl http://localhost:5000/balance/171SFKyrSm3n1GLXkLcCtQWTm1ZRVNvEB7  # Bob
+# Start mining on Node 2 (competitive mining)
+python3 mining_client.py --wallet $MINER2_ADDR --node http://localhost:5001
 
-# Get blockchain info
-curl http://localhost:5000/blockchain
+# Both miners compete for blocks
+```
+
+### Terminal 7: Monitor Network & Balances
+```bash
+cd /Users/ayush/Desktop/chain
+source venv/bin/activate
+
+# Check network status
+echo "=== Network Status ==="
+curl -s http://localhost:5000/status | python3 -m json.tool
+curl -s http://localhost:5001/status | python3 -m json.tool
+curl -s http://localhost:5002/status | python3 -m json.tool
+
+# Check balances (wait for mining to start)
+sleep 30
+
+ALICE_ADDR=$(python3 -c "import json; print(json.load(open('alice.json'))['address'])")
+BOB_ADDR=$(python3 -c "import json; print(json.load(open('bob.json'))['address'])")
+MINER1_ADDR=$(python3 -c "import json; print(json.load(open('miner1.json'))['address'])")
+MINER2_ADDR=$(python3 -c "import json; print(json.load(open('miner2.json'))['address'])")
+
+echo "=== Balances ==="
+echo "Alice: $(curl -s http://localhost:5000/balance/$ALICE_ADDR | python3 -c "import sys,json; print(json.load(sys.stdin)['balance'])")"
+echo "Bob: $(curl -s http://localhost:5000/balance/$BOB_ADDR | python3 -c "import sys,json; print(json.load(sys.stdin)['balance'])")"
+echo "Miner1: $(curl -s http://localhost:5000/balance/$MINER1_ADDR | python3 -c "import sys,json; print(json.load(sys.stdin)['balance'])")"
+echo "Miner2: $(curl -s http://localhost:5000/balance/$MINER2_ADDR | python3 -c "import sys,json; print(json.load(sys.stdin)['balance'])")"
+```
+
+### Terminal 8: Send Transactions
+```bash
+cd /Users/ayush/Desktop/chain
+source venv/bin/activate
+
+# Wait for miners to earn some coins (check Terminal 7 for non-zero balances)
+echo "Waiting for mining rewards..."
+sleep 60
+
+# Get addresses
+ALICE_ADDR=$(python3 -c "import json; print(json.load(open('alice.json'))['address'])")
+BOB_ADDR=$(python3 -c "import json; print(json.load(open('bob.json'))['address'])")
+
+# Send transaction from miner1 to alice
+python3 wallet_client.py send --wallet miner1.json --to $ALICE_ADDR --amount 25.0 --fee 1.0
+
+# Send transaction from alice to bob
+python3 wallet_client.py send --wallet alice.json --to $BOB_ADDR --amount 10.0 --fee 0.5
 
 # Check transaction pool
-curl http://localhost:5000/transaction_pool
-
-# Monitor UTXOs
-curl http://localhost:5000/utxos/17PVoFzAniw34i839GRDzA4gjm9neJRet8
+echo "=== Transaction Pool ==="
+curl -s http://localhost:5000/transaction_pool | python3 -m json.tool
 ```
 
-### **Terminal 7: Transaction Operations**
+## =
+ Real-Time Monitoring Commands
+
+### Continuous Network Status (run in any terminal)
 ```bash
-cd /Users/ayush/Desktop/chain
-source venv/bin/activate
-
-# Send transactions between wallets (wait for mining rewards first)
-python3 wallet_client.py send --wallet miner.json --to 1A2CJakwh4n6F7D9Ci8CKmHhRcas7gtFfu --amount 50 --fee 1.0
-python3 wallet_client.py send --wallet alice.json --to 171SFKyrSm3n1GLXkLcCtQWTm1ZRVNvEB7 --amount 25 --fee 0.5
-
-# Send to different nodes for load balancing
-python3 wallet_client.py send --wallet miner.json --to 1A2CJakwh4n6F7D9Ci8CKmHhRcas7gtFfu --amount 30 --node http://localhost:5001
-python3 wallet_client.py send --wallet alice.json --to 171SFKyrSm3n1GLXkLcCtQWTm1ZRVNvEB7 --amount 15 --node http://localhost:5002
-
-# Check transaction history
-python3 wallet_client.py history --wallet alice.json
-python3 wallet_client.py history --wallet bob.json
-python3 wallet_client.py history --wallet miner.json
-```
-
-## 🔄 **Complete Manual Workflow Example**
-
-### **Step 1: Start First Node (Terminal 1)**
-```bash
-cd /Users/ayush/Desktop/chain
-source venv/bin/activate
-python3 network_node.py --node-id core1 --api-port 5000 --p2p-port 8000
-```
-
-### **Step 2: Start Additional Nodes (Terminals 2 & 3)**
-```bash
-# Terminal 2
-cd /Users/ayush/Desktop/chain
-source venv/bin/activate
-python3 network_node.py --node-id core2 --api-port 5001 --p2p-port 8001
-
-# Terminal 3  
-cd /Users/ayush/Desktop/chain
-source venv/bin/activate
-python3 network_node.py --node-id core3 --api-port 5002 --p2p-port 8002
-```
-
-### **Step 3: Verify Network Sync (Terminal 4)**
-```bash
-cd /Users/ayush/Desktop/chain
-source venv/bin/activate
-
-# Check all nodes are synchronized
-curl http://localhost:5000/status
-curl http://localhost:5001/status
-curl http://localhost:5002/status
-
-# Verify peer connections
-curl http://localhost:5000/peers
-```
-
-### **Step 4: Start Competitive Mining (Terminals 5 & 6)**
-```bash
-# Terminal 5: Miner1 on Node 1
-cd /Users/ayush/Desktop/chain
-source venv/bin/activate
-python3 mining_client.py --wallet 1GukayKD1hRAXnQaJYKVwQcwCvVzsUbcJj --node http://localhost:5000
-
-# Terminal 6: Miner2 on Node 2 (COMPETITIVE)
-cd /Users/ayush/Desktop/chain
-source venv/bin/activate
-python3 mining_client.py --wallet 18NDhHYAa3bx3jAZkc7HZf3vKr1JrwVXG3 --node http://localhost:5001
-```
-
-### **Step 5: Monitor Mining Competition (Terminal 7)**
-```bash
-cd /Users/ayush/Desktop/chain
-source venv/bin/activate
-
-# Wait for blocks to be mined, then check balances
-curl http://localhost:5000/balance/17PVoFzAniw34i839GRDzA4gjm9neJRet8  # Miner
-curl http://localhost:5000/balance/1A2CJakwh4n6F7D9Ci8CKmHhRcas7gtFfu   # Alice
-curl http://localhost:5000/balance/171SFKyrSm3n1GLXkLcCtQWTm1ZRVNvEB7  # Bob
-
-# Check blockchain growth
-curl -s http://localhost:5000/status | python3 -c "
-import sys, json
-data = json.load(sys.stdin)
-print(f'Blocks: {data[\"blockchain_length\"]}, Peers: {data[\"peers\"]}')
-"
-```
-
-### **Step 6: Send Transactions (Terminal 8)**
-```bash
-cd /Users/ayush/Desktop/chain
-source venv/bin/activate
-
-# Wait for mining rewards, then send transactions
-python3 wallet_client.py send --wallet miner.json --to 1A2CJakwh4n6F7D9Ci8CKmHhRcas7gtFfu --amount 75 --fee 1.0
-python3 wallet_client.py send --wallet alice.json --to 171SFKyrSm3n1GLXkLcCtQWTm1ZRVNvEB7 --amount 25 --fee 0.5
-
-# Check final balances
-python3 wallet_client.py balance --wallet alice.json
-python3 wallet_client.py balance --wallet bob.json
-python3 wallet_client.py balance --wallet miner.json
-```
-
-### **Step 7: Verify Network Synchronization (Terminal 9)**
-```bash
-# Check transaction was processed across all nodes
-curl http://localhost:5000/transaction_pool
-curl http://localhost:5001/transaction_pool
-curl http://localhost:5002/transaction_pool
-
-# Verify balances are consistent across all nodes
-echo "=== Alice Balance Across All Nodes ==="
-curl http://localhost:5000/balance/1A2CJakwh4n6F7D9Ci8CKmHhRcas7gtFfu
-curl http://localhost:5001/balance/1A2CJakwh4n6F7D9Ci8CKmHhRcas7gtFfu
-curl http://localhost:5002/balance/1A2CJakwh4n6F7D9Ci8CKmHhRcas7gtFfu
-
-# Check blockchain synchronization
-echo "=== Blockchain Length Across All Nodes ==="
-for port in 5000 5001 5002; do
-  echo -n "Node $port: "
-  curl -s http://localhost:$port/status | python3 -c "
-import sys, json
-data = json.load(sys.stdin)
-print(f'{data[\"blockchain_length\"]} blocks')
-"
-done
-```
-
-## 🔗 **P2P Network Management**
-
-### **Automatic Features**
-- **✅ Auto Peer Discovery**: Nodes automatically find each other on ports 5000-5005
-- **✅ Blockchain Sync**: Nodes sync to longest chain every 30 seconds
-- **✅ Transaction Broadcasting**: Transactions spread across all connected peers
-- **✅ Block Propagation**: New blocks automatically sync across network
-
-### **Manual Peer Management**
-```bash
-# View current peers
-curl http://localhost:5000/peers
-
-# Add custom peer (if using non-standard ports)
-curl -X POST http://localhost:5000/add_peer \
-  -H "Content-Type: application/json" \
-  -d '{"peer_url": "http://localhost:5003"}'
-
-# Check peer connections across all nodes
-for port in 5000 5001 5002; do
-  echo "Node $port peers:"
-  curl -s http://localhost:$port/peers | python3 -c "
-import sys, json
-data = json.load(sys.stdin)
-print(f'  Connected to {data[\"peer_count\"]} peers')
-for peer in data['peers']:
-    print(f'  - {peer}')
-"
-done
-```
-
-### **Network Expansion**
-```bash
-# Start additional nodes on any available ports
-python3 network_node.py --node-id core4 --api-port 5003 --p2p-port 8003
-python3 network_node.py --node-id core5 --api-port 5004 --p2p-port 8004
-
-# Nodes automatically discover and sync with existing network
-```
-
-## 🎯 **API Commands Reference**
-
-### **Node Status**
-```bash
-# Basic status
-curl http://localhost:5000/status
-
-# Formatted JSON
-curl -s http://localhost:5000/status | python3 -m json.tool
-```
-
-### **Balance Checking**
-```bash
-# Check single balance
-curl http://localhost:5000/balance/1A2B3C...
-
-# Check across all nodes
-for port in 5000 5001 5002; do
-  echo "Node $port:"
-  curl http://localhost:$port/balance/1A2B3C...
-done
-```
-
-### **Blockchain Data**
-```bash
-# Full blockchain
-curl http://localhost:5000/blockchain
-
-# Just block count
-curl -s http://localhost:5000/blockchain | jq '.length'
-
-# Latest block
-curl -s http://localhost:5000/blockchain | jq '.chain[-1]'
-```
-
-### **Transaction Pool**
-```bash
-# Pending transactions
-curl http://localhost:5000/transaction_pool
-
-# Count pending
-curl -s http://localhost:5000/transaction_pool | jq '.count'
-```
-
-### **UTXOs**
-```bash
-# Get UTXOs for address
-curl http://localhost:5000/utxos/1A2B3C...
-
-# Count UTXOs
-curl -s http://localhost:5000/utxos/1A2B3C... | jq '.utxos | length'
-```
-
-## 🔧 **Multi-Node Load Testing**
-
-### **Distribute Operations Across Nodes**
-```bash
-# Use different nodes for different operations
-python3 wallet_client.py balance --wallet alice.json --node http://localhost:5000
-python3 wallet_client.py balance --wallet bob.json --node http://localhost:5001
-python3 wallet_client.py balance --wallet miner.json --node http://localhost:5002
-
-# Mine on different nodes
-python3 mining_client.py --wallet ADDR1 --node http://localhost:5000 &
-python3 mining_client.py --wallet ADDR2 --node http://localhost:5001 &
-python3 mining_client.py --wallet ADDR3 --node http://localhost:5002 &
-```
-
-### **API Load Balancing**
-```bash
-# Round-robin status checks
-for i in {1..10}; do
-  port=$((5000 + (i % 3)))
-  echo "Request $i -> Node $port"
-  curl http://localhost:$port/status
-done
-```
-
-## 🎮 **Automated Demo**
-
-### **Run Complete Demo**
-```bash
-# Terminal 1: Start network
-python3 start_network.py
-
-# Terminal 2: Run automated demo
-python3 api_demo.py
-```
-
-## 🛑 **Shutdown**
-
-### **Stop Everything**
-```bash
-# Stop network (Terminal 1: Ctrl+C)
-# Or force stop all
-python3 start_network.py stop
-
-# Kill any remaining processes
-pkill -f "network_node.py"
-pkill -f "mining_client.py"
-```
-
-## 📊 **Monitoring Dashboard**
-
-### **Real-time Network Status**
-```bash
-# Create monitoring loop
+# Real-time monitoring loop
 while true; do
   clear
-  echo "🌐 ChainCore Network Status - $(date)"
-  echo "================================"
+  echo "< ChainCore Network Status - $(date)"
+  echo "========================================="
   
   for port in 5000 5001 5002; do
     echo -n "Node $port: "
-    curl -s http://localhost:$port/status | jq -r '"Blocks: \(.blockchain_length), Pending: \(.pending_transactions)"' 2>/dev/null || echo "Offline"
+    curl -s http://localhost:$port/status | python3 -c "
+import sys, json
+try:
+    data = json.load(sys.stdin)
+    print(f'Blocks: {data[\"blockchain_length\"]}, Pending: {data[\"pending_transactions\"]}, Peers: {data[\"peers\"]}')
+except:
+    print('Offline')
+" 2>/dev/null
   done
   
   echo ""
+  echo "Press Ctrl+C to stop monitoring"
   sleep 5
 done
 ```
 
-## 🏁 **Competitive Mining Example**
-
-### **Setup Multiple Miners (Latest Fix)**
+### Balance Monitoring
 ```bash
-# Terminal 5: Miner1 on Node 1  
-python3 mining_client.py --wallet 17PVoFzAniw34i839GRDzA4gjm9neJRet8 --node http://localhost:5000
-
-# Terminal 6: Miner2 on Node 2
-python3 mining_client.py --wallet 1GukayKD1hRAXnQaJYKVwQcwCvVzsUbcJj --node http://localhost:5001
-
-# Terminal 6: Miner2 on Node 2
-python3 mining_client.py --wallet 18NDhHYAa3bx3jAZkc7HZf3vKr1JrwVXG3 --node http://localhost:5002
-
-# Terminal 7: Monitor competition
-watch -n 2 'echo "=== Mining Competition ===" && \
-curl -s http://localhost:5000/balance/1GukayKD1hRAXnQaJYKVwQcwCvVzsUbcJj | jq ".balance" && \
-curl -s http://localhost:5001/balance/18NDhHYAa3bx3jAZkc7HZf3vKr1JrwVXG3 | jq ".balance"'
-```
-
-### **Transaction Broadcasting Test**
-```bash
-# Send one transaction - should appear on ALL nodes
-python3 wallet_client.py send --wallet miner1.json --to 18NDhHYAa3bx3jAZkc7HZf3vKr1JrwVXG3 --amount 0.01
-
-# Verify transaction distributed to all nodes
-echo "=== Transaction Pool Distribution ==="
-for port in 5000 5001 5002; do
-  echo "Node $port:"
-  curl -s http://localhost:$port/status | jq '.pending_transactions'
+# Monitor balances in real-time
+while true; do
+  clear
+  echo "=� Wallet Balances - $(date)"
+  echo "================================="
+  
+  ALICE_ADDR=$(python3 -c "import json; print(json.load(open('alice.json'))['address'])")
+  BOB_ADDR=$(python3 -c "import json; print(json.load(open('bob.json'))['address'])")
+  MINER1_ADDR=$(python3 -c "import json; print(json.load(open('miner1.json'))['address'])")
+  MINER2_ADDR=$(python3 -c "import json; print(json.load(open('miner2.json'))['address'])")
+  
+  echo "Alice   ($ALICE_ADDR): $(curl -s http://localhost:5000/balance/$ALICE_ADDR | python3 -c "import sys,json; print(json.load(sys.stdin)['balance'])")"
+  echo "Bob     ($BOB_ADDR): $(curl -s http://localhost:5000/balance/$BOB_ADDR | python3 -c "import sys,json; print(json.load(sys.stdin)['balance'])")"
+  echo "Miner1  ($MINER1_ADDR): $(curl -s http://localhost:5000/balance/$MINER1_ADDR | python3 -c "import sys,json; print(json.load(sys.stdin)['balance'])")"
+  echo "Miner2  ($MINER2_ADDR): $(curl -s http://localhost:5000/balance/$MINER2_ADDR | python3 -c "import sys,json; print(json.load(sys.stdin)['balance'])")"
+  
+  sleep 10
 done
 ```
 
-## 🎯 **Success Indicators**
+## <� Quick Commands Reference
 
-### **Network Health**
-- ✅ All nodes responding to `/status` API calls
-- ✅ Each node shows `"peers": N` (where N > 0)
-- ✅ Identical `blockchain_length` across all nodes
-- ✅ `/peers` endpoint shows connected nodes
+### Check Network Health
+```bash
+# All nodes responding
+curl http://localhost:5000/status
+curl http://localhost:5001/status
+curl http://localhost:5002/status
 
-### **Mining Competition (FIXED)**
-- ✅ Multiple miners can compete simultaneously
-- ✅ Transactions distributed to ALL nodes
-- ✅ Any miner can win regardless of connected node
-- ✅ Block validation shows detailed error messages
-- ✅ Mining client shows "Block mined!" messages
-- ✅ Winner's balance increases (50 CC per block)
+# Check peer connections
+curl http://localhost:5000/peers
+```
 
-### **Transaction Broadcasting (FIXED)**
-- ✅ One transaction → appears on ALL nodes
-- ✅ All miners see same transaction pool  
-- ✅ Fastest miner wins and adds block
-- ✅ Transaction removed from all pools after mining
+### Wallet Operations
+```bash
+# Check balance
+python3 wallet_client.py balance --wallet alice.json
 
-### **P2P Synchronization**
-- ✅ New nodes automatically discover existing network
-- ✅ Blockchain syncs within 30 seconds
-- ✅ Balances consistent across all nodes
-- ✅ Blocks broadcast immediately after mining
+# Send transaction
+python3 wallet_client.py send --wallet alice.json --to ADDRESS --amount 10.0 --fee 0.5
 
-### **Manual Control**
-- ✅ Can start nodes individually in any order
-- ✅ Can add nodes dynamically to running network
-- ✅ Each node operates independently
-- ✅ Network continues if individual nodes go offline
+# Transaction history
+python3 wallet_client.py history --wallet alice.json
+```
 
-**Your ChainCore network is working when you have full manual control with automatic P2P synchronization!** 🚀
+### Mining Operations
+```bash
+# Start mining
+python3 mining_client.py --wallet WALLET_ADDRESS --node http://localhost:5000
 
-## 📚 **Additional Resources**
+# Check mining rewards
+curl http://localhost:5000/balance/WALLET_ADDRESS
+```
 
-- **Complete Command Reference**: See `COMMANDS.md` for all available commands
-- **Transaction Testing**: Use `TXN_TESTING.md` for 20 transaction test scenarios  
-- **Technical Details**: Check `BITCOIN_README.md` for implementation details
+### API Commands
+```bash
+# Get blockchain
+curl http://localhost:5000/blockchain
+
+# Transaction pool
+curl http://localhost:5000/transaction_pool
+
+# UTXOs for address
+curl http://localhost:5000/utxos/ADDRESS
+```
+
+## =' Troubleshooting
+
+### Node Not Starting
+```bash
+# Check if port is in use
+lsof -i :5000
+
+# Kill existing processes
+pkill -f network_node.py
+```
+
+### Mining Not Working
+```bash
+# Check node is running
+curl http://localhost:5000/status
+
+# Verify wallet address format
+python3 wallet_client.py info --wallet miner1.json
+```
+
+### Transaction Rejected
+```bash
+# Check balance first
+python3 wallet_client.py balance --wallet sender.json
+
+# Check transaction pool
+curl http://localhost:5000/transaction_pool
+```
+
+## =� Shutdown
+
+### Stop Everything
+```bash
+# Stop each terminal with Ctrl+C
+
+# Or force kill all processes
+pkill -f network_node.py
+pkill -f mining_client.py
+```
+
+##  Success Indicators
+
+Your blockchain is working correctly when you see:
+
+1. **Nodes Running**: All 3 nodes respond to `/status` with peer connections
+2. **Mining Active**: Terminal 5 & 6 show "Block X mined!" messages
+3. **Balances Growing**: Miners accumulate 50 CC per block
+4. **Transactions Processing**: Sent transactions appear in pools and get mined
+5. **Network Sync**: All nodes show same blockchain length
+
+**<� You now have a fully functional multi-node blockchain network!**
+
+## =� Advanced Features
+
+- **Load Balancing**: Connect wallets to different nodes
+- **Competitive Mining**: Multiple miners compete for blocks
+- **Transaction Broadcasting**: Transactions spread across all nodes
+- **Automatic Sync**: Nodes sync every 30 seconds
+- **Real-time Monitoring**: Live network status and balances
+
+For more advanced operations, see `MINING_COMMANDS.md` and other documentation files.
