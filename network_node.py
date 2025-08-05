@@ -12,6 +12,7 @@ import time
 import asyncio
 import threading
 import argparse
+from datetime import datetime
 from typing import Dict, List, Set
 from flask import Flask, request, jsonify
 import websockets
@@ -241,6 +242,18 @@ class NetworkNode:
         self.peers: Set[str] = set()
         self.app = Flask(__name__)
         
+        # Session tracking
+        self.session_start_time = datetime.now()
+        self.session_id = f"session_{self.node_id}_{int(time.time())}"
+        self.session_file = f"sessions/{self.session_id}.json"
+        self.session_data = {
+            "session_id": self.session_id,
+            "node_id": self.node_id,
+            "start_time": self.session_start_time.isoformat(),
+            "blocks_mined": []
+        }
+        self._init_session_file()
+        
         # Add peer nodes for synchronization (scan common ports)
         common_ports = [5000, 5001, 5002, 5003, 5004, 5005]
         for port in common_ports:
@@ -248,6 +261,42 @@ class NetworkNode:
                 self.peers.add(f"http://localhost:{port}")
         
         self._setup_api_routes()
+    
+    def _init_session_file(self):
+        """Initialize session tracking file"""
+        os.makedirs("sessions", exist_ok=True)
+        with open(self.session_file, 'w') as f:
+            json.dump(self.session_data, f, indent=2)
+    
+    def _log_block_mined(self, block: 'Block', miner_address: str):
+        """Log a mined block to the session file"""
+        block_info = {
+            "block_index": block.index,
+            "block_hash": block.hash,
+            "previous_hash": block.previous_hash,
+            "miner_address": miner_address,
+            "mined_by_node": self.node_id,
+            "timestamp": datetime.now().isoformat(),
+            "nonce": block.nonce,
+            "difficulty": block.target_difficulty,
+            "transaction_count": len(block.transactions),
+            "has_transactions": len(block.transactions) > 1,  # More than just coinbase
+            "transactions": [
+                {
+                    "tx_id": tx.tx_id,
+                    "is_coinbase": tx.is_coinbase(),
+                    "amount": sum(output.amount for output in tx.outputs) if tx.outputs else 0
+                } for tx in block.transactions
+            ]
+        }
+        
+        self.session_data["blocks_mined"].append(block_info)
+        
+        # Update session file
+        with open(self.session_file, 'w') as f:
+            json.dump(self.session_data, f, indent=2)
+        
+        print(f"📝 Block {block.index} logged to session: {self.session_file}")
     
     def _setup_api_routes(self):
         @self.app.route('/status', methods=['GET'])
@@ -262,10 +311,12 @@ class NetworkNode:
         
         @self.app.route('/blockchain', methods=['GET'])
         def get_blockchain():
-            return jsonify({
+            response = jsonify({
                 'chain': [block.to_dict() for block in self.blockchain.chain],
                 'length': len(self.blockchain.chain)
             })
+            response.headers['X-Blockchain-Length'] = str(len(self.blockchain.chain))
+            return response
         
         @self.app.route('/balance/<address>', methods=['GET'])
         def get_balance(address):
@@ -348,6 +399,12 @@ class NetworkNode:
                 block.merkle_root = block_data['merkle_root']
                 
                 if self.blockchain.add_block(block):
+                    # Extract miner address from coinbase transaction
+                    miner_address = block.transactions[0].outputs[0].recipient_address if block.transactions else "unknown"
+                    
+                    # Log the mined block to session
+                    self._log_block_mined(block, miner_address)
+                    
                     # Broadcast block to peer nodes for faster distribution  
                     self._broadcast_block_to_peers(block)
                     print(f"✅ Block {block.index} accepted and broadcasted: {block.hash[:16]}...")
@@ -398,6 +455,33 @@ class NetworkNode:
                     return jsonify({'status': 'error', 'message': 'Invalid or duplicate peer'}), 400
             except Exception as e:
                 return jsonify({'status': 'error', 'message': str(e)}), 500
+        
+        @self.app.route('/session', methods=['GET'])
+        def get_session_data():
+            """Get current session mining data"""
+            return jsonify(self.session_data)
+        
+        @self.app.route('/sessions', methods=['GET'])
+        def list_sessions():
+            """List all available session files"""
+            session_files = []
+            if os.path.exists('sessions'):
+                for filename in os.listdir('sessions'):
+                    if filename.endswith('.json'):
+                        filepath = os.path.join('sessions', filename)
+                        with open(filepath, 'r') as f:
+                            try:
+                                session_info = json.load(f)
+                                session_files.append({
+                                    'filename': filename,
+                                    'session_id': session_info.get('session_id'),
+                                    'node_id': session_info.get('node_id'),
+                                    'start_time': session_info.get('start_time'),
+                                    'blocks_mined_count': len(session_info.get('blocks_mined', []))
+                                })
+                            except:
+                                continue
+            return jsonify({'sessions': session_files})
     
     def _broadcast_transaction_to_peers(self, transaction):
         """Broadcast transaction to peer nodes"""
@@ -508,6 +592,8 @@ class NetworkNode:
         print(f"   POST /broadcast_transaction - Submit transaction")
         print(f"   POST /mine_block - Get mining template")
         print(f"   POST /submit_block - Submit mined block")
+        print(f"   GET  /session - Current session mining data")
+        print(f"   GET  /sessions - List all session files")
         
         try:
             # Keep main thread alive
