@@ -52,16 +52,17 @@ python3 wallet_client.py info --wallet miner2.json
 
 
 ### Terminal 5: Start First Miner
-cd /Users/ayush/Desktop/chain
-source venv/bin/activate
+python3 mining_client.py --wallet 1CcUyVAiHT2dGP4ESxWqsDKFzazkQ2UW3n --node http://localhost:5000
+python3 mining_client.py --wallet 1GukayKD1hRAXnQaJYKVwQcwCvVzsUbcJj --node http://localhost:5001
+python3 mining_client.py --wallet 18NDhHYAa3bx3jAZkc7HZf3vKr1JrwVXG3 --node http://localhost:5002
 
 
 # Get balance
-curl -s http://localhost:5001/balance/1CcUyVAiHT2dGP4ESxWqsDKFzazkQ2UW3n
-curl -s http://localhost:5001/balance/1GukayKD1hRAXnQaJYKVwQcwCvVzsUbcJj
-curl -s http://localhost:5001/balance/18NDhHYAa3bx3jAZkc7HZf3vKr1JrwVXG3
-curl -s http://localhost:5001/balance/15vuSyM7ZFUNqBibgwHUgbkva4FDDn6pXq
-curl -s http://localhost:5001/balance/1FzanzSbcH7sik5kzymbdTrNci6h5HxBCe
+curl http://localhost:5001/balance/1CcUyVAiHT2dGP4ESxWqsDKFzazkQ2UW3n
+curl http://localhost:5001/balance/1GukayKD1hRAXnQaJYKVwQcwCvVzsUbcJj
+curl http://localhost:5001/balance/18NDhHYAa3bx3jAZkc7HZf3vKr1JrwVXG3
+curl http://localhost:5001/balance/15vuSyM7ZFUNqBibgwHUgbkva4FDDn6pXq
+curl http://localhost:5001/balance/1FzanzSbcH7sik5kzymbdTrNci6h5HxBCe
 
 
 # Start mining on Node 
@@ -78,17 +79,18 @@ source venv/bin/activate
 ### Terminal 7: Monitor Network & Balances
 
 # Check network status
-echo "=== Network Status ==="
-curl -s http://localhost:5000/status 
-curl -s http://localhost:5001/status 
-curl -s http://localhost:5002/status 
+curl http://localhost:5000/status 
+curl http://localhost:5001/status 
+curl http://localhost:5002/status 
 
 
 # Check transaction pool
-curl -s http://localhost:5000/transaction_pool
-curl -s http://localhost:5001/transaction_pool
-curl -s http://localhost:5002/transaction_pool
+curl http://localhost:5000/transaction_pool
+curl http://localhost:5001/transaction_pool
+curl http://localhost:5002/transaction_pool
 
+# Blockchain Status
+curl http://localhost:5000/blockchain      
 
 
 
