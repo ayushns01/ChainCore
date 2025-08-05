@@ -165,14 +165,21 @@ class Blockchain:
     def _validate_block(self, block: Block) -> bool:
         # Check block hash is valid
         if not block.is_valid_hash():
+            print(f"❌ Block validation failed: Invalid hash")
             return False
         
         # Check previous hash
         if block.previous_hash != self.chain[-1].hash:
+            print(f"❌ Block validation failed: Previous hash mismatch")
+            print(f"   Expected: {self.chain[-1].hash[:16]}...")
+            print(f"   Got: {block.previous_hash[:16]}...")
             return False
         
-        # Check index
+        # Check index  
         if block.index != len(self.chain):
+            print(f"❌ Block validation failed: Index mismatch")
+            print(f"   Expected: {len(self.chain)}")
+            print(f"   Got: {block.index}")
             return False
         
         # Validate all transactions
@@ -180,6 +187,7 @@ class Blockchain:
             if tx.is_coinbase():
                 continue
             if not self._validate_transaction(tx):
+                print(f"❌ Block validation failed: Invalid transaction {tx.tx_id[:16]}...")
                 return False
         
         return True
@@ -276,7 +284,23 @@ class NetworkNode:
                 transaction = Transaction.from_dict(tx_data)
                 
                 if self.blockchain.add_transaction(transaction):
-                    # Don't broadcast here to avoid loops - let original sender handle broadcast
+                    # Broadcast transaction to peer nodes
+                    self._broadcast_transaction_to_peers(transaction)
+                    return jsonify({'status': 'accepted', 'tx_id': transaction.tx_id})
+                else:
+                    return jsonify({'status': 'rejected', 'error': 'Invalid transaction'}), 400
+                    
+            except Exception as e:
+                return jsonify({'status': 'error', 'error': str(e)}), 500
+        
+        @self.app.route('/receive_transaction', methods=['POST'])
+        def receive_transaction():
+            """Receive transaction from peer (no re-broadcasting)"""
+            try:
+                tx_data = request.get_json()
+                transaction = Transaction.from_dict(tx_data)
+                
+                if self.blockchain.add_transaction(transaction):
                     return jsonify({'status': 'accepted', 'tx_id': transaction.tx_id})
                 else:
                     return jsonify({'status': 'rejected', 'error': 'Invalid transaction'}), 400
@@ -319,12 +343,18 @@ class NetworkNode:
                     block_data['nonce'],
                     block_data['target_difficulty']
                 )
+                # Preserve the mined hash and merkle root from the submitted data
+                block.hash = block_data['hash']
+                block.merkle_root = block_data['merkle_root']
                 
                 if self.blockchain.add_block(block):
-                    # Don't broadcast here to avoid loops - sync handles distribution
+                    # Broadcast block to peer nodes for faster distribution  
+                    self._broadcast_block_to_peers(block)
+                    print(f"✅ Block {block.index} accepted and broadcasted: {block.hash[:16]}...")
                     return jsonify({'status': 'accepted', 'block_hash': block.hash})
                 else:
-                    return jsonify({'status': 'rejected', 'error': 'Invalid block'}), 400
+                    print(f"❌ Block {block.index} rejected: {block.hash[:16]}...")
+                    return jsonify({'status': 'rejected', 'error': 'Block validation failed'}), 400
                     
             except Exception as e:
                 return jsonify({'error': str(e)}), 500
@@ -374,8 +404,9 @@ class NetworkNode:
         import requests
         for peer in self.peers:
             try:
+                # Add header to prevent broadcast loops
                 requests.post(
-                    f"{peer}/broadcast_transaction",
+                    f"{peer}/receive_transaction", 
                     json=transaction.to_dict(),
                     timeout=2
                 )
@@ -433,8 +464,7 @@ class NetworkNode:
                 # Rebuild UTXO set
                 self.blockchain.utxo_set = {}
                 for block in self.blockchain.chain:
-                    for tx in block.transactions:
-                        self.blockchain._update_utxo_set(tx)
+                    self.blockchain._update_utxo_set(block)
                 print(f"✅ Blockchain synced to {len(self.blockchain.chain)} blocks")
         except Exception as e:
             print(f"⚠️ Sync error: {e}")

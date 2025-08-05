@@ -284,3 +284,45 @@ watch -n 5 'echo "=== Live Status ==="; curl -s http://localhost:5000/status | p
 6. **Test edge cases** with decimal precision
 
 **Start mining before running tests to ensure transactions get confirmed!**
+
+
+
+  python3 wallet_client.py send --wallet miner.json --to 1A2CJakwh4n6F7D9Ci8CKmHhRcas7gtFfu --amount 25.0 --fee 0.5
+  sleep 1
+  python3 wallet_client.py send --wallet miner.json --to 171SFKyrSm3n1GLXkLcCtQWTm1ZRVNvEB7 --amount 30.0 --fee 0.75
+  sleep 1
+  python3 wallet_client.py send --wallet miner.json --to 1GukayKD1hRAXnQaJYKVwQcwCvVzsUbcJj --amount 15.0 --fee 0.25
+  sleep 1
+  python3 wallet_client.py send --wallet miner.json --to 18NDhHYAa3bx3jAZkc7HZf3vKr1JrwVXG3 --amount 20.0 --fee 0.3
+  sleep 1
+  python3 wallet_client.py send --wallet alice.json --to 171SFKyrSm3n1GLXkLcCtQWTm1ZRVNvEB7 --amount 5.5 --fee 0.1
+  sleep 2
+  python3 wallet_client.py send --wallet bob.json --to 1A2CJakwh4n6F7D9Ci8CKmHhRcas7gtFfu --amount 8.25 --fee 0.15
+  sleep 1
+  python3 wallet_client.py send --wallet miner1.json --to 1A2CJakwh4n6F7D9Ci8CKmHhRcas7gtFfu --amount 2.1 --fee 0.05
+  sleep 1
+  python3 wallet_client.py send --wallet miner2.json --to 171SFKyrSm3n1GLXkLcCtQWTm1ZRVNvEB7 --amount 3.75 --fee 0.08
+  sleep 1
+  python3 wallet_client.py send --wallet alice.json --to 1GukayKD1hRAXnQaJYKVwQcwCvVzsUbcJj --amount 1.0 --fee 0.02
+  sleep 1
+  python3 wallet_client.py send --wallet bob.json --to 18NDhHYAa3bx3jAZkc7HZf3vKr1JrwVXG3 --amount 4.5 --fee 0.12
+  sleep 2
+  python3 wallet_client.py send --wallet miner1.json --to 17PVoFzAniw34i839GRDzA4gjm9neJRet8 --amount 7.25 --fee 0.18
+  sleep 1
+  python3 wallet_client.py send --wallet miner2.json --to 17PVoFzAniw34i839GRDzA4gjm9neJRet8 --amount 6.8 --fee 0.2
+  sleep 1
+  python3 wallet_client.py send --wallet alice.json --to 17PVoFzAniw34i839GRDzA4gjm9neJRet8 --amount 12.0 --fee 0.4
+  sleep 1
+  python3 wallet_client.py send --wallet bob.json --to 1GukayKD1hRAXnQaJYKVwQcwCvVzsUbcJj --amount 18.5 --fee 0.6
+  sleep 1
+  python3 wallet_client.py send --wallet miner.json --to 1A2CJakwh4n6F7D9Ci8CKmHhRcas7gtFfu --amount 9.99 --fee 0.01
+  sleep 2
+  python3 wallet_client.py send --wallet miner1.json --to 171SFKyrSm3n1GLXkLcCtQWTm1ZRVNvEB7 --amount 5.25 --fee 0.25
+  sleep 1
+  python3 wallet_client.py send --wallet miner2.json --to 1A2CJakwh4n6F7D9Ci8CKmHhRcas7gtFfu --amount 3.14159 --fee 0.07
+  sleep 1
+  python3 wallet_client.py send --wallet alice.json --to 171SFKyrSm3n1GLXkLcCtQWTm1ZRVNvEB7 --amount 15.75 --fee 0.35
+  sleep 1
+  python3 wallet_client.py send --wallet bob.json --to 18NDhHYAa3bx3jAZkc7HZf3vKr1JrwVXG3 --amount 2.0 --fee 1.0
+  sleep 1
+  python3 wallet_client.py send --wallet miner2.json --to 1GukayKD1hRAXnQaJYKVwQcwCvVzsUbcJj --amount 10.5 --fee 0.5

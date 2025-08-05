@@ -41,33 +41,32 @@ python3 network_node.py --node-id core3 --api-port 5002 --p2p-port 8002
 cd /Users/ayush/Desktop/chain
 source venv/bin/activate
 
-# Wallets are pre-created (alice.json, bob.json, miner.json)
 # Check balances (initially 0)
+python3 wallet_client.py balance --wallet miner.json
+python3 wallet_client.py balance --wallet miner1.json
+python3 wallet_client.py balance --wallet miner2.json
 python3 wallet_client.py balance --wallet alice.json
 python3 wallet_client.py balance --wallet bob.json
-python3 wallet_client.py balance --wallet miner.json
 
 # Create additional wallets if needed
 python3 wallet_client.py create --wallet new_user.json
 ```
 
-### **Terminal 5: Mining Operations**
+### **Terminal 5: Competitive Mining Setup**
 ```bash
 cd /Users/ayush/Desktop/chain
 source venv/bin/activate
 
-# Start mining with pre-created miner wallet
-python3 mining_client.py --wallet 17PVoFzAniw34i839GRDzA4gjm9neJRet8 --node http://localhost:5000
+# Create multiple miners for competition
+python3 mining_client.py create --wallet miner1.json
+python3 mining_client.py create --wallet miner2.json
 
-# Output shows:
-# ⛏️  ChainCore Mining Client
-# 🎯 Mining for address: 17PVoFzAniw34i839GRDzA4gjm9neJRet8
-# ⛏️  Mining block 2...
-# ✅ Block mined! Hash: 000000abc123...
+# Get miner addresses
+MINER1=$(python3 -c "import json; print(json.load(open('miner1.json'))['address'])")
+MINER2=$(python3 -c "import json; print(json.load(open('miner2.json'))['address'])")
 
-# Mine on different nodes for load balancing
-python3 mining_client.py --wallet 17PVoFzAniw34i839GRDzA4gjm9neJRet8 --node http://localhost:5001 &
-python3 mining_client.py --wallet 17PVoFzAniw34i839GRDzA4gjm9neJRet8 --node http://localhost:5002 &
+echo "Miner1: $MINER1"
+echo "Miner2: $MINER2"
 ```
 
 ### **Terminal 6: API Testing & Monitoring**
@@ -76,6 +75,9 @@ python3 mining_client.py --wallet 17PVoFzAniw34i839GRDzA4gjm9neJRet8 --node http
 curl http://localhost:5000/status
 curl http://localhost:5001/status
 curl http://localhost:5002/status
+curl http://localhost:5003/status
+curl http://localhost:5004/status
+curl http://localhost:5005/status
 
 # Check peer connections
 curl http://localhost:5000/peers
@@ -152,16 +154,20 @@ curl http://localhost:5002/status
 curl http://localhost:5000/peers
 ```
 
-### **Step 4: Start Mining (Terminal 5)**
+### **Step 4: Start Competitive Mining (Terminals 5 & 6)**
 ```bash
+# Terminal 5: Miner1 on Node 1
 cd /Users/ayush/Desktop/chain
 source venv/bin/activate
+python3 mining_client.py --wallet 1GukayKD1hRAXnQaJYKVwQcwCvVzsUbcJj --node http://localhost:5000
 
-# Use pre-created miner wallet
-python3 mining_client.py --wallet 17PVoFzAniw34i839GRDzA4gjm9neJRet8 --node http://localhost:5000
+# Terminal 6: Miner2 on Node 2 (COMPETITIVE)
+cd /Users/ayush/Desktop/chain
+source venv/bin/activate
+python3 mining_client.py --wallet 18NDhHYAa3bx3jAZkc7HZf3vKr1JrwVXG3 --node http://localhost:5001
 ```
 
-### **Step 5: Monitor Mining Progress (Terminal 6)**
+### **Step 5: Monitor Mining Competition (Terminal 7)**
 ```bash
 cd /Users/ayush/Desktop/chain
 source venv/bin/activate
@@ -179,7 +185,7 @@ print(f'Blocks: {data[\"blockchain_length\"]}, Peers: {data[\"peers\"]}')
 "
 ```
 
-### **Step 6: Send Transactions (Terminal 7)**
+### **Step 6: Send Transactions (Terminal 8)**
 ```bash
 cd /Users/ayush/Desktop/chain
 source venv/bin/activate
@@ -194,7 +200,7 @@ python3 wallet_client.py balance --wallet bob.json
 python3 wallet_client.py balance --wallet miner.json
 ```
 
-### **Step 7: Verify Network Synchronization (Terminal 6)**
+### **Step 7: Verify Network Synchronization (Terminal 9)**
 ```bash
 # Check transaction was processed across all nodes
 curl http://localhost:5000/transaction_pool
@@ -381,6 +387,38 @@ while true; do
 done
 ```
 
+## 🏁 **Competitive Mining Example**
+
+### **Setup Multiple Miners (Latest Fix)**
+```bash
+# Terminal 5: Miner1 on Node 1  
+python3 mining_client.py --wallet 17PVoFzAniw34i839GRDzA4gjm9neJRet8 --node http://localhost:5000
+
+# Terminal 6: Miner2 on Node 2
+python3 mining_client.py --wallet 1GukayKD1hRAXnQaJYKVwQcwCvVzsUbcJj --node http://localhost:5001
+
+# Terminal 6: Miner2 on Node 2
+python3 mining_client.py --wallet 18NDhHYAa3bx3jAZkc7HZf3vKr1JrwVXG3 --node http://localhost:5002
+
+# Terminal 7: Monitor competition
+watch -n 2 'echo "=== Mining Competition ===" && \
+curl -s http://localhost:5000/balance/1GukayKD1hRAXnQaJYKVwQcwCvVzsUbcJj | jq ".balance" && \
+curl -s http://localhost:5001/balance/18NDhHYAa3bx3jAZkc7HZf3vKr1JrwVXG3 | jq ".balance"'
+```
+
+### **Transaction Broadcasting Test**
+```bash
+# Send one transaction - should appear on ALL nodes
+python3 wallet_client.py send --wallet miner1.json --to 18NDhHYAa3bx3jAZkc7HZf3vKr1JrwVXG3 --amount 0.01
+
+# Verify transaction distributed to all nodes
+echo "=== Transaction Pool Distribution ==="
+for port in 5000 5001 5002; do
+  echo "Node $port:"
+  curl -s http://localhost:$port/status | jq '.pending_transactions'
+done
+```
+
 ## 🎯 **Success Indicators**
 
 ### **Network Health**
@@ -389,17 +427,25 @@ done
 - ✅ Identical `blockchain_length` across all nodes
 - ✅ `/peers` endpoint shows connected nodes
 
-### **Mining & Transactions**
+### **Mining Competition (FIXED)**
+- ✅ Multiple miners can compete simultaneously
+- ✅ Transactions distributed to ALL nodes
+- ✅ Any miner can win regardless of connected node
+- ✅ Block validation shows detailed error messages
 - ✅ Mining client shows "Block mined!" messages
-- ✅ Miner balance increases (50 CC per block)
-- ✅ Transactions appear in `/blockchain` endpoint
-- ✅ Transaction pool empties as blocks are mined
+- ✅ Winner's balance increases (50 CC per block)
+
+### **Transaction Broadcasting (FIXED)**
+- ✅ One transaction → appears on ALL nodes
+- ✅ All miners see same transaction pool  
+- ✅ Fastest miner wins and adds block
+- ✅ Transaction removed from all pools after mining
 
 ### **P2P Synchronization**
 - ✅ New nodes automatically discover existing network
 - ✅ Blockchain syncs within 30 seconds
 - ✅ Balances consistent across all nodes
-- ✅ Transactions broadcast to all peers
+- ✅ Blocks broadcast immediately after mining
 
 ### **Manual Control**
 - ✅ Can start nodes individually in any order

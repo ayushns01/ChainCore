@@ -47,17 +47,160 @@ class MiningClient:
             return None
     
     def mine_block(self, block_template: Dict, target_difficulty: int) -> Optional[Dict]:
-        """Mine a block using Proof of Work"""
+        """Legacy mine_block method - redirects to timeout version"""
+        return self.mine_block_with_timeout(block_template, target_difficulty, timeout=120)
+    
+    def submit_block(self, mined_block: Dict) -> bool:
+        """Legacy submit_block method - redirects to validation version"""
+        return self.submit_block_with_validation(mined_block)
+    
+    def check_network_health(self) -> bool:
+        """Check if network is stable before mining"""
+        try:
+            response = requests.get(f"{self.node_url}/status", timeout=5)
+            if response.status_code != 200:
+                print("⚠️  Node not responding")
+                return False
+            
+            status = response.json()
+            
+            # Check if node has peers
+            if status.get('peers', 0) == 0:
+                print("⚠️  Node has no peers - network isolated")
+                return False
+            
+            # Check if blockchain is growing (has more than genesis)
+            if status.get('blockchain_length', 0) < 1:
+                print("⚠️  Blockchain not initialized")
+                return False
+                
+            return True
+            
+        except Exception as e:
+            print(f"⚠️  Network health check failed: {e}")
+            return False
+    
+    def get_mining_stats(self) -> Dict:
+        """Get mining statistics"""
+        if self.start_time == 0:
+            return {
+                'is_mining': self.is_mining,
+                'blocks_mined': 0,
+                'total_time': 0,
+                'average_block_time': 0,
+                'estimated_hash_rate': 0
+            }
+        
+        total_time = time.time() - self.start_time
+        avg_block_time = total_time / self.blocks_mined if self.blocks_mined > 0 else 0
+        
+        return {
+            'is_mining': self.is_mining,
+            'blocks_mined': self.blocks_mined,
+            'total_time': total_time,
+            'average_block_time': avg_block_time,
+            'estimated_hash_rate': self.total_hash_rate,
+            'miner_address': self.wallet_address
+        }
+    
+    def start_mining(self):
+        """Start mining loop with intelligent retry and refresh logic"""
+        self.is_mining = True
+        self.start_time = time.time()
+        
+        print(f"🚀 Starting mining for address: {self.wallet_address}")
+        print(f"🔗 Connected to node: {self.node_url}")
+        
+        try:
+            while self.is_mining:
+                # Check network health before mining
+                if not self.check_network_health():
+                    print("⏳ Waiting for network to stabilize...")
+                    time.sleep(10)
+                    continue
+                
+                success = self.mine_with_retry()
+                if success:
+                    self.blocks_mined += 1
+                    print(f"🎉 Total blocks mined: {self.blocks_mined}")
+                    # Brief pause after successful mining
+                    time.sleep(1)
+                else:
+                    # Longer pause after failures to let network stabilize
+                    print("⏳ Network issues detected, waiting...")
+                    time.sleep(5)
+                
+        except KeyboardInterrupt:
+            print("\n🛑 Mining interrupted by user")
+        except Exception as e:
+            print(f"❌ Mining error: {e}")
+        finally:
+            self.is_mining = False
+            
+            # Print final stats
+            stats = self.get_mining_stats()
+            print(f"\n📊 Final Mining Stats:")
+            print(f"   Blocks mined: {stats['blocks_mined']}")
+            print(f"   Total time: {stats['total_time']:.2f}s")
+            print(f"   Average block time: {stats['average_block_time']:.2f}s")
+    
+    def mine_with_retry(self, max_retries=3):
+        """Mine with intelligent retry logic to handle stale templates"""
+        for attempt in range(max_retries):
+            try:
+                # Get fresh block template for each attempt
+                template_response = self.get_block_template()
+                if not template_response:
+                    print("⏳ Waiting for block template...")
+                    time.sleep(5)
+                    continue
+                
+                block_template = template_response['block_template']
+                target_difficulty = template_response['target_difficulty']
+                
+                print(f"⛏️  Mining block {block_template['index']} (attempt {attempt + 1}/{max_retries})")
+                
+                # Mine the block with timeout
+                mined_block = self.mine_block_with_timeout(block_template, target_difficulty, timeout=60)
+                if not mined_block:
+                    print("⏱️  Mining timed out, getting fresh template...")
+                    continue
+                
+                # Submit mined block
+                if self.submit_block_with_validation(mined_block):
+                    print(f"✅ Block {mined_block['index']} successfully submitted!")
+                    return True
+                else:
+                    print(f"❌ Attempt {attempt + 1} failed - block possibly stale")
+                    if attempt < max_retries - 1:
+                        print("🔄 Getting fresh template for retry...")
+                        time.sleep(2)  # Brief pause before retry
+                    
+            except Exception as e:
+                print(f"❌ Mining attempt {attempt + 1} error: {e}")
+                if attempt < max_retries - 1:
+                    time.sleep(2)
+        
+        print(f"❌ All {max_retries} mining attempts failed")
+        return False
+    
+    def mine_block_with_timeout(self, block_template: Dict, target_difficulty: int, timeout: int = 60) -> Optional[Dict]:
+        """Mine a block with timeout to prevent infinite loops"""
         print(f"⛏️  Mining block {block_template['index']}...")
         print(f"   Target difficulty: {target_difficulty} leading zeros")
         print(f"   Transactions: {len(block_template['transactions'])}")
+        print(f"   Timeout: {timeout} seconds")
         
         target = "0" * target_difficulty
         nonce = 0
         start_time = time.time()
         hash_count = 0
         
-        while True:
+        while time.time() - start_time < timeout:
+            if not self.is_mining:  # Check if mining was stopped
+                print("🛑 Mining stopped")
+                return None
+                
             # Update nonce
             block_template['nonce'] = nonce
             
@@ -94,20 +237,20 @@ class MiningClient:
             if nonce % 100000 == 0:
                 elapsed = time.time() - start_time
                 rate = hash_count / elapsed if elapsed > 0 else 0
-                print(f"   Mining... Nonce: {nonce:,}, Rate: {rate:.0f} H/s, Hash: {block_hash[:10]}...")
-            
-            # Check if we should stop (in a real implementation, this would be more sophisticated)
-            if not self.is_mining:
-                print("🛑 Mining stopped")
-                return None
+                remaining = timeout - elapsed
+                print(f"   Mining... Nonce: {nonce:,}, Rate: {rate:.0f} H/s, Remaining: {remaining:.0f}s")
+        
+        print(f"⏱️  Mining timeout after {timeout} seconds")
+        return None
     
-    def submit_block(self, mined_block: Dict) -> bool:
-        """Submit mined block to network"""
+    def submit_block_with_validation(self, mined_block: Dict) -> bool:
+        """Submit mined block with enhanced error handling and validation"""
         try:
             response = requests.post(
                 f"{self.node_url}/submit_block",
                 json=mined_block,
-                headers={'Content-Type': 'application/json'}
+                headers={'Content-Type': 'application/json'},
+                timeout=10
             )
             
             if response.status_code == 200:
@@ -116,85 +259,32 @@ class MiningClient:
                 print(f"   Status: {result['status']}")
                 print(f"   Block hash: {result['block_hash']}")
                 return True
+            elif response.status_code == 400:
+                error_info = response.json()
+                print(f"❌ Block submission rejected: {error_info.get('error', 'Unknown error')}")
+                
+                # Check if it's a stale block error
+                if 'previous hash' in str(error_info).lower() or 'index' in str(error_info).lower():
+                    print("📄 Block is stale (blockchain moved forward during mining)")
+                elif 'invalid transaction' in str(error_info).lower():
+                    print("💸 Transaction validation failed (possibly spent UTXOs)")
+                else:
+                    print(f"❌ Validation failed: {error_info}")
+                    
+                return False
             else:
-                print(f"❌ Block submission failed: {response.text}")
+                print(f"❌ Block submission failed with status {response.status_code}: {response.text}")
                 return False
                 
+        except requests.exceptions.Timeout:
+            print("⏱️  Block submission timeout")
+            return False
+        except requests.exceptions.ConnectionError:
+            print("🔌 Connection error during block submission")
+            return False
         except Exception as e:
             print(f"❌ Error submitting block: {e}")
             return False
-    
-    def get_mining_stats(self) -> Dict:
-        """Get mining statistics"""
-        if self.start_time == 0:
-            return {
-                'is_mining': self.is_mining,
-                'blocks_mined': 0,
-                'total_time': 0,
-                'average_block_time': 0,
-                'estimated_hash_rate': 0
-            }
-        
-        total_time = time.time() - self.start_time
-        avg_block_time = total_time / self.blocks_mined if self.blocks_mined > 0 else 0
-        
-        return {
-            'is_mining': self.is_mining,
-            'blocks_mined': self.blocks_mined,
-            'total_time': total_time,
-            'average_block_time': avg_block_time,
-            'estimated_hash_rate': self.total_hash_rate,
-            'miner_address': self.wallet_address
-        }
-    
-    def start_mining(self):
-        """Start mining loop"""
-        self.is_mining = True
-        self.start_time = time.time()
-        
-        print(f"🚀 Starting mining for address: {self.wallet_address}")
-        print(f"🔗 Connected to node: {self.node_url}")
-        
-        try:
-            while self.is_mining:
-                # Get block template
-                template_response = self.get_block_template()
-                if not template_response:
-                    print("⏳ Waiting for block template...")
-                    time.sleep(5)
-                    continue
-                
-                block_template = template_response['block_template']
-                target_difficulty = template_response['target_difficulty']
-                
-                # Mine the block
-                mined_block = self.mine_block(block_template, target_difficulty)
-                if not mined_block:
-                    continue
-                
-                # Submit mined block
-                if self.submit_block(mined_block):
-                    self.blocks_mined += 1
-                    print(f"🎉 Total blocks mined: {self.blocks_mined}")
-                else:
-                    print("❌ Block submission failed, continuing...")
-                
-                # Brief pause before next block
-                time.sleep(1)
-                
-        except KeyboardInterrupt:
-            print("\n🛑 Mining interrupted by user")
-        except Exception as e:
-            print(f"❌ Mining error: {e}")
-        finally:
-            self.is_mining = False
-            
-            # Print final stats
-            stats = self.get_mining_stats()
-            print(f"\n📊 Final Mining Stats:")
-            print(f"   Blocks mined: {stats['blocks_mined']}")
-            print(f"   Total time: {stats['total_time']:.2f}s")
-            print(f"   Average block time: {stats['average_block_time']:.2f}s")
 
 def main():
     parser = argparse.ArgumentParser(description='Bitcoin-style Mining Client')
