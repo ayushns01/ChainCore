@@ -312,8 +312,8 @@ class NetworkNode:
         @self.app.route('/blockchain', methods=['GET'])
         def get_blockchain():
             response = jsonify({
-                'chain': [block.to_dict() for block in self.blockchain.chain],
-                'length': len(self.blockchain.chain)
+                'length': len(self.blockchain.chain),
+                'chain': [block.to_dict() for block in self.blockchain.chain]
             })
             response.headers['X-Blockchain-Length'] = str(len(self.blockchain.chain))
             return response
