@@ -384,6 +384,9 @@ class NetworkNode:
             try:
                 block_data = request.get_json()
                 
+                # Check if this block was actually mined by this node or received from peer
+                is_locally_mined = request.headers.get('X-Local-Mining') == 'true'
+                
                 # Reconstruct block
                 transactions = [Transaction.from_dict(tx) for tx in block_data['transactions']]
                 block = Block(
@@ -402,12 +405,17 @@ class NetworkNode:
                     # Extract miner address from coinbase transaction
                     miner_address = block.transactions[0].outputs[0].recipient_address if block.transactions else "unknown"
                     
-                    # Log the mined block to session
-                    self._log_block_mined(block, miner_address)
+                    # Only log blocks that were actually mined by this node
+                    if is_locally_mined:
+                        self._log_block_mined(block, miner_address)
+                        print(f"✅ Block {block.index} MINED and accepted: {block.hash[:16]}...")
+                    else:
+                        print(f"✅ Block {block.index} received and accepted: {block.hash[:16]}...")
                     
-                    # Broadcast block to peer nodes for faster distribution  
-                    self._broadcast_block_to_peers(block)
-                    print(f"✅ Block {block.index} accepted and broadcasted: {block.hash[:16]}...")
+                    # Broadcast block to peer nodes for faster distribution (only if locally mined)
+                    if is_locally_mined:
+                        self._broadcast_block_to_peers(block)
+                    
                     return jsonify({'status': 'accepted', 'block_hash': block.hash})
                 else:
                     print(f"❌ Block {block.index} rejected: {block.hash[:16]}...")

@@ -249,7 +249,10 @@ class MiningClient:
             response = requests.post(
                 f"{self.node_url}/submit_block",
                 json=mined_block,
-                headers={'Content-Type': 'application/json'},
+                headers={
+                    'Content-Type': 'application/json',
+                    'X-Local-Mining': 'true'  # Mark as locally mined block
+                },
                 timeout=10
             )
             
