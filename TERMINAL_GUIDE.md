@@ -90,7 +90,7 @@ curl http://localhost:5001/transaction_pool
 curl http://localhost:5002/transaction_pool
 
 # Blockchain Status
-curl http://localhost:5000/blockchain      
+curl http://localhost:5000/blockchain
 
 
 
