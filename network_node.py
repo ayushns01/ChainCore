@@ -22,6 +22,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
 
 from src.blockchain.bitcoin_transaction import Transaction
 from src.crypto.ecdsa_crypto import hash_data, double_sha256
+from peer_management.session_manager import session_manager
 
 class Block:
     def __init__(self, index: int, transactions: List[Transaction], previous_hash: str, 
@@ -242,47 +243,97 @@ class NetworkNode:
         self.peers: Set[str] = set()
         self.app = Flask(__name__)
         
-        # Session tracking with unified session folder for all nodes
+        # Session tracking with dynamic session folders
         self.session_start_time = datetime.now()
+        
+        # Register this node with the session manager
+        session_manager.register_node(self.node_id, self.api_port, self.p2p_port)
+        
+        # Get the current session folder (same for all nodes in this blockchain run)
+        self.unified_session_folder = session_manager.get_current_session_folder()
         self.session_id = f"session_{self.node_id}_{int(time.time())}"
-        self.unified_session_folder = "sessions/session_1"  # All nodes use same folder
         self.session_file = f"{self.unified_session_folder}/{self.session_id}.json"
         self.session_data = {
             "session_id": self.session_id,
             "node_id": self.node_id,
             "start_time": self.session_start_time.isoformat(),
+            "session_folder": os.path.basename(self.unified_session_folder),
             "blocks_mined": []
         }
         self._init_session_file()
         
         # Start with empty peers - will discover active nodes dynamically
         self.active_peers: Set[str] = set()
+        self.last_peer_discovery = 0
         
         # Auto-discover peer nodes by testing common ports
         self._discover_active_peers()
         
         self._setup_api_routes()
     
-    def _discover_active_peers(self):
+    def _discover_active_peers(self, verbose=True):
         """Discover and add only active peer nodes"""
         import requests
+        import time
+        
+        self.last_peer_discovery = time.time()
         common_ports = [5000, 5001, 5002, 5003, 5004, 5005]
+        newly_discovered = 0
         
         for port in common_ports:
             if port != self.api_port:  # Don't add self as peer
                 peer_url = f"http://localhost:{port}"
                 try:
                     # Test if peer is active with short timeout
-                    response = requests.get(f"{peer_url}/status", timeout=1)
+                    response = requests.get(f"{peer_url}/status", timeout=2)
+                    if response.status_code == 200:
+                        if peer_url not in self.peers:
+                            newly_discovered += 1
+                            if verbose:
+                                print(f"✅ Discovered new peer: {peer_url}")
+                        self.peers.add(peer_url)
+                        self.active_peers.add(peer_url)
+                        
+                        # Try to get peer's peer list for peer exchange
+                        try:
+                            peer_response = requests.get(f"{peer_url}/peers", timeout=2)
+                            if peer_response.status_code == 200:
+                                peer_data = peer_response.json()
+                                self._process_peer_exchange(peer_data.get('active_peers', []), verbose=False)
+                        except:
+                            pass  # Peer exchange failed, but peer is still valid
+                            
+                except:
+                    # Remove peer if it was previously active but now unreachable
+                    if peer_url in self.active_peers:
+                        self.active_peers.discard(peer_url)
+                        if verbose:
+                            print(f"⚠️ Peer became inactive: {peer_url}")
+        
+        if verbose:
+            print(f"🔗 Peer discovery complete: {len(self.active_peers)} active peers ({newly_discovered} new)")
+    
+    def _process_peer_exchange(self, peer_urls, verbose=True):
+        """Process peer URLs received from peer exchange"""
+        import requests
+        
+        newly_discovered = 0
+        for peer_url in peer_urls:
+            if peer_url not in self.peers and not peer_url.endswith(f":{self.api_port}"):
+                try:
+                    # Verify the peer is actually reachable
+                    response = requests.get(f"{peer_url}/status", timeout=2)
                     if response.status_code == 200:
                         self.peers.add(peer_url)
                         self.active_peers.add(peer_url)
-                        print(f"✅ Discovered active peer: {peer_url}")
+                        newly_discovered += 1
+                        if verbose:
+                            print(f"🤝 Added peer via exchange: {peer_url}")
                 except:
-                    # Skip inactive peers silently
-                    pass
+                    pass  # Peer not reachable
         
-        print(f"🔗 Found {len(self.active_peers)} active peers")
+        if verbose and newly_discovered > 0:
+            print(f"🔄 Peer exchange added {newly_discovered} new peers")
     
     def _init_session_file(self):
         """Initialize session tracking file in unified session folder"""
@@ -496,58 +547,78 @@ class NetworkNode:
         
         @self.app.route('/sessions', methods=['GET'])
         def list_sessions():
-            """List all session files in the unified session folder"""
+            """List all sessions across all session folders"""
             all_sessions = []
+            sessions_by_folder = {}
             sessions_by_node = {}
-            session_folder_path = 'sessions/session_1'
             
-            if os.path.exists(session_folder_path):
-                json_files = [f for f in os.listdir(session_folder_path) if f.endswith('.json')]
+            # Get all session folders using session manager
+            session_list = session_manager.list_all_sessions()
+            
+            for session_info in session_list:
+                session_folder_name = session_info['session_name']
+                session_path = session_info['path']
                 
-                for json_file in json_files:
-                    filepath = os.path.join(session_folder_path, json_file)
-                    try:
-                        with open(filepath, 'r') as f:
-                            session_info = json.load(f)
-                        
-                        session_data = {
-                            'json_file': json_file,
-                            'session_id': session_info.get('session_id'),
-                            'node_id': session_info.get('node_id'),
-                            'start_time': session_info.get('start_time'),
-                            'blocks_mined_count': len(session_info.get('blocks_mined', []))
-                        }
-                        
-                        all_sessions.append(session_data)
-                        
-                        # Group by node_id
-                        node_id = session_info.get('node_id', 'unknown')
-                        if node_id not in sessions_by_node:
-                            sessions_by_node[node_id] = []
-                        sessions_by_node[node_id].append(session_data)
-                        
-                    except:
-                        continue
+                # Get all JSON files in this session folder
+                if os.path.exists(session_path):
+                    json_files = [f for f in os.listdir(session_path) if f.endswith('.json') and f != 'session_metadata.json']
+                    
+                    folder_sessions = []
+                    for json_file in json_files:
+                        filepath = os.path.join(session_path, json_file)
+                        try:
+                            with open(filepath, 'r') as f:
+                                node_session_info = json.load(f)
+                            
+                            session_data = {
+                                'json_file': json_file,
+                                'session_folder': session_folder_name,
+                                'session_id': node_session_info.get('session_id'),
+                                'node_id': node_session_info.get('node_id'),
+                                'start_time': node_session_info.get('start_time'),
+                                'blocks_mined_count': len(node_session_info.get('blocks_mined', []))
+                            }
+                            
+                            all_sessions.append(session_data)
+                            folder_sessions.append(session_data)
+                            
+                            # Group by node_id
+                            node_id = node_session_info.get('node_id', 'unknown')
+                            if node_id not in sessions_by_node:
+                                sessions_by_node[node_id] = []
+                            sessions_by_node[node_id].append(session_data)
+                            
+                        except:
+                            continue
+                    
+                    sessions_by_folder[session_folder_name] = {
+                        'metadata': session_info.get('metadata', {}),
+                        'sessions': folder_sessions,
+                        'session_count': len(folder_sessions)
+                    }
             
             return jsonify({
-                'session_folder': 'session_1',
+                'current_session_folder': os.path.basename(self.unified_session_folder),
                 'all_sessions': all_sessions,
+                'sessions_by_folder': sessions_by_folder,
                 'sessions_by_node': sessions_by_node,
-                'total_sessions': len(all_sessions)
+                'total_sessions': len(all_sessions),
+                'total_folders': len(sessions_by_folder)
             })
         
-        @self.app.route('/sessions/<json_filename>', methods=['GET'])
-        def get_session_details(json_filename):
-            """Get full details for a specific session JSON file"""
+        @self.app.route('/sessions/<session_folder>/<json_filename>', methods=['GET'])
+        def get_session_details(session_folder, json_filename):
+            """Get full details for a specific session JSON file in a specific folder"""
             if not json_filename.endswith('.json'):
                 json_filename += '.json'
             
-            filepath = os.path.join('sessions/session_1', json_filename)
+            filepath = os.path.join('sessions', session_folder, json_filename)
             if os.path.exists(filepath):
                 try:
                     with open(filepath, 'r') as f:
                         session_info = json.load(f)
                     return jsonify({
+                        'session_folder': session_folder,
                         'json_file': json_filename,
                         'full_session_data': session_info
                     })
@@ -558,35 +629,223 @@ class NetworkNode:
         
         @self.app.route('/sessions/node/<node_id>', methods=['GET'])  
         def get_node_sessions(node_id):
-            """Get all sessions for a specific node from unified folder"""
+            """Get all sessions for a specific node across all session folders"""
             node_sessions = []
-            session_folder_path = 'sessions/session_1'
             
-            if os.path.exists(session_folder_path):
-                json_files = [f for f in os.listdir(session_folder_path) if f.endswith('.json')]
+            # Get all session folders using session manager
+            session_list = session_manager.list_all_sessions()
+            
+            for session_info in session_list:
+                session_folder_name = session_info['session_name']
+                session_path = session_info['path']
                 
-                for json_file in json_files:
-                    filepath = os.path.join(session_folder_path, json_file)
-                    try:
-                        with open(filepath, 'r') as f:
-                            session_info = json.load(f)
-                        if session_info.get('node_id') == node_id:
-                            node_sessions.append({
-                                'json_file': json_file,
-                                'session_id': session_info.get('session_id'),
-                                'start_time': session_info.get('start_time'),
-                                'blocks_mined_count': len(session_info.get('blocks_mined', [])),
-                                'full_data': session_info
-                            })
-                    except:
-                        continue
+                if os.path.exists(session_path):
+                    json_files = [f for f in os.listdir(session_path) if f.endswith('.json') and f != 'session_metadata.json']
+                    
+                    for json_file in json_files:
+                        filepath = os.path.join(session_path, json_file)
+                        try:
+                            with open(filepath, 'r') as f:
+                                node_session_info = json.load(f)
+                            if node_session_info.get('node_id') == node_id:
+                                node_sessions.append({
+                                    'session_folder': session_folder_name,
+                                    'json_file': json_file,
+                                    'session_id': node_session_info.get('session_id'),
+                                    'start_time': node_session_info.get('start_time'),
+                                    'blocks_mined_count': len(node_session_info.get('blocks_mined', [])),
+                                    'full_data': node_session_info
+                                })
+                        except:
+                            continue
             
             return jsonify({
                 'node_id': node_id,
-                'session_folder': 'session_1',
+                'current_session_folder': os.path.basename(self.unified_session_folder),
                 'sessions': node_sessions,
                 'session_count': len(node_sessions)
             })
+        
+        @self.app.route('/discover_peers', methods=['POST'])
+        def force_peer_discovery():
+            """Force immediate peer discovery"""
+            try:
+                old_count = len(self.active_peers)
+                self._discover_active_peers(verbose=True)
+                new_count = len(self.active_peers)
+                
+                return jsonify({
+                    'status': 'success',
+                    'message': f'Peer discovery completed',
+                    'peers_before': old_count,
+                    'peers_after': new_count,
+                    'peers_added': new_count - old_count,
+                    'active_peers': list(self.active_peers)
+                })
+            except Exception as e:
+                return jsonify({
+                    'status': 'error',
+                    'message': str(e)
+                }), 500
+        
+        @self.app.route('/peer_health', methods=['GET'])
+        def check_peer_health():
+            """Check health status of all known peers"""
+            import requests
+            import time
+            
+            peer_health = {}
+            healthy_peers = set()
+            
+            for peer in list(self.peers):
+                try:
+                    start_time = time.time()
+                    response = requests.get(f"{peer}/status", timeout=3)
+                    response_time = time.time() - start_time
+                    
+                    if response.status_code == 200:
+                        peer_data = response.json()
+                        peer_health[peer] = {
+                            'status': 'healthy',
+                            'response_time_ms': round(response_time * 1000, 2),
+                            'node_id': peer_data.get('node_id', 'unknown'),
+                            'blockchain_length': peer_data.get('blockchain_length', 0),
+                            'peer_count': peer_data.get('peers', 0)
+                        }
+                        healthy_peers.add(peer)
+                    else:
+                        peer_health[peer] = {
+                            'status': 'unhealthy',
+                            'error': f'HTTP {response.status_code}',
+                            'response_time_ms': round(response_time * 1000, 2)
+                        }
+                except requests.exceptions.Timeout:
+                    peer_health[peer] = {
+                        'status': 'timeout',
+                        'error': 'Request timeout (>3s)'
+                    }
+                except Exception as e:
+                    peer_health[peer] = {
+                        'status': 'error',
+                        'error': str(e)[:100]
+                    }
+            
+            # Update active peers based on health check
+            self.active_peers = healthy_peers
+            
+            return jsonify({
+                'total_peers': len(self.peers),
+                'healthy_peers': len(healthy_peers),
+                'unhealthy_peers': len(self.peers) - len(healthy_peers),
+                'peer_health': peer_health,
+                'last_discovery': self.last_peer_discovery
+            })
+        
+        @self.app.route('/session_info', methods=['GET'])
+        def get_session_info():
+            """Get current session manager information"""
+            try:
+                session_info = session_manager.get_session_info()
+                return jsonify({
+                    'status': 'success',
+                    'session_info': session_info,
+                    'node_session_file': os.path.basename(self.session_file),
+                    'node_session_folder': os.path.basename(self.unified_session_folder)
+                })
+            except Exception as e:
+                return jsonify({
+                    'status': 'error',
+                    'message': str(e)
+                }), 500
+        
+        @self.app.route('/new_session', methods=['POST'])
+        def force_new_session():
+            """Force creation of a new session folder (admin only)"""
+            try:
+                old_session = os.path.basename(self.unified_session_folder)
+                new_session_folder = session_manager.force_new_session()
+                
+                # Update this node to use the new session folder
+                self.unified_session_folder = new_session_folder
+                self.session_id = f"session_{self.node_id}_{int(time.time())}"
+                self.session_file = f"{self.unified_session_folder}/{self.session_id}.json"
+                self.session_data['session_folder'] = os.path.basename(self.unified_session_folder)
+                self._init_session_file()
+                
+                # Re-register with new session
+                session_manager.register_node(self.node_id, self.api_port, self.p2p_port)
+                
+                return jsonify({
+                    'status': 'success',
+                    'message': 'New session created',
+                    'old_session': old_session,
+                    'new_session': os.path.basename(new_session_folder),
+                    'new_session_path': new_session_folder
+                })
+            except Exception as e:
+                return jsonify({
+                    'status': 'error',
+                    'message': str(e)
+                }), 500
+        
+        @self.app.route('/close_session', methods=['POST'])
+        def close_session():
+            """Close the current session (marks it as completed)"""
+            try:
+                session_manager.close_current_session()
+                return jsonify({
+                    'status': 'success',
+                    'message': 'Session closed successfully'
+                })
+            except Exception as e:
+                return jsonify({
+                    'status': 'error',
+                    'message': str(e)
+                }), 500
+        
+        @self.app.route('/sync_peers', methods=['POST'])
+        def force_peer_sync():
+            """Force immediate peer symmetry check and synchronization"""
+            try:
+                old_count = len(self.active_peers)
+                
+                # Run full peer discovery first
+                self._discover_active_peers(verbose=True)
+                
+                # Then ensure symmetry
+                self._ensure_peer_symmetry()
+                
+                new_count = len(self.active_peers)
+                
+                return jsonify({
+                    'status': 'success',
+                    'message': 'Peer synchronization completed',
+                    'peers_before': old_count,
+                    'peers_after': new_count,
+                    'peers_added': new_count - old_count,
+                    'active_peers': list(self.active_peers)
+                })
+            except Exception as e:
+                return jsonify({
+                    'status': 'error',
+                    'message': str(e)
+                }), 500
+        
+        @self.app.route('/active_nodes', methods=['GET'])
+        def get_active_nodes():
+            """Get count of active nodes across all sessions"""
+            try:
+                active_count = session_manager.get_active_nodes_count()
+                return jsonify({
+                    'active_nodes_count': active_count,
+                    'current_session': os.path.basename(self.unified_session_folder),
+                    'node_id': self.node_id,
+                    'status': 'active'
+                })
+            except Exception as e:
+                return jsonify({
+                    'error': str(e)
+                }), 500
     
     def _broadcast_transaction_to_peers(self, transaction):
         """Broadcast transaction to active peer nodes only"""
@@ -609,6 +868,8 @@ class NetworkNode:
         
         # Remove failed peers from active list
         self.active_peers -= failed_peers
+        if failed_peers:
+            print(f"🔌 Removed {len(failed_peers)} inactive peers from active list")
     
     def _broadcast_block_to_peers(self, block):
         """Broadcast block to active peer nodes only"""
@@ -631,6 +892,8 @@ class NetworkNode:
         
         # Remove failed peers from active list
         self.active_peers -= failed_peers
+        if failed_peers:
+            print(f"🔌 Removed {len(failed_peers)} inactive peers from active list")
     
     def _sync_with_peers(self):
         """Synchronize blockchain with peers"""
@@ -675,15 +938,119 @@ class NetworkNode:
         except Exception as e:
             print(f"⚠️ Sync error: {e}")
     
+    def _ensure_peer_symmetry(self):
+        """Ensure all peers know about each other (symmetric peer discovery)"""
+        import requests
+        import time
+        
+        self._last_symmetry_check = time.time()
+        
+        try:
+            # Get peer lists from all known peers
+            all_discovered_peers = set(self.peers)
+            peer_reports = {}
+            
+            for peer in list(self.active_peers):
+                try:
+                    response = requests.get(f"{peer}/peers", timeout=3)
+                    if response.status_code == 200:
+                        peer_data = response.json()
+                        peer_active_peers = set(peer_data.get('active_peers', []))
+                        peer_reports[peer] = peer_active_peers
+                        all_discovered_peers.update(peer_active_peers)
+                except:
+                    continue
+            
+            # Find peers that others know about but we don't
+            our_url = f"http://localhost:{self.api_port}"
+            missing_peers = all_discovered_peers - self.peers - {our_url}
+            
+            if missing_peers:
+                print(f"🔄 Discovered {len(missing_peers)} peers via peer exchange")
+                
+                # Try to connect to missing peers
+                for peer_url in missing_peers:
+                    try:
+                        response = requests.get(f"{peer_url}/status", timeout=2)
+                        if response.status_code == 200:
+                            self.peers.add(peer_url)
+                            self.active_peers.add(peer_url)
+                            print(f"   ✅ Added missing peer: {peer_url}")
+                    except:
+                        pass
+            
+            # Broadcast our presence to peers that might not know about us
+            self._announce_to_peers()
+            
+        except Exception as e:
+            print(f"⚠️ Peer symmetry check error: {e}")
+    
+    def _announce_to_peers(self):
+        """Announce our presence to all known peers"""
+        import requests
+        
+        our_url = f"http://localhost:{self.api_port}"
+        announcement_count = 0
+        
+        for peer in list(self.active_peers):
+            try:
+                # Try to add ourselves to their peer list
+                response = requests.post(
+                    f"{peer}/add_peer",
+                    json={"peer_url": our_url},
+                    headers={'Content-Type': 'application/json'},
+                    timeout=3
+                )
+                if response.status_code == 200:
+                    announcement_count += 1
+            except:
+                continue
+        
+        if announcement_count > 0:
+            print(f"📢 Announced presence to {announcement_count} peers")
+    
     def _periodic_sync(self):
-        """Periodically sync with peers"""
+        """Periodically sync with peers and rediscover peers"""
         import time
         time.sleep(5)  # Wait for startup
+        
         while True:
             try:
+                # Sync blockchain with peers
                 self._sync_with_peers()
-                time.sleep(30)  # Sync every 30 seconds
-            except:
+                
+                # Periodic peer discovery (every 60 seconds)
+                if time.time() - self.last_peer_discovery > 60:
+                    self._discover_active_peers(verbose=False)
+                
+                # Ensure peer symmetry (every 45 seconds)
+                if hasattr(self, '_last_symmetry_check'):
+                    if time.time() - self._last_symmetry_check > 45:
+                        self._ensure_peer_symmetry()
+                else:
+                    self._last_symmetry_check = time.time()
+                    self._ensure_peer_symmetry()
+                
+                # Update node heartbeat (every 30 seconds)
+                if hasattr(self, '_last_heartbeat'):
+                    if time.time() - self._last_heartbeat > 30:
+                        session_manager.update_node_heartbeat(self.node_id)
+                        self._last_heartbeat = time.time()
+                else:
+                    self._last_heartbeat = time.time()
+                    session_manager.update_node_heartbeat(self.node_id)
+                
+                # Check for inactive sessions (every 60 seconds)
+                if hasattr(self, '_last_session_cleanup'):
+                    if time.time() - self._last_session_cleanup > 60:
+                        session_manager.check_and_cleanup_inactive_sessions()
+                        self._last_session_cleanup = time.time()
+                else:
+                    self._last_session_cleanup = time.time()
+                
+                time.sleep(30)  # Check every 30 seconds
+            except Exception as e:
+                print(f"⚠️ Periodic sync error: {e}")
                 time.sleep(30)
     
     def start_api_server(self):
@@ -714,10 +1081,19 @@ class NetworkNode:
         print(f"   POST /broadcast_transaction - Submit transaction")
         print(f"   POST /mine_block - Get mining template")
         print(f"   POST /submit_block - Submit mined block")
+        print(f"   GET  /peers - List all peers")
+        print(f"   POST /add_peer - Add new peer")
+        print(f"   POST /discover_peers - Force peer discovery")
+        print(f"   POST /sync_peers - Force peer synchronization")
+        print(f"   GET  /peer_health - Check peer health status")
         print(f"   GET  /session - Current session mining data")
-        print(f"   GET  /sessions - List all sessions from unified folder")
-        print(f"   GET  /sessions/<json_filename> - Get specific session file")
+        print(f"   GET  /sessions - List all sessions across all session folders")
+        print(f"   GET  /sessions/<session_folder>/<json_filename> - Get specific session file")
         print(f"   GET  /sessions/node/<node_id> - Get all sessions for specific node")
+        print(f"   GET  /session_info - Current session manager information")
+        print(f"   GET  /active_nodes - Count of active nodes across sessions")
+        print(f"   POST /new_session - Force creation of new session folder")
+        print(f"   POST /close_session - Close/complete current session")
         
         try:
             # Keep main thread alive

@@ -1,0 +1,51 @@
+{
+  "session_name": "session_2",
+  "session_number": 2,
+  "session_start_time": "2025-08-08T02:36:48.967033",
+  "blockchain_start_timestamp": 1754600808.967247,
+  "nodes": [
+    {
+      "node_id": "core5",
+      "api_port": 5005,
+      "p2p_port": 8005,
+      "registration_time": "2025-08-08T02:36:48.967587",
+      "last_seen": 1754601204.3789032
+    },
+    {
+      "node_id": "core4",
+      "api_port": 5004,
+      "p2p_port": 8004,
+      "registration_time": "2025-08-08T02:37:14.213084",
+      "last_seen": 1754601199.6381161
+    },
+    {
+      "node_id": "core3",
+      "api_port": 5003,
+      "p2p_port": 8003,
+      "registration_time": "2025-08-08T02:37:30.391395",
+      "last_seen": 1754601185.784884
+    },
+    {
+      "node_id": "core1",
+      "api_port": 5001,
+      "p2p_port": 8001,
+      "registration_time": "2025-08-08T02:38:15.393103",
+      "last_seen": 1754601200.8110878
+    },
+    {
+      "node_id": "core2",
+      "api_port": 5002,
+      "p2p_port": 8002,
+      "registration_time": "2025-08-08T02:38:45.754356",
+      "last_seen": 1754601201.0944252
+    },
+    {
+      "node_id": "core6",
+      "api_port": 5006,
+      "p2p_port": 8006,
+      "registration_time": "2025-08-08T02:43:04.089878",
+      "last_seen": 1754601189.264391
+    }
+  ],
+  "status": "active"
+}

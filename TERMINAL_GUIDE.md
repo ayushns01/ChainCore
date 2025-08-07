@@ -95,6 +95,25 @@ curl http://localhost:5000/blockchain
 
 
 
+python3 network_node.py --node-id core1 --api-port 5001 --p2p-port 8001
+python3 network_node.py --node-id core2 --api-port 5002 --p2p-port 8002
+python3 network_node.py --node-id core3 --api-port 5003 --p2p-port 8003
+python3 network_node.py --node-id core4 --api-port 5004 --p2p-port 8004
+python3 network_node.py --node-id core5 --api-port 5005 --p2p-port 8005
+python3 network_node.py --node-id core6 --api-port 5006 --p2p-port 8006
+python3 network_node.py --node-id core7 --api-port 5007 --p2p-port 8007
+python3 network_node.py --node-id core8 --api-port 5008 --p2p-port 8008
+python3 network_node.py --node-id core9 --api-port 5009 --p2p-port 8009
+python3 network_node.py --node-id core10 --api-port 5010 --p2p-port 8010
+
+
+
+
+
+
+
+
+
 
 
 
