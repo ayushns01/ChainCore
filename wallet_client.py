@@ -101,7 +101,14 @@ class WalletClient:
         # Get UTXOs
         utxos = self.get_utxos()
         if not utxos:
-            print("❌ No UTXOs available")
+            balance = self.get_balance()
+            print("❌ No UTXOs available for transaction")
+            print(f"   💰 Wallet balance: {balance:.8f} CC")
+            if balance > 0:
+                print("   ⚠️  Balance exists but no spendable UTXOs found")
+                print("   💡 This may indicate pending transactions or a synchronization issue")
+            else:
+                print("   💡 Wallet is empty - receive some coins first")
             return False
         
         # Select UTXOs
@@ -116,7 +123,18 @@ class WalletClient:
                 break
         
         if total_selected < needed:
-            print(f"❌ Insufficient funds. Need {needed}, have {total_selected}")
+            balance = self.get_balance()
+            shortage = needed - total_selected
+            print(f"❌ Insufficient funds for transaction")
+            print(f"   💰 Wallet balance: {balance:.8f} CC")
+            print(f"   💸 Amount to send: {amount:.8f} CC")
+            print(f"   🏷️  Transaction fee: {fee:.8f} CC")
+            print(f"   📊 Total needed: {needed:.8f} CC")
+            print(f"   ⚠️  Short by: {shortage:.8f} CC")
+            if len(utxos) == 0:
+                print(f"   📦 No UTXOs available (wallet has no spendable funds)")
+            else:
+                print(f"   📦 Available UTXOs: {len(utxos)} (total: {total_selected:.8f} CC)")
             return False
         
         # Create transaction
@@ -213,10 +231,18 @@ def main():
             return
         
         wallet = WalletClient(args.wallet, args.node)
-        print(f"📤 Sending {args.amount} CC to {args.to}")
+        
+        # Show current wallet status before attempting transaction
+        balance = wallet.get_balance()
+        print(f"💼 Wallet Balance: {balance:.8f} CC")
+        print(f"📤 Sending {args.amount} CC to {args.to} (Fee: {args.fee} CC)")
+        print(f"📊 Total required: {args.amount + args.fee:.8f} CC")
+        print("-" * 50)
         
         if wallet.send_transaction(args.to, args.amount, args.fee):
             print("✅ Transaction sent successfully!")
+            new_balance = wallet.get_balance()
+            print(f"💰 New balance: {new_balance:.8f} CC")
         else:
             print("❌ Transaction failed!")
     
@@ -234,8 +260,14 @@ def main():
         history = wallet.get_transaction_history()
         
         print(f"📋 Transaction History ({len(history)} transactions):")
-        for tx in history[:10]:  # Show last 10
-            print(f"   {tx['tx_id'][:16]}... | {tx['amount']} CC | {tx['type']}")
+        if history:
+            from datetime import datetime
+            for tx in history[:10]:  # Show last 10
+                timestamp = datetime.fromtimestamp(tx['timestamp']).strftime('%Y-%m-%d %H:%M:%S')
+                coinbase_indicator = " (coinbase)" if tx.get('is_coinbase', False) else ""
+                print(f"   {tx['tx_id'][:16]}... | {tx['amount']} CC | {tx['type']}{coinbase_indicator} | {timestamp} | Block #{tx['block_height']}")
+        else:
+            print("   No transactions found")
 
 if __name__ == '__main__':
     main()

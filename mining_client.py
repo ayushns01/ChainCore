@@ -25,7 +25,10 @@ class MiningClient:
         self.is_mining = False
         self.blocks_mined = 0
         self.total_hash_rate = 0
+        self.current_hash_rate = 0
+        self.total_hashes = 0
         self.start_time = 0
+        self.last_hash_rate_update = 0
     
     def get_block_template(self) -> Optional[Dict]:
         """Get block template from network node"""
@@ -196,6 +199,9 @@ class MiningClient:
         start_time = time.time()
         hash_count = 0
         
+        # Reset hash count tracking for new mining attempt
+        self._last_hash_count = 0
+        
         while time.time() - start_time < timeout:
             if not self.is_mining:  # Check if mining was stopped
                 print("🛑 Mining stopped")
@@ -222,6 +228,9 @@ class MiningClient:
                 mining_time = time.time() - start_time
                 hash_rate = hash_count / mining_time if mining_time > 0 else 0
                 
+                # Update total hash rate tracking
+                self._update_hash_rate(hash_count, mining_time)
+                
                 print(f"✅ Block mined!")
                 print(f"   Hash: {block_hash}")
                 print(f"   Nonce: {nonce}")
@@ -238,7 +247,15 @@ class MiningClient:
                 elapsed = time.time() - start_time
                 rate = hash_count / elapsed if elapsed > 0 else 0
                 remaining = timeout - elapsed
+                
+                # Update current hash rate periodically
+                self._update_hash_rate(hash_count, elapsed)
+                
                 print(f"   Mining... Nonce: {nonce:,}, Rate: {rate:.0f} H/s, Remaining: {remaining:.0f}s")
+        
+        # Update hash rate for timeout case
+        mining_time = time.time() - start_time
+        self._update_hash_rate(hash_count, mining_time)
         
         print(f"⏱️  Mining timeout after {timeout} seconds")
         return None
@@ -288,6 +305,51 @@ class MiningClient:
         except Exception as e:
             print(f"❌ Error submitting block: {e}")
             return False
+    
+    def _update_hash_rate(self, hash_count: int, elapsed_time: float):
+        """Update the total hash rate tracking"""
+        if elapsed_time <= 0:
+            return
+            
+        # Calculate current hash rate for this mining session
+        self.current_hash_rate = hash_count / elapsed_time
+        
+        # Update total hashes (this should be cumulative across all mining attempts)
+        # Only add new hashes since last update to avoid double counting
+        if not hasattr(self, '_last_hash_count'):
+            self._last_hash_count = 0
+            
+        new_hashes = hash_count - self._last_hash_count
+        if new_hashes > 0:
+            self.total_hashes += new_hashes
+            self._last_hash_count = hash_count
+        else:
+            # Reset for new mining attempt
+            self.total_hashes += hash_count
+            self._last_hash_count = hash_count
+        
+        # Calculate overall average hash rate since mining started
+        if self.start_time > 0:
+            total_mining_time = time.time() - self.start_time
+            if total_mining_time > 0:
+                self.total_hash_rate = self.total_hashes / total_mining_time
+            else:
+                # For very short time periods, use current hash rate
+                self.total_hash_rate = self.current_hash_rate
+        
+        self.last_hash_rate_update = time.time()
+    
+    def get_detailed_stats(self) -> Dict:
+        """Get detailed mining statistics including hash rates"""
+        basic_stats = self.get_mining_stats()
+        
+        return {
+            **basic_stats,
+            'current_hash_rate': self.current_hash_rate,
+            'total_hashes': self.total_hashes,
+            'last_update': self.last_hash_rate_update,
+            'miner_address': self.wallet_address  # Ensure miner_address is included
+        }
 
 def main():
     parser = argparse.ArgumentParser(description='Bitcoin-style Mining Client')
@@ -303,10 +365,15 @@ def main():
     miner = MiningClient(args.wallet, args.node)
     
     if args.stats:
-        stats = miner.get_mining_stats()
+        stats = miner.get_detailed_stats()
         print(f"📊 Mining Stats:")
         print(f"   Blocks mined: {stats['blocks_mined']}")
         print(f"   Mining status: {'Active' if stats['is_mining'] else 'Inactive'}")
+        print(f"   Total hash rate: {stats['estimated_hash_rate']:.2f} H/s")
+        print(f"   Current hash rate: {stats['current_hash_rate']:.2f} H/s")
+        print(f"   Total hashes: {stats['total_hashes']:,}")
+        print(f"   Total time: {stats['total_time']:.2f}s")
+        print(f"   Average block time: {stats['average_block_time']:.2f}s")
         print(f"   Miner address: {stats['miner_address']}")
     else:
         print(f"🎯 Mining for address: {args.wallet}")

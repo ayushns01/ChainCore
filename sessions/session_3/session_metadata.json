@@ -1,0 +1,17 @@
+{
+  "session_name": "session_3",
+  "session_number": 3,
+  "session_start_time": "2025-08-08T02:47:36.926708",
+  "blockchain_start_timestamp": 1754601456.926812,
+  "nodes": [
+    {
+      "node_id": "test_node_final",
+      "api_port": 7777,
+      "p2p_port": 6666,
+      "registration_time": "2025-08-08T02:47:36.926963",
+      "last_seen": 1754601456.926965
+    }
+  ],
+  "status": "completed",
+  "end_time": "2025-08-08T16:17:20.850133"
+}

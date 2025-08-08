@@ -22,7 +22,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
 
 from src.blockchain.bitcoin_transaction import Transaction
 from src.crypto.ecdsa_crypto import hash_data, double_sha256
-from peer_management.session_manager import session_manager
+from session_manager import session_manager
 
 class Block:
     def __init__(self, index: int, transactions: List[Transaction], previous_hash: str, 
@@ -233,6 +233,81 @@ class Blockchain:
                     'block_height': utxo['block_height']
                 })
         return utxos
+    
+    def get_transaction_history(self, address: str) -> List[Dict]:
+        """Get transaction history for an address"""
+        transactions = []
+        
+        # Go through all blocks in the chain
+        for block in self.chain:
+            for tx in block.transactions:
+                # Check if this transaction involves the address
+                involved_as_recipient = False
+                involved_as_sender = False
+                amount_received = 0.0
+                amount_sent = 0.0
+                
+                # Check outputs (receiving transactions)
+                for output in tx.outputs:
+                    if output.recipient_address == address:
+                        involved_as_recipient = True
+                        amount_received += output.amount
+                
+                # Check inputs (sending transactions) - only for non-coinbase transactions
+                if not tx.is_coinbase():
+                    for tx_input in tx.inputs:
+                        # Check historical UTXO ownership by looking at the referenced transaction
+                        referenced_tx = self._find_transaction_by_id(tx_input.tx_id)
+                        if referenced_tx and tx_input.output_index < len(referenced_tx.outputs):
+                            if referenced_tx.outputs[tx_input.output_index].recipient_address == address:
+                                involved_as_sender = True
+                                amount_sent += referenced_tx.outputs[tx_input.output_index].amount
+                
+                # Determine transaction type and amount
+                if involved_as_recipient and involved_as_sender:
+                    # Internal transaction (change)
+                    net_amount = amount_received - amount_sent
+                    if net_amount > 0:
+                        tx_type = "received"
+                        amount = net_amount
+                    elif net_amount < 0:
+                        tx_type = "sent"
+                        amount = abs(net_amount)
+                    else:
+                        tx_type = "internal"
+                        amount = 0
+                elif involved_as_recipient:
+                    tx_type = "received"
+                    amount = amount_received
+                elif involved_as_sender:
+                    tx_type = "sent" 
+                    amount = amount_sent
+                else:
+                    # Not involved in this transaction
+                    continue
+                
+                # Add transaction to history
+                transactions.append({
+                    'tx_id': tx.tx_id,
+                    'block_height': block.index,
+                    'timestamp': block.timestamp,
+                    'type': tx_type,
+                    'amount': amount,
+                    'is_coinbase': tx.is_coinbase(),
+                    'block_hash': block.hash
+                })
+        
+        # Sort by block height (most recent first)
+        transactions.sort(key=lambda x: x['block_height'], reverse=True)
+        return transactions
+    
+    def _find_transaction_by_id(self, tx_id: str):
+        """Find a transaction by ID in the blockchain"""
+        for block in self.chain:
+            for tx in block.transactions:
+                if tx.tx_id == tx_id:
+                    return tx
+        return None
 
 class NetworkNode:
     def __init__(self, node_id: str, p2p_port: int, api_port: int):
@@ -401,6 +476,11 @@ class NetworkNode:
         def get_utxos(address):
             utxos = self.blockchain.get_utxos_for_address(address)
             return jsonify({'address': address, 'utxos': utxos})
+        
+        @self.app.route('/transactions/<address>', methods=['GET'])
+        def get_transactions(address):
+            transactions = self.blockchain.get_transaction_history(address)
+            return jsonify({'address': address, 'transactions': transactions})
         
         @self.app.route('/broadcast_transaction', methods=['POST'])
         def broadcast_transaction():
@@ -1078,6 +1158,8 @@ class NetworkNode:
         print(f"   GET  /status - Node status")
         print(f"   GET  /blockchain - Full blockchain")
         print(f"   GET  /balance/<address> - Address balance")
+        print(f"   GET  /utxos/<address> - Address UTXOs")
+        print(f"   GET  /transactions/<address> - Transaction history")
         print(f"   POST /broadcast_transaction - Submit transaction")
         print(f"   POST /mine_block - Get mining template")
         print(f"   POST /submit_block - Submit mined block")
