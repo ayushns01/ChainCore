@@ -1,0 +1,80 @@
+{
+  "session_name": "session_6",
+  "session_number": 6,
+  "session_start_time": "2025-08-09T01:55:38.060523",
+  "blockchain_start_timestamp": 1754684738.060652,
+  "nodes": [
+    {
+      "node_id": "core0",
+      "api_port": 5000,
+      "p2p_port": 8000,
+      "registration_time": "2025-08-09T01:55:38.060813",
+      "last_seen": 1754684926.371398
+    },
+    {
+      "node_id": "core1",
+      "api_port": 5001,
+      "p2p_port": 8001,
+      "registration_time": "2025-08-09T01:55:43.455575",
+      "last_seen": 1754684937.257903
+    },
+    {
+      "node_id": "core2",
+      "api_port": 5002,
+      "p2p_port": 8002,
+      "registration_time": "2025-08-09T01:55:54.618316",
+      "last_seen": 1754684944.5209842
+    },
+    {
+      "node_id": "core3",
+      "api_port": 5003,
+      "p2p_port": 8003,
+      "registration_time": "2025-08-09T01:55:58.210377",
+      "last_seen": 1754684948.317045
+    },
+    {
+      "node_id": "core4",
+      "api_port": 5004,
+      "p2p_port": 8004,
+      "registration_time": "2025-08-09T01:56:03.266476",
+      "last_seen": 1754684923.44011
+    },
+    {
+      "node_id": "core5",
+      "api_port": 5005,
+      "p2p_port": 8005,
+      "registration_time": "2025-08-09T01:56:07.352034",
+      "last_seen": 1754684927.208362
+    },
+    {
+      "node_id": "core6",
+      "api_port": 5006,
+      "p2p_port": 8006,
+      "registration_time": "2025-08-09T01:56:11.216029",
+      "last_seen": 1754684933.431975
+    },
+    {
+      "node_id": "core7",
+      "api_port": 5007,
+      "p2p_port": 8007,
+      "registration_time": "2025-08-09T01:56:14.850601",
+      "last_seen": 1754684934.56021
+    },
+    {
+      "node_id": "core8",
+      "api_port": 5008,
+      "p2p_port": 8008,
+      "registration_time": "2025-08-09T01:56:18.452117",
+      "last_seen": 1754684940.579326
+    },
+    {
+      "node_id": "core9",
+      "api_port": 5009,
+      "p2p_port": 8009,
+      "registration_time": "2025-08-09T01:56:22.798746",
+      "last_seen": 1754684944.676258
+    }
+  ],
+  "status": "completed",
+  "end_time": "2025-08-09T02:14:34.780389"
+}

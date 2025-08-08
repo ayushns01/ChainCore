@@ -1,0 +1,94 @@
+{
+  "session_name": "session_7",
+  "session_number": 7,
+  "session_start_time": "2025-08-09T01:59:50.462353",
+  "blockchain_start_timestamp": 1754684990.462498,
+  "nodes": [
+    {
+      "node_id": "core0",
+      "api_port": 5000,
+      "p2p_port": 8000,
+      "registration_time": "2025-08-09T01:59:50.462689",
+      "last_seen": 1754685591.7252538
+    },
+    {
+      "node_id": "core1",
+      "api_port": 5001,
+      "p2p_port": 8001,
+      "registration_time": "2025-08-09T01:59:58.119291",
+      "last_seen": 1754685598.426046
+    },
+    {
+      "node_id": "core2",
+      "api_port": 5002,
+      "p2p_port": 8002,
+      "registration_time": "2025-08-09T02:00:04.301967",
+      "last_seen": 1754685605.474875
+    },
+    {
+      "node_id": "core3",
+      "api_port": 5003,
+      "p2p_port": 8003,
+      "registration_time": "2025-08-09T02:00:06.103297",
+      "last_seen": 1754685608.4793532
+    },
+    {
+      "node_id": "core4",
+      "api_port": 5004,
+      "p2p_port": 8004,
+      "registration_time": "2025-08-09T02:00:09.325393",
+      "last_seen": 1754685615.033304
+    },
+    {
+      "node_id": "core5",
+      "api_port": 5005,
+      "p2p_port": 8005,
+      "registration_time": "2025-08-09T02:00:14.792558",
+      "last_seen": 1754685615.112606
+    },
+    {
+      "node_id": "core6",
+      "api_port": 5006,
+      "p2p_port": 8006,
+      "registration_time": "2025-08-09T02:00:18.440552",
+      "last_seen": 1754685625.36424
+    },
+    {
+      "node_id": "core7",
+      "api_port": 5007,
+      "p2p_port": 8007,
+      "registration_time": "2025-08-09T02:00:21.657036",
+      "last_seen": 1754685624.786283
+    },
+    {
+      "node_id": "core8",
+      "api_port": 5008,
+      "p2p_port": 8008,
+      "registration_time": "2025-08-09T02:00:27.589707",
+      "last_seen": 1754685631.2617102
+    },
+    {
+      "node_id": "core9",
+      "api_port": 5009,
+      "p2p_port": 8009,
+      "registration_time": "2025-08-09T02:00:37.953992",
+      "last_seen": 1754685605.164608
+    },
+    {
+      "node_id": "core10",
+      "api_port": 5010,
+      "p2p_port": 8010,
+      "registration_time": "2025-08-09T02:00:44.339345",
+      "last_seen": 1754685614.999058
+    },
+    {
+      "node_id": "core11",
+      "api_port": 5011,
+      "p2p_port": 8011,
+      "registration_time": "2025-08-09T02:00:50.552880",
+      "last_seen": 1754685621.3011782
+    }
+  ],
+  "status": "completed",
+  "end_time": "2025-08-09T02:14:34.810107"
+}

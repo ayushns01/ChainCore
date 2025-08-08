@@ -87,7 +87,7 @@ class Blockchain:
         self.chain: List[Block] = []
         self.transaction_pool: List[Transaction] = []
         self.utxo_set: Dict[str, Dict] = {}
-        self.target_difficulty = 6
+        self.target_difficulty = 5
         self.block_reward = 50.0
         
         self._create_genesis_block()
@@ -126,7 +126,8 @@ class Blockchain:
         return True
     
     def create_block_template(self, miner_address: str) -> Block:
-        """Create block template for mining"""
+        """Create block template for mining with fresh chain state"""
+        
         # Get transactions from pool (limit to 1000 for block size)
         transactions = self.transaction_pool[:1000]
         
@@ -140,7 +141,7 @@ class Blockchain:
             len(self.chain)
         )
         
-        # Create block
+        # Create block with current chain tip
         all_transactions = [coinbase_tx] + transactions
         new_block = Block(
             len(self.chain),
@@ -148,6 +149,8 @@ class Blockchain:
             self.chain[-1].hash,
             target_difficulty=self.target_difficulty
         )
+        
+        print(f"🏗️  Block template created: index={new_block.index}, prev_hash={self.chain[-1].hash[:16]}...")
         
         return new_block
     
@@ -169,6 +172,19 @@ class Blockchain:
         if not block.is_valid_hash():
             print(f"❌ Block validation failed: Invalid hash")
             return False
+        
+        # Check if we already have a block at this index
+        if block.index < len(self.chain):
+            existing_block = self.chain[block.index]
+            if existing_block.hash == block.hash:
+                print(f"ℹ️  Block {block.index} already exists (duplicate)")
+                return False  # Already have this exact block
+            else:
+                print(f"⚠️  Fork detected at block {block.index}")
+                print(f"   Existing: {existing_block.hash[:16]}...")
+                print(f"   New:      {block.hash[:16]}...")
+                # For now, reject conflicting blocks (longest chain rule can be implemented later)
+                return False
         
         # Check previous hash
         if block.previous_hash != self.chain[-1].hash:
@@ -344,7 +360,28 @@ class NetworkNode:
         # Auto-discover peer nodes by testing common ports
         self._discover_active_peers()
         
+        # Synchronize with network on startup to prevent genesis fork
+        self._startup_sync()
+        
         self._setup_api_routes()
+    
+    def _startup_sync(self):
+        """Synchronize with network on startup to prevent genesis forks"""
+        if len(self.active_peers) == 0:
+            print("📡 No peers found - starting as genesis node")
+            return
+        
+        print("🔄 Performing startup synchronization...")
+        # Try to sync with existing network
+        self._sync_with_peers_blocking()
+        
+        # If we still only have genesis block but peers have more, force sync
+        if len(self.blockchain.chain) == 1 and len(self.active_peers) > 0:
+            print("⚠️  Only have genesis block - attempting network sync...")
+            time.sleep(2)  # Give network time to respond
+            self._sync_with_peers_blocking()
+        
+        print(f"✅ Startup sync complete - blockchain length: {len(self.blockchain.chain)}")
     
     def _discover_active_peers(self, verbose=True):
         """Discover and add only active peer nodes"""
@@ -352,7 +389,7 @@ class NetworkNode:
         import time
         
         self.last_peer_discovery = time.time()
-        common_ports = [5000, 5001, 5002, 5003, 5004, 5005]
+        common_ports = [5000, 5001, 5002, 5003, 5004, 5005, 5006, 5007, 5008, 5009, 5010, 5011]
         newly_discovered = 0
         
         for port in common_ports:
@@ -506,6 +543,9 @@ class NetworkNode:
                 transaction = Transaction.from_dict(tx_data)
                 
                 if self.blockchain.add_transaction(transaction):
+                    # Trigger lightweight sync check when receiving new transactions
+                    if len(self.active_peers) > 0:
+                        threading.Thread(target=self._quick_sync_check, daemon=True).start()
                     return jsonify({'status': 'accepted', 'tx_id': transaction.tx_id})
                 else:
                     return jsonify({'status': 'rejected', 'error': 'Invalid transaction'}), 400
@@ -521,6 +561,10 @@ class NetworkNode:
                 
                 if not miner_address:
                     return jsonify({'error': 'miner_address required'}), 400
+                
+                # Sync with network before creating block template to prevent duplicate blocks
+                if len(self.active_peers) > 0:
+                    self._sync_with_peers_blocking()
                 
                 # Create block template
                 block_template = self.blockchain.create_block_template(miner_address)
@@ -569,6 +613,9 @@ class NetworkNode:
                     # Broadcast block to peer nodes for faster distribution (only if locally mined)
                     if is_locally_mined:
                         self._broadcast_block_to_peers(block)
+                    else:
+                        # Trigger immediate sync check when receiving blocks from peers
+                        threading.Thread(target=self._sync_with_peers, daemon=True).start()
                     
                     return jsonify({'status': 'accepted', 'block_hash': block.hash})
                 else:
@@ -926,6 +973,91 @@ class NetworkNode:
                 return jsonify({
                     'error': str(e)
                 }), 500
+        
+        @self.app.route('/force_sync', methods=['POST'])
+        def force_full_sync():
+            """Force sync with network even for large chain differences"""
+            import requests
+            try:
+                data = request.get_json() or {}
+                max_blocks = data.get('max_blocks', 2000)  # Safety limit
+                
+                # Find the best peer with longest chain
+                best_peer = None
+                max_length = len(self.blockchain.chain)
+                
+                for peer in list(self.active_peers):
+                    try:
+                        response = requests.get(f"{peer}/status", timeout=5)
+                        if response.status_code == 200:
+                            peer_data = response.json()
+                            peer_length = peer_data.get('blockchain_length', 0)
+                            if peer_length > max_length and peer_length <= max_blocks:
+                                max_length = peer_length
+                                best_peer = peer
+                    except:
+                        continue
+                
+                if not best_peer:
+                    return jsonify({
+                        'status': 'error',
+                        'message': 'No suitable peer found for sync'
+                    }), 400
+                
+                # Download the full blockchain
+                response = requests.get(f"{best_peer}/blockchain", timeout=60)
+                if response.status_code == 200:
+                    peer_data = response.json()
+                    longest_chain = peer_data['chain']
+                    
+                    # Validate and replace chain
+                    if self._validate_chain(longest_chain):
+                        old_length = len(self.blockchain.chain)
+                        
+                        # Replace blockchain
+                        self.blockchain.chain = []
+                        for block_data in longest_chain:
+                            transactions = [Transaction.from_dict(tx) for tx in block_data['transactions']]
+                            block = Block(
+                                block_data['index'],
+                                transactions,
+                                block_data['previous_hash'],
+                                block_data['timestamp'],
+                                block_data['nonce'],
+                                block_data['target_difficulty']
+                            )
+                            block.hash = block_data['hash']
+                            block.merkle_root = block_data['merkle_root']
+                            self.blockchain.chain.append(block)
+                        
+                        # Rebuild UTXO set
+                        self.blockchain.utxo_set = {}
+                        for block in self.blockchain.chain:
+                            self.blockchain._update_utxo_set(block)
+                        
+                        return jsonify({
+                            'status': 'success',
+                            'message': f'Force sync completed',
+                            'old_length': old_length,
+                            'new_length': len(self.blockchain.chain),
+                            'synced_from': best_peer
+                        })
+                    else:
+                        return jsonify({
+                            'status': 'error',
+                            'message': 'Chain validation failed'
+                        }), 400
+                else:
+                    return jsonify({
+                        'status': 'error',
+                        'message': f'Failed to download blockchain: HTTP {response.status_code}'
+                    }), 400
+                    
+            except Exception as e:
+                return jsonify({
+                    'status': 'error',
+                    'message': str(e)
+                }), 500
     
     def _broadcast_transaction_to_peers(self, transaction):
         """Broadcast transaction to active peer nodes only"""
@@ -976,47 +1108,133 @@ class NetworkNode:
             print(f"🔌 Removed {len(failed_peers)} inactive peers from active list")
     
     def _sync_with_peers(self):
-        """Synchronize blockchain with peers"""
+        """Synchronize blockchain with peers (non-blocking)"""
+        self._sync_with_peers_blocking()
+    
+    def _quick_sync_check(self):
+        """Quick sync check - only checks blockchain lengths, no full sync"""
+        import requests
+        try:
+            max_length = len(self.blockchain.chain)
+            needs_sync = False
+            
+            for peer in list(self.active_peers)[:3]:  # Check only first 3 peers for speed
+                try:
+                    response = requests.get(f"{peer}/status", timeout=2)
+                    if response.status_code == 200:
+                        peer_data = response.json()
+                        if peer_data.get('blockchain_length', 0) > max_length:
+                            needs_sync = True
+                            break
+                except:
+                    continue
+            
+            if needs_sync:
+                print(f"🔄 Quick sync triggered - found longer chain")
+                self._sync_with_peers_blocking()
+        except Exception as e:
+            pass  # Silent fail for quick checks
+    
+    def _sync_with_peers_blocking(self):
+        """Synchronize blockchain with peers (blocking version for critical operations)"""
         import requests
         try:
             longest_chain = None
             max_length = len(self.blockchain.chain)
+            best_peer = None
             
-            for peer in self.peers:
+            # First, just check lengths to avoid downloading huge chains unnecessarily
+            for peer in list(self.active_peers):  # Use only active peers
                 try:
-                    response = requests.get(f"{peer}/blockchain", timeout=5)
+                    response = requests.get(f"{peer}/status", timeout=5)
                     if response.status_code == 200:
                         peer_data = response.json()
-                        if peer_data['length'] > max_length:
-                            max_length = peer_data['length']
-                            longest_chain = peer_data['chain']
+                        peer_length = peer_data.get('blockchain_length', 0)
+                        if peer_length > max_length:
+                            max_length = peer_length
+                            best_peer = peer
                 except:
                     continue
             
+            # If we found a longer chain, download it with extended timeout
+            if best_peer and max_length > len(self.blockchain.chain):
+                # Skip sync if chain difference is too large (>100 blocks) to prevent timeouts
+                chain_diff = max_length - len(self.blockchain.chain)
+                if chain_diff > 100:
+                    print(f"⚠️  Large chain difference ({chain_diff} blocks) - skipping full sync to prevent timeout")
+                    return
+                
+                try:
+                    print(f"🔄 Downloading blockchain from {best_peer} ({max_length} blocks)")
+                    response = requests.get(f"{best_peer}/blockchain", timeout=30)  # Extended timeout
+                    if response.status_code == 200:
+                        peer_data = response.json()
+                        longest_chain = peer_data['chain']
+                    else:
+                        print(f"❌ Failed to download blockchain from {best_peer}: HTTP {response.status_code}")
+                        return
+                except Exception as e:
+                    print(f"❌ Failed to download blockchain from {best_peer}: {str(e)[:100]}")
+                    return
+            
             # Replace chain if we found a longer valid chain
             if longest_chain and max_length > len(self.blockchain.chain):
-                print(f"🔄 Syncing blockchain from peers ({max_length} blocks)")
-                # Reconstruct blockchain from peer data
-                self.blockchain.chain = []
-                for block_data in longest_chain:
-                    transactions = [Transaction.from_dict(tx) for tx in block_data['transactions']]
-                    block = Block(
-                        block_data['index'],
-                        transactions,
-                        block_data['previous_hash'],
-                        block_data['timestamp'],
-                        block_data['nonce'],
-                        block_data['target_difficulty']
-                    )
-                    self.blockchain.chain.append(block)
+                print(f"🔄 Syncing blockchain from {best_peer} ({max_length} blocks)")
                 
-                # Rebuild UTXO set
-                self.blockchain.utxo_set = {}
-                for block in self.blockchain.chain:
-                    self.blockchain._update_utxo_set(block)
-                print(f"✅ Blockchain synced to {len(self.blockchain.chain)} blocks")
+                # Validate the new chain before accepting it
+                if self._validate_chain(longest_chain):
+                    # Reconstruct blockchain from peer data
+                    self.blockchain.chain = []
+                    for block_data in longest_chain:
+                        transactions = [Transaction.from_dict(tx) for tx in block_data['transactions']]
+                        block = Block(
+                            block_data['index'],
+                            transactions,
+                            block_data['previous_hash'],
+                            block_data['timestamp'],
+                            block_data['nonce'],
+                            block_data['target_difficulty']
+                        )
+                        # Preserve hash and merkle root from peer data
+                        block.hash = block_data['hash']
+                        block.merkle_root = block_data['merkle_root']
+                        self.blockchain.chain.append(block)
+                    
+                    # Rebuild UTXO set
+                    self.blockchain.utxo_set = {}
+                    for block in self.blockchain.chain:
+                        self.blockchain._update_utxo_set(block)
+                    print(f"✅ Blockchain synced to {len(self.blockchain.chain)} blocks")
+                else:
+                    print(f"❌ Rejected invalid chain from {best_peer}")
         except Exception as e:
             print(f"⚠️ Sync error: {e}")
+    
+    def _validate_chain(self, chain_data: List[Dict]) -> bool:
+        """Validate entire blockchain from peer"""
+        if not chain_data:
+            return False
+        
+        # Check genesis block
+        if chain_data[0]['index'] != 0:
+            return False
+        
+        # Validate chain continuity
+        for i in range(1, len(chain_data)):
+            current_block = chain_data[i]
+            prev_block = chain_data[i-1]
+            
+            # Check index continuity
+            if current_block['index'] != prev_block['index'] + 1:
+                print(f"❌ Chain validation failed: Index gap at block {current_block['index']}")
+                return False
+            
+            # Check hash linking
+            if current_block['previous_hash'] != prev_block['hash']:
+                print(f"❌ Chain validation failed: Hash mismatch at block {current_block['index']}")
+                return False
+        
+        return True
     
     def _ensure_peer_symmetry(self):
         """Ensure all peers know about each other (symmetric peer discovery)"""
@@ -1099,13 +1317,13 @@ class NetworkNode:
                 # Sync blockchain with peers
                 self._sync_with_peers()
                 
-                # Periodic peer discovery (every 60 seconds)
-                if time.time() - self.last_peer_discovery > 60:
+                # Periodic peer discovery (every 30 seconds)
+                if time.time() - self.last_peer_discovery > 30:
                     self._discover_active_peers(verbose=False)
                 
-                # Ensure peer symmetry (every 45 seconds)
+                # Ensure peer symmetry (every 20 seconds)
                 if hasattr(self, '_last_symmetry_check'):
-                    if time.time() - self._last_symmetry_check > 45:
+                    if time.time() - self._last_symmetry_check > 20:
                         self._ensure_peer_symmetry()
                 else:
                     self._last_symmetry_check = time.time()
@@ -1128,7 +1346,7 @@ class NetworkNode:
                 else:
                     self._last_session_cleanup = time.time()
                 
-                time.sleep(30)  # Check every 30 seconds
+                time.sleep(10)  # Check every 10 seconds
             except Exception as e:
                 print(f"⚠️ Periodic sync error: {e}")
                 time.sleep(30)

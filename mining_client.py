@@ -284,9 +284,12 @@ class MiningClient:
                 print(f"❌ Block submission rejected: {error_info.get('error', 'Unknown error')}")
                 
                 # Check if it's a stale block error
-                if 'previous hash' in str(error_info).lower() or 'index' in str(error_info).lower():
+                error_str = str(error_info).lower()
+                if 'previous hash' in error_str or 'index' in error_str:
                     print("📄 Block is stale (blockchain moved forward during mining)")
-                elif 'invalid transaction' in str(error_info).lower():
+                elif 'fork detected' in error_str or 'already exists' in error_str:
+                    print("🍴 Fork detected or duplicate block (another miner won)")
+                elif 'invalid transaction' in error_str:
                     print("💸 Transaction validation failed (possibly spent UTXOs)")
                 else:
                     print(f"❌ Validation failed: {error_info}")
