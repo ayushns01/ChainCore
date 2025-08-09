@@ -483,6 +483,14 @@ class NetworkNode:
             json.dump(self.session_data, f, indent=2)
         
         print(f"📝 Block {block.index} logged to session: {self.session_file}")
+        
+        # Update session metadata with mining statistics every few blocks
+        if len(self.session_data["blocks_mined"]) % 5 == 0:  # Update every 5 blocks
+            try:
+                from session_manager import session_manager
+                session_manager.update_mining_stats()
+            except Exception as e:
+                print(f"⚠️ Error updating session metadata: {e}")
     
     def _setup_api_routes(self):
         @self.app.route('/status', methods=['GET'])
@@ -885,6 +893,48 @@ class NetworkNode:
                     'message': str(e)
                 }), 500
         
+        @self.app.route('/update_mining_stats', methods=['POST'])
+        def update_mining_stats():
+            """Manually trigger mining statistics update for current session"""
+            try:
+                session_manager.update_mining_stats()
+                return jsonify({
+                    'status': 'success',
+                    'message': 'Mining statistics updated successfully'
+                })
+            except Exception as e:
+                return jsonify({
+                    'status': 'error',
+                    'error': str(e)
+                }), 500
+        
+        @self.app.route('/mining_stats', methods=['GET'])
+        def get_mining_stats():
+            """Get mining statistics for current session"""
+            try:
+                session_info = session_manager.get_session_info()
+                if 'mining_statistics' in session_info:
+                    return jsonify({
+                        'status': 'success',
+                        'mining_statistics': session_info['mining_statistics'],
+                        'session_folder': session_info.get('session_folder', 'unknown')
+                    })
+                else:
+                    # Trigger statistics update if not present
+                    session_manager.update_mining_stats()
+                    updated_session_info = session_manager.get_session_info()
+                    return jsonify({
+                        'status': 'success',
+                        'mining_statistics': updated_session_info.get('mining_statistics', {}),
+                        'session_folder': updated_session_info.get('session_folder', 'unknown'),
+                        'note': 'Statistics were just updated'
+                    })
+            except Exception as e:
+                return jsonify({
+                    'status': 'error',
+                    'error': str(e)
+                }), 500
+        
         @self.app.route('/new_session', methods=['POST'])
         def force_new_session():
             """Force creation of a new session folder (admin only)"""
@@ -1094,7 +1144,10 @@ class NetworkNode:
                     f"{peer}/submit_block",
                     json=block.to_dict(),
                     timeout=10,  # Increased timeout to 10 seconds
-                    headers={'Content-Type': 'application/json'}
+                    headers={
+                        'Content-Type': 'application/json',
+                        'X-Local-Mining': 'false'  # Mark as peer-received block, not locally mined
+                    }
                 )
                 if response.status_code != 200:
                     print(f"⚠️ Peer {peer} rejected block")
@@ -1391,6 +1444,8 @@ class NetworkNode:
         print(f"   GET  /sessions/<session_folder>/<json_filename> - Get specific session file")
         print(f"   GET  /sessions/node/<node_id> - Get all sessions for specific node")
         print(f"   GET  /session_info - Current session manager information")
+        print(f"   GET  /mining_stats - Get mining statistics for current session")
+        print(f"   POST /update_mining_stats - Update mining statistics")
         print(f"   GET  /active_nodes - Count of active nodes across sessions")
         print(f"   POST /new_session - Force creation of new session folder")
         print(f"   POST /close_session - Close/complete current session")

@@ -289,9 +289,72 @@ class SessionManager:
         self._current_session_folder = None
         return self._create_new_session_folder()
     
+    def update_mining_stats(self):
+        """Update session metadata with mining statistics from all node session files"""
+        if not self._current_session_folder:
+            return
+        
+        metadata_file = os.path.join(self._current_session_folder, "session_metadata.json")
+        try:
+            # Read current metadata
+            with open(metadata_file, 'r') as f:
+                metadata = json.load(f)
+            
+            # Collect mining statistics from all node session files in this session
+            mining_stats = {}
+            total_blocks_mined = 0
+            
+            # Scan all session files in this session folder
+            if os.path.exists(self._current_session_folder):
+                for filename in os.listdir(self._current_session_folder):
+                    if filename.startswith('session_') and filename.endswith('.json') and filename != 'session_metadata.json':
+                        filepath = os.path.join(self._current_session_folder, filename)
+                        try:
+                            with open(filepath, 'r') as f:
+                                node_data = json.load(f)
+                            
+                            node_id = node_data.get('node_id', 'unknown')
+                            blocks_mined = node_data.get('blocks_mined', [])
+                            block_count = len(blocks_mined)
+                            
+                            mining_stats[node_id] = {
+                                'blocks_mined_count': block_count,
+                                'session_file': filename,
+                                'start_time': node_data.get('start_time'),
+                                'latest_blocks': [
+                                    {
+                                        'block_index': block.get('block_index'),
+                                        'block_hash': block.get('block_hash', '')[:16] + '...',
+                                        'timestamp': block.get('timestamp')
+                                    } for block in blocks_mined[-5:]  # Last 5 blocks
+                                ]
+                            }
+                            total_blocks_mined += block_count
+                            
+                        except Exception as e:
+                            print(f"⚠️ Error reading session file {filename}: {e}")
+                            continue
+            
+            # Update metadata with mining statistics
+            metadata['mining_statistics'] = {
+                'total_blocks_mined': total_blocks_mined,
+                'blocks_per_core': mining_stats,
+                'last_updated': datetime.now().isoformat()
+            }
+            
+            # Write updated metadata
+            with open(metadata_file, 'w') as f:
+                json.dump(metadata, f, indent=2)
+            
+        except Exception as e:
+            print(f"⚠️ Error updating mining stats: {e}")
+    
     def close_current_session(self):
         """Mark the current session as completed"""
         if self._current_session_folder and os.path.exists(self._current_session_folder):
+            # Update final mining statistics before closing
+            self.update_mining_stats()
+            
             metadata_file = os.path.join(self._current_session_folder, "session_metadata.json")
             try:
                 with open(metadata_file, 'r') as f:
