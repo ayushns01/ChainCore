@@ -1,0 +1,418 @@
+{
+  "session_name": "session_11",
+  "session_number": 11,
+  "session_start_time": "2025-08-10T23:05:53.117765",
+  "blockchain_start_timestamp": 1754847353.117888,
+  "nodes": [
+    {
+      "node_id": "core0",
+      "api_port": 5000,
+      "p2p_port": 8000,
+      "registration_time": "2025-08-10T23:05:53.118035",
+      "last_seen": 1754849019.4339478
+    },
+    {
+      "node_id": "core2",
+      "api_port": 5002,
+      "p2p_port": 8002,
+      "registration_time": "2025-08-10T23:06:22.409371",
+      "last_seen": 1754849019.8082619
+    },
+    {
+      "node_id": "core1",
+      "api_port": 5001,
+      "p2p_port": 8001,
+      "registration_time": "2025-08-10T23:06:23.576939",
+      "last_seen": 1754849021.032727
+    },
+    {
+      "node_id": "core3",
+      "api_port": 5003,
+      "p2p_port": 8003,
+      "registration_time": "2025-08-10T23:07:16.897980",
+      "last_seen": 1754849013.999632
+    },
+    {
+      "node_id": "core4",
+      "api_port": 5004,
+      "p2p_port": 8004,
+      "registration_time": "2025-08-10T23:07:28.557687",
+      "last_seen": 1754849025.3791978
+    },
+    {
+      "node_id": "core5",
+      "api_port": 5005,
+      "p2p_port": 8005,
+      "registration_time": "2025-08-10T23:07:33.699098",
+      "last_seen": 1754849031.66894
+    },
+    {
+      "node_id": "core6",
+      "api_port": 5006,
+      "p2p_port": 8006,
+      "registration_time": "2025-08-10T23:07:35.059281",
+      "last_seen": 1754849032.6807182
+    },
+    {
+      "node_id": "core7",
+      "api_port": 5007,
+      "p2p_port": 8007,
+      "registration_time": "2025-08-10T23:07:40.461856",
+      "last_seen": 1754849038.778184
+    },
+    {
+      "node_id": "core8",
+      "api_port": 5008,
+      "p2p_port": 8008,
+      "registration_time": "2025-08-10T23:07:45.900017",
+      "last_seen": 1754849013.1591082
+    },
+    {
+      "node_id": "core9",
+      "api_port": 5009,
+      "p2p_port": 8009,
+      "registration_time": "2025-08-10T23:24:59.009370",
+      "last_seen": 1754849020.516386
+    },
+    {
+      "node_id": "core11",
+      "api_port": 5011,
+      "p2p_port": 8011,
+      "registration_time": "2025-08-10T23:25:05.406586",
+      "last_seen": 1754849027.14611
+    }
+  ],
+  "status": "active",
+  "mining_statistics": {
+    "total_blocks_mined": 424,
+    "blocks_per_core": {
+      "core7": {
+        "blocks_mined_count": 43,
+        "session_file": "session_core7_1754847460.json",
+        "start_time": "2025-08-10T23:07:40.434053",
+        "latest_blocks": [
+          {
+            "block_index": 284,
+            "block_hash": "0000011e5065541d...",
+            "timestamp": "2025-08-10T23:28:24.892450"
+          },
+          {
+            "block_index": 291,
+            "block_hash": "00000b7be2088c28...",
+            "timestamp": "2025-08-10T23:28:56.293038"
+          },
+          {
+            "block_index": 292,
+            "block_hash": "00000f8a0c38a95d...",
+            "timestamp": "2025-08-10T23:28:58.716929"
+          },
+          {
+            "block_index": 332,
+            "block_hash": "00000da5c2f1d463...",
+            "timestamp": "2025-08-10T23:31:47.607054"
+          },
+          {
+            "block_index": 354,
+            "block_hash": "000009518db7fed8...",
+            "timestamp": "2025-08-10T23:32:52.963381"
+          }
+        ]
+      },
+      "core2": {
+        "blocks_mined_count": 36,
+        "session_file": "session_core2_1754847382.json",
+        "start_time": "2025-08-10T23:06:22.370072",
+        "latest_blocks": [
+          {
+            "block_index": 346,
+            "block_hash": "00000353c5c59ae8...",
+            "timestamp": "2025-08-10T23:32:21.543937"
+          },
+          {
+            "block_index": 350,
+            "block_hash": "00000b803ef94f78...",
+            "timestamp": "2025-08-10T23:32:40.879194"
+          },
+          {
+            "block_index": 357,
+            "block_hash": "0000099ae5274e78...",
+            "timestamp": "2025-08-10T23:33:04.780983"
+          },
+          {
+            "block_index": 358,
+            "block_hash": "00000a1f9dc2a6fc...",
+            "timestamp": "2025-08-10T23:33:05.969833"
+          },
+          {
+            "block_index": 361,
+            "block_hash": "00000c6e73d87f7d...",
+            "timestamp": "2025-08-10T23:33:18.659577"
+          }
+        ]
+      },
+      "core4": {
+        "blocks_mined_count": 34,
+        "session_file": "session_core4_1754847448.json",
+        "start_time": "2025-08-10T23:07:28.520019",
+        "latest_blocks": [
+          {
+            "block_index": 313,
+            "block_hash": "00000c91c70e148c...",
+            "timestamp": "2025-08-10T23:30:23.613632"
+          },
+          {
+            "block_index": 319,
+            "block_hash": "000001e1cd92d5bf...",
+            "timestamp": "2025-08-10T23:31:00.556631"
+          },
+          {
+            "block_index": 344,
+            "block_hash": "000000042dd51eb5...",
+            "timestamp": "2025-08-10T23:32:18.026695"
+          },
+          {
+            "block_index": 359,
+            "block_hash": "000000e68b164897...",
+            "timestamp": "2025-08-10T23:33:10.323715"
+          },
+          {
+            "block_index": 360,
+            "block_hash": "0000089acd1c9b4b...",
+            "timestamp": "2025-08-10T23:33:15.211125"
+          }
+        ]
+      },
+      "core0": {
+        "blocks_mined_count": 61,
+        "session_file": "session_core0_1754847353.json",
+        "start_time": "2025-08-10T23:05:53.065642",
+        "latest_blocks": [
+          {
+            "block_index": 303,
+            "block_hash": "00000bb7b0a0ba10...",
+            "timestamp": "2025-08-10T23:29:46.213345"
+          },
+          {
+            "block_index": 325,
+            "block_hash": "000001dbd77dcfef...",
+            "timestamp": "2025-08-10T23:31:23.791703"
+          },
+          {
+            "block_index": 326,
+            "block_hash": "00000cfa60960949...",
+            "timestamp": "2025-08-10T23:31:30.641979"
+          },
+          {
+            "block_index": 341,
+            "block_hash": "000005f5e17a7fcb...",
+            "timestamp": "2025-08-10T23:32:08.531332"
+          },
+          {
+            "block_index": 349,
+            "block_hash": "000000162ef16569...",
+            "timestamp": "2025-08-10T23:32:36.629642"
+          }
+        ]
+      },
+      "core11": {
+        "blocks_mined_count": 0,
+        "session_file": "session_core11_1754848505.json",
+        "start_time": "2025-08-10T23:25:05.345992",
+        "latest_blocks": []
+      },
+      "core5": {
+        "blocks_mined_count": 48,
+        "session_file": "session_core5_1754847453.json",
+        "start_time": "2025-08-10T23:07:33.671420",
+        "latest_blocks": [
+          {
+            "block_index": 272,
+            "block_hash": "00000248f3f0389a...",
+            "timestamp": "2025-08-10T23:27:50.069702"
+          },
+          {
+            "block_index": 273,
+            "block_hash": "00000d6500678ed2...",
+            "timestamp": "2025-08-10T23:27:53.038887"
+          },
+          {
+            "block_index": 314,
+            "block_hash": "000004a1bf6c8fdc...",
+            "timestamp": "2025-08-10T23:30:25.506495"
+          },
+          {
+            "block_index": 320,
+            "block_hash": "0000025f3e950675...",
+            "timestamp": "2025-08-10T23:31:04.878611"
+          },
+          {
+            "block_index": 329,
+            "block_hash": "00000e6e517f01bf...",
+            "timestamp": "2025-08-10T23:31:37.353065"
+          }
+        ]
+      },
+      "core1": {
+        "blocks_mined_count": 45,
+        "session_file": "session_core1_1754847383.json",
+        "start_time": "2025-08-10T23:06:23.547616",
+        "latest_blocks": [
+          {
+            "block_index": 347,
+            "block_hash": "00000535620b192b...",
+            "timestamp": "2025-08-10T23:32:25.054451"
+          },
+          {
+            "block_index": 351,
+            "block_hash": "00000c18e59bfc51...",
+            "timestamp": "2025-08-10T23:32:48.444669"
+          },
+          {
+            "block_index": 352,
+            "block_hash": "00000828267a5b9d...",
+            "timestamp": "2025-08-10T23:32:51.732887"
+          },
+          {
+            "block_index": 363,
+            "block_hash": "00000344c2504df9...",
+            "timestamp": "2025-08-10T23:33:24.359871"
+          },
+          {
+            "block_index": 364,
+            "block_hash": "0000024f8afd34d3...",
+            "timestamp": "2025-08-10T23:33:28.935486"
+          }
+        ]
+      },
+      "core6": {
+        "blocks_mined_count": 30,
+        "session_file": "session_core6_1754847455.json",
+        "start_time": "2025-08-10T23:07:35.030182",
+        "latest_blocks": [
+          {
+            "block_index": 340,
+            "block_hash": "000001aa660a5b03...",
+            "timestamp": "2025-08-10T23:32:07.541999"
+          },
+          {
+            "block_index": 353,
+            "block_hash": "00000e1a8fa4f0e1...",
+            "timestamp": "2025-08-10T23:32:52.738106"
+          },
+          {
+            "block_index": 355,
+            "block_hash": "00000db291590c49...",
+            "timestamp": "2025-08-10T23:32:54.530639"
+          },
+          {
+            "block_index": 356,
+            "block_hash": "000001dbc26a1efd...",
+            "timestamp": "2025-08-10T23:32:56.803302"
+          },
+          {
+            "block_index": 362,
+            "block_hash": "000008230ebcd438...",
+            "timestamp": "2025-08-10T23:33:22.385327"
+          }
+        ]
+      },
+      "core3": {
+        "blocks_mined_count": 41,
+        "session_file": "session_core3_1754847436.json",
+        "start_time": "2025-08-10T23:07:16.859666",
+        "latest_blocks": [
+          {
+            "block_index": 327,
+            "block_hash": "000005c3dcaacf30...",
+            "timestamp": "2025-08-10T23:31:31.169918"
+          },
+          {
+            "block_index": 333,
+            "block_hash": "0000090e812762af...",
+            "timestamp": "2025-08-10T23:31:48.874113"
+          },
+          {
+            "block_index": 334,
+            "block_hash": "00000bf5fba6c040...",
+            "timestamp": "2025-08-10T23:31:49.974035"
+          },
+          {
+            "block_index": 336,
+            "block_hash": "000004684770c086...",
+            "timestamp": "2025-08-10T23:31:52.267050"
+          },
+          {
+            "block_index": 348,
+            "block_hash": "00000c798ca2f9dd...",
+            "timestamp": "2025-08-10T23:32:25.918391"
+          }
+        ]
+      },
+      "core8": {
+        "blocks_mined_count": 30,
+        "session_file": "session_core8_1754847465.json",
+        "start_time": "2025-08-10T23:07:45.871108",
+        "latest_blocks": [
+          {
+            "block_index": 263,
+            "block_hash": "000002d29e268caf...",
+            "timestamp": "2025-08-10T23:27:27.189357"
+          },
+          {
+            "block_index": 286,
+            "block_hash": "000008cf1c2e16de...",
+            "timestamp": "2025-08-10T23:28:33.816135"
+          },
+          {
+            "block_index": 290,
+            "block_hash": "0000013ebf47ccb7...",
+            "timestamp": "2025-08-10T23:28:47.635648"
+          },
+          {
+            "block_index": 321,
+            "block_hash": "0000053ba6b2c078...",
+            "timestamp": "2025-08-10T23:31:12.925400"
+          },
+          {
+            "block_index": 322,
+            "block_hash": "00000c534e8f4213...",
+            "timestamp": "2025-08-10T23:31:15.329880"
+          }
+        ]
+      },
+      "core9": {
+        "blocks_mined_count": 56,
+        "session_file": "session_core9_1754848499.json",
+        "start_time": "2025-08-10T23:24:58.869178",
+        "latest_blocks": [
+          {
+            "block_index": 52,
+            "block_hash": "0000064518862c65...",
+            "timestamp": "2025-08-10T23:33:03.471083"
+          },
+          {
+            "block_index": 53,
+            "block_hash": "0000059973f7914e...",
+            "timestamp": "2025-08-10T23:33:12.183675"
+          },
+          {
+            "block_index": 54,
+            "block_hash": "000008a1ed8d9cd4...",
+            "timestamp": "2025-08-10T23:33:18.991324"
+          },
+          {
+            "block_index": 55,
+            "block_hash": "00000cf6fc63e4d7...",
+            "timestamp": "2025-08-10T23:33:21.354420"
+          },
+          {
+            "block_index": 56,
+            "block_hash": "00000f0ecbd06b5f...",
+            "timestamp": "2025-08-10T23:33:24.064784"
+          }
+        ]
+      }
+    },
+    "last_updated": "2025-08-10T23:33:28.939230"
+  }
+}

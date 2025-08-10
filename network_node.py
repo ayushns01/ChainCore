@@ -363,6 +363,9 @@ class NetworkNode:
         # Synchronize with network on startup to prevent genesis fork
         self._startup_sync()
         
+        # Start periodic background sync
+        self._start_background_sync()
+        
         self._setup_api_routes()
     
     def _startup_sync(self):
@@ -371,17 +374,55 @@ class NetworkNode:
             print("📡 No peers found - starting as genesis node")
             return
         
-        print("🔄 Performing startup synchronization...")
-        # Try to sync with existing network
-        self._sync_with_peers_blocking()
+        print(f"🔄 Performing startup synchronization with {len(self.active_peers)} peers...")
         
-        # If we still only have genesis block but peers have more, force sync
-        if len(self.blockchain.chain) == 1 and len(self.active_peers) > 0:
-            print("⚠️  Only have genesis block - attempting network sync...")
-            time.sleep(2)  # Give network time to respond
+        # Try multiple sync attempts for new nodes
+        max_attempts = 3
+        for attempt in range(max_attempts):
+            old_length = len(self.blockchain.chain)
             self._sync_with_peers_blocking()
+            new_length = len(self.blockchain.chain)
+            
+            if new_length > old_length:
+                print(f"✅ Synced {new_length - old_length} blocks on attempt {attempt + 1}")
+                
+            # If we still only have genesis block but peers have more, try again
+            if len(self.blockchain.chain) == 1 and len(self.active_peers) > 0 and attempt < max_attempts - 1:
+                print(f"⚠️  Still at genesis block - attempt {attempt + 2}/{max_attempts}...")
+                time.sleep(3)  # Give network time to respond
+                # Re-discover peers in case we missed some
+                self._discover_active_peers(verbose=False)
+            else:
+                break
         
         print(f"✅ Startup sync complete - blockchain length: {len(self.blockchain.chain)}")
+    
+    def _start_background_sync(self):
+        """Start periodic background synchronization"""
+        import threading
+        import time
+        
+        def background_sync_worker():
+            while True:
+                try:
+                    time.sleep(30)  # Check every 30 seconds
+                    
+                    # Re-discover peers periodically
+                    if time.time() - self.last_peer_discovery > 60:  # Every minute
+                        self._discover_active_peers(verbose=False)
+                    
+                    # Quick sync check if we have active peers
+                    if len(self.active_peers) > 0:
+                        self._quick_sync_check()
+                        
+                except Exception as e:
+                    print(f"⚠️ Background sync error: {e}")
+                    time.sleep(10)  # Wait before retrying on error
+        
+        # Start background thread
+        sync_thread = threading.Thread(target=background_sync_worker, daemon=True)
+        sync_thread.start()
+        print("🔄 Started background synchronization")
     
     def _discover_active_peers(self, verbose=True):
         """Discover and add only active peer nodes"""
@@ -935,6 +976,39 @@ class NetworkNode:
                     'error': str(e)
                 }), 500
         
+        @self.app.route('/sync_now', methods=['POST'])
+        def manual_sync():
+            """Manually trigger blockchain synchronization"""
+            try:
+                # Re-discover peers first
+                self._discover_active_peers(verbose=True)
+                
+                # Force sync
+                if len(self.active_peers) > 0:
+                    old_length = len(self.blockchain.chain)
+                    self._sync_with_peers_blocking()
+                    new_length = len(self.blockchain.chain)
+                    
+                    return jsonify({
+                        'status': 'success',
+                        'message': 'Synchronization completed',
+                        'old_blockchain_length': old_length,
+                        'new_blockchain_length': new_length,
+                        'blocks_synced': new_length - old_length,
+                        'active_peers': len(self.active_peers)
+                    })
+                else:
+                    return jsonify({
+                        'status': 'warning',
+                        'message': 'No active peers found for synchronization',
+                        'blockchain_length': len(self.blockchain.chain)
+                    })
+            except Exception as e:
+                return jsonify({
+                    'status': 'error',
+                    'error': str(e)
+                }), 500
+
         @self.app.route('/new_session', methods=['POST'])
         def force_new_session():
             """Force creation of a new session folder (admin only)"""
@@ -1211,11 +1285,12 @@ class NetworkNode:
             
             # If we found a longer chain, download it with extended timeout
             if best_peer and max_length > len(self.blockchain.chain):
-                # Skip sync if chain difference is too large (>100 blocks) to prevent timeouts
+                # Allow larger sync for startup and manual sync requests
                 chain_diff = max_length - len(self.blockchain.chain)
-                if chain_diff > 100:
-                    print(f"⚠️  Large chain difference ({chain_diff} blocks) - skipping full sync to prevent timeout")
-                    return
+                if chain_diff > 500:  # Increased from 100 to 500
+                    print(f"⚠️  Very large chain difference ({chain_diff} blocks) - this may take a while...")
+                else:
+                    print(f"🔄 Chain difference: {chain_diff} blocks")
                 
                 try:
                     print(f"🔄 Downloading blockchain from {best_peer} ({max_length} blocks)")

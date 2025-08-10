@@ -1,0 +1,825 @@
+{
+  "session_id": "session_core7_1754847460",
+  "node_id": "core7",
+  "start_time": "2025-08-10T23:07:40.434053",
+  "session_folder": "session_11",
+  "blocks_mined": [
+    {
+      "block_index": 12,
+      "block_hash": "00000240c543cc3e0ac7b28234153a7d1ded0b20fdcc4dfd4fda226017ae41cf",
+      "previous_hash": "0000094a55577e0dd165565b5d54a11ee4b2b5eb95edbf5c6117244ac2a48816",
+      "miner_address": "1GukayKD1hRAXnQaJYKVwQcwCvVzsUbcJj",
+      "mined_by_node": "core7",
+      "timestamp": "2025-08-10T23:14:27.536105",
+      "nonce": 184997,
+      "difficulty": 5,
+      "transaction_count": 1,
+      "has_transactions": false,
+      "transactions": [
+        {
+          "tx_id": "f861b374ea69a5425a0a61083a5ded95262ba374abffce35be840d8a848804fd",
+          "is_coinbase": true,
+          "amount": 50.0
+        }
+      ]
+    },
+    {
+      "block_index": 33,
+      "block_hash": "0000077f6673b488a29a38a32e98df696938ff6f342f1a3445c91e4aa56f07bb",
+      "previous_hash": "000008ab70b68ba433f11f6494454853d2236a050b4d7f919a67141ecfd9b5d5",
+      "miner_address": "1GukayKD1hRAXnQaJYKVwQcwCvVzsUbcJj",
+      "mined_by_node": "core7",
+      "timestamp": "2025-08-10T23:15:24.591072",
+      "nonce": 28164,
+      "difficulty": 5,
+      "transaction_count": 1,
+      "has_transactions": false,
+      "transactions": [
+        {
+          "tx_id": "4e3a9ae1be91c9c593e3b076e00918d1f909191dbbc3e5a04b0e44dc25bb2851",
+          "is_coinbase": true,
+          "amount": 50.0
+        }
+      ]
+    },
+    {
+      "block_index": 40,
+      "block_hash": "0000035db7132d38bff96f0615c8855c254cd8b5f2243b169e18ca079527e52d",
+      "previous_hash": "00000924cb996b19743cf6f908adbbb2718480538f00957a597aceb83e489b1d",
+      "miner_address": "1GukayKD1hRAXnQaJYKVwQcwCvVzsUbcJj",
+      "mined_by_node": "core7",
+      "timestamp": "2025-08-10T23:15:52.085892",
+      "nonce": 72287,
+      "difficulty": 5,
+      "transaction_count": 1,
+      "has_transactions": false,
+      "transactions": [
+        {
+          "tx_id": "a5d52439d2f33d146932c423fc3a378a2623c9c7332b21cdebed8acff0c59e26",
+          "is_coinbase": true,
+          "amount": 50.0
+        }
+      ]
+    },
+    {
+      "block_index": 58,
+      "block_hash": "000000b54c09f1639b82625fb06dc4596feae5695ae85af759ce97ac9039a520",
+      "previous_hash": "000008e66f8a627939ea0631847b788d3951832a55aa14710317ee33fb7fa1cb",
+      "miner_address": "1GukayKD1hRAXnQaJYKVwQcwCvVzsUbcJj",
+      "mined_by_node": "core7",
+      "timestamp": "2025-08-10T23:16:41.486708",
+      "nonce": 265675,
+      "difficulty": 5,
+      "transaction_count": 1,
+      "has_transactions": false,
+      "transactions": [
+        {
+          "tx_id": "c0fbace757e5f4786fd0434e66aa158366fe65e9eb21c273935248e1d9170a35",
+          "is_coinbase": true,
+          "amount": 50.0
+        }
+      ]
+    },
+    {
+      "block_index": 59,
+      "block_hash": "000005a8977fbbd19c3a4932e49d726948c7d26cad1b96d265737da6190f8f3a",
+      "previous_hash": "000000b54c09f1639b82625fb06dc4596feae5695ae85af759ce97ac9039a520",
+      "miner_address": "1GukayKD1hRAXnQaJYKVwQcwCvVzsUbcJj",
+      "mined_by_node": "core7",
+      "timestamp": "2025-08-10T23:16:46.324031",
+      "nonce": 617254,
+      "difficulty": 5,
+      "transaction_count": 1,
+      "has_transactions": false,
+      "transactions": [
+        {
+          "tx_id": "281227762b7820bc7fc26e9e30181b1ab23f4a14ccc9867d8504fb65ac1608fd",
+          "is_coinbase": true,
+          "amount": 50.0
+        }
+      ]
+    },
+    {
+      "block_index": 65,
+      "block_hash": "00000d262d2b9702314af7c817cec55a4cce581f89d3752253a94a03a2ea7722",
+      "previous_hash": "00000d50ed157158297cd472748ca49aa89537691b1f9bef271680cea87c719d",
+      "miner_address": "1GukayKD1hRAXnQaJYKVwQcwCvVzsUbcJj",
+      "mined_by_node": "core7",
+      "timestamp": "2025-08-10T23:17:00.656834",
+      "nonce": 218811,
+      "difficulty": 5,
+      "transaction_count": 1,
+      "has_transactions": false,
+      "transactions": [
+        {
+          "tx_id": "e7d1c6c35b33e15f177b212c1861adf44c83514a6e98968f74f928e96fc6c3b7",
+          "is_coinbase": true,
+          "amount": 50.0
+        }
+      ]
+    },
+    {
+      "block_index": 101,
+      "block_hash": "00000dd159598b6c71b84882fe4a4593ddc91bcef56c6da9b8264dddbfd4ebfd",
+      "previous_hash": "000007a560a875b2467468c586f2b81f810256313ed7899a4ba07ed36730c08c",
+      "miner_address": "1GukayKD1hRAXnQaJYKVwQcwCvVzsUbcJj",
+      "mined_by_node": "core7",
+      "timestamp": "2025-08-10T23:18:40.973488",
+      "nonce": 731352,
+      "difficulty": 5,
+      "transaction_count": 1,
+      "has_transactions": false,
+      "transactions": [
+        {
+          "tx_id": "8d978d534030f3851a38a467cf8e2e7364235d1d4c4905bc35a526fab9998ff2",
+          "is_coinbase": true,
+          "amount": 50.0
+        }
+      ]
+    },
+    {
+      "block_index": 102,
+      "block_hash": "0000052c363e1c0223ce7f66b935e304a92d5ec82d9e15def66c66f142088ad8",
+      "previous_hash": "00000dd159598b6c71b84882fe4a4593ddc91bcef56c6da9b8264dddbfd4ebfd",
+      "miner_address": "1GukayKD1hRAXnQaJYKVwQcwCvVzsUbcJj",
+      "mined_by_node": "core7",
+      "timestamp": "2025-08-10T23:18:42.123931",
+      "nonce": 18238,
+      "difficulty": 5,
+      "transaction_count": 1,
+      "has_transactions": false,
+      "transactions": [
+        {
+          "tx_id": "97562252f77d09cbf56eca8b61ba5b772d51f46f54aae289893b2bdc7eb1561b",
+          "is_coinbase": true,
+          "amount": 50.0
+        }
+      ]
+    },
+    {
+      "block_index": 108,
+      "block_hash": "00000562ccd1731abcf63441648acca0237572fd50712e547229cc0eaba69b45",
+      "previous_hash": "0000027002876b823ae389a7edf84f1c80f3930546523b4d77ba69d7547060ef",
+      "miner_address": "1GukayKD1hRAXnQaJYKVwQcwCvVzsUbcJj",
+      "mined_by_node": "core7",
+      "timestamp": "2025-08-10T23:18:55.230813",
+      "nonce": 824138,
+      "difficulty": 5,
+      "transaction_count": 1,
+      "has_transactions": false,
+      "transactions": [
+        {
+          "tx_id": "59f3c4560d1825b405dd0642bf5d011cf7b5f16356c0f21c04259ac443a6b36f",
+          "is_coinbase": true,
+          "amount": 50.0
+        }
+      ]
+    },
+    {
+      "block_index": 113,
+      "block_hash": "00000e7dc7b8682152e9baa58e676546911afce0a68970f5b03d34bc2a4e3776",
+      "previous_hash": "00000e88df2e42b67987e847076c1550a884349e9b784ad1f5d4f9d51311871a",
+      "miner_address": "1GukayKD1hRAXnQaJYKVwQcwCvVzsUbcJj",
+      "mined_by_node": "core7",
+      "timestamp": "2025-08-10T23:19:11.477523",
+      "nonce": 31053,
+      "difficulty": 5,
+      "transaction_count": 1,
+      "has_transactions": false,
+      "transactions": [
+        {
+          "tx_id": "15b69628180a0a644981042d7eb1d9098200431921531aec0d1c1a1f37e4b277",
+          "is_coinbase": true,
+          "amount": 50.0
+        }
+      ]
+    },
+    {
+      "block_index": 114,
+      "block_hash": "00000cfe318d266b49fa52db2cca72b021da747587a05956f79dad0079bd0ec7",
+      "previous_hash": "00000e7dc7b8682152e9baa58e676546911afce0a68970f5b03d34bc2a4e3776",
+      "miner_address": "1GukayKD1hRAXnQaJYKVwQcwCvVzsUbcJj",
+      "mined_by_node": "core7",
+      "timestamp": "2025-08-10T23:19:15.257334",
+      "nonce": 433392,
+      "difficulty": 5,
+      "transaction_count": 1,
+      "has_transactions": false,
+      "transactions": [
+        {
+          "tx_id": "43bdc5609932d24cd5ab0d5aa7041f3f28417fd7a2a73274bafdbd58586d48a2",
+          "is_coinbase": true,
+          "amount": 50.0
+        }
+      ]
+    },
+    {
+      "block_index": 115,
+      "block_hash": "00000fa201fdbcd3b22c4adee460d6bdd7b178d2dffc83edd99af6df73574d3f",
+      "previous_hash": "00000cfe318d266b49fa52db2cca72b021da747587a05956f79dad0079bd0ec7",
+      "miner_address": "1GukayKD1hRAXnQaJYKVwQcwCvVzsUbcJj",
+      "mined_by_node": "core7",
+      "timestamp": "2025-08-10T23:19:18.424036",
+      "nonce": 347769,
+      "difficulty": 5,
+      "transaction_count": 1,
+      "has_transactions": false,
+      "transactions": [
+        {
+          "tx_id": "c54f3804843875f255e48e5b3cf530afd7e360721146190a896bfc792b5bc387",
+          "is_coinbase": true,
+          "amount": 50.0
+        }
+      ]
+    },
+    {
+      "block_index": 117,
+      "block_hash": "000002e791344d6dfee0d802797668479dd3aeb01aa4b68d646348f533624f6e",
+      "previous_hash": "00000145ae7899624941b2113fb33625167e9e3516439b101bc4390feb45e1ff",
+      "miner_address": "1GukayKD1hRAXnQaJYKVwQcwCvVzsUbcJj",
+      "mined_by_node": "core7",
+      "timestamp": "2025-08-10T23:19:21.331001",
+      "nonce": 371699,
+      "difficulty": 5,
+      "transaction_count": 1,
+      "has_transactions": false,
+      "transactions": [
+        {
+          "tx_id": "267b2e554f015763f8ce4a651d18cb651640786111f9aca9274133f59376288d",
+          "is_coinbase": true,
+          "amount": 50.0
+        }
+      ]
+    },
+    {
+      "block_index": 118,
+      "block_hash": "000009aa2c78899237920dfa8feb81da8f30e1b1095670dc08a1fb7dfac85f49",
+      "previous_hash": "000002e791344d6dfee0d802797668479dd3aeb01aa4b68d646348f533624f6e",
+      "miner_address": "1GukayKD1hRAXnQaJYKVwQcwCvVzsUbcJj",
+      "mined_by_node": "core7",
+      "timestamp": "2025-08-10T23:19:23.949471",
+      "nonce": 270030,
+      "difficulty": 5,
+      "transaction_count": 1,
+      "has_transactions": false,
+      "transactions": [
+        {
+          "tx_id": "5eaf229bc31c3a19fe2fe30c8cc9a7f05155aad8c9ee7b532de364efce1af922",
+          "is_coinbase": true,
+          "amount": 50.0
+        }
+      ]
+    },
+    {
+      "block_index": 132,
+      "block_hash": "000009a5330f769cdd06f88265f77ba655592da759b151d94b531a929a32750d",
+      "previous_hash": "00000aa9aa1c32661b2113333bb85b2e1bdc7ac3b4b86f2a2a082e1c0cdfea7f",
+      "miner_address": "1GukayKD1hRAXnQaJYKVwQcwCvVzsUbcJj",
+      "mined_by_node": "core7",
+      "timestamp": "2025-08-10T23:20:06.045221",
+      "nonce": 70965,
+      "difficulty": 5,
+      "transaction_count": 1,
+      "has_transactions": false,
+      "transactions": [
+        {
+          "tx_id": "dca3137d5eae887ba8fd32f45ee393ecb9f28b31ab5f772922d67f6d32577a03",
+          "is_coinbase": true,
+          "amount": 50.0
+        }
+      ]
+    },
+    {
+      "block_index": 139,
+      "block_hash": "00000f925fb4688157d9bac5d7a4e4ab4a77f03159459436cd75ca699eb8ef9d",
+      "previous_hash": "00000e70be98ab79bb2917d1a3891fadff0fa5a5f52d7e33f80610846c44643e",
+      "miner_address": "1GukayKD1hRAXnQaJYKVwQcwCvVzsUbcJj",
+      "mined_by_node": "core7",
+      "timestamp": "2025-08-10T23:20:29.097141",
+      "nonce": 36679,
+      "difficulty": 5,
+      "transaction_count": 1,
+      "has_transactions": false,
+      "transactions": [
+        {
+          "tx_id": "c9a5af77b112d3bc5e6afb73bb6a4bf6875bcdaf98d17e898e2c9a460e05e9ea",
+          "is_coinbase": true,
+          "amount": 50.0
+        }
+      ]
+    },
+    {
+      "block_index": 140,
+      "block_hash": "000003fb3d02851dbc2306da9530274f256101ec35e867297182a4e26622be8e",
+      "previous_hash": "00000f925fb4688157d9bac5d7a4e4ab4a77f03159459436cd75ca699eb8ef9d",
+      "miner_address": "1GukayKD1hRAXnQaJYKVwQcwCvVzsUbcJj",
+      "mined_by_node": "core7",
+      "timestamp": "2025-08-10T23:20:32.274521",
+      "nonce": 380323,
+      "difficulty": 5,
+      "transaction_count": 1,
+      "has_transactions": false,
+      "transactions": [
+        {
+          "tx_id": "5e92e7f5976b213e56b15d3858ffae6561bde4ea143ea45fb0bef6276212a4a3",
+          "is_coinbase": true,
+          "amount": 50.0
+        }
+      ]
+    },
+    {
+      "block_index": 147,
+      "block_hash": "00000c48fbc354a529cf9201643e20dd98949a8face18bfc4dfda1c4af227eaf",
+      "previous_hash": "000009e9c8983dde459ed1f69be29ae86f65df25e170eeb627e7c30da530725f",
+      "miner_address": "1GukayKD1hRAXnQaJYKVwQcwCvVzsUbcJj",
+      "mined_by_node": "core7",
+      "timestamp": "2025-08-10T23:20:51.391176",
+      "nonce": 232131,
+      "difficulty": 5,
+      "transaction_count": 1,
+      "has_transactions": false,
+      "transactions": [
+        {
+          "tx_id": "2fc265d324dca0c0cac91268a6f9c58009741cce95270f5aaf9fe84bb861378e",
+          "is_coinbase": true,
+          "amount": 50.0
+        }
+      ]
+    },
+    {
+      "block_index": 159,
+      "block_hash": "000001f786d031509c238c4b7a94a2cbef7f595318571c09404e89c374111597",
+      "previous_hash": "000003d899e588c389cc7dee58ec14ca4e9432a75086b323aa649831d3747990",
+      "miner_address": "1GukayKD1hRAXnQaJYKVwQcwCvVzsUbcJj",
+      "mined_by_node": "core7",
+      "timestamp": "2025-08-10T23:21:22.048465",
+      "nonce": 61003,
+      "difficulty": 5,
+      "transaction_count": 1,
+      "has_transactions": false,
+      "transactions": [
+        {
+          "tx_id": "7076cc5532eef4768961f5d1e3d49af2ec710035e9ee4667fb40a675b6d80c71",
+          "is_coinbase": true,
+          "amount": 50.0
+        }
+      ]
+    },
+    {
+      "block_index": 164,
+      "block_hash": "000007f57631b95a6a3ca98838015887251f4ad660d304838d4f8abf7f1e15f2",
+      "previous_hash": "00000fdbcc5b01056d3bb3ad321439a2cdd7781b046f427e42ddd1daacedb335",
+      "miner_address": "1GukayKD1hRAXnQaJYKVwQcwCvVzsUbcJj",
+      "mined_by_node": "core7",
+      "timestamp": "2025-08-10T23:21:33.241410",
+      "nonce": 353284,
+      "difficulty": 5,
+      "transaction_count": 1,
+      "has_transactions": false,
+      "transactions": [
+        {
+          "tx_id": "0d7f8933c9528a56773bbd1a2c79c8868778be8e73792cf081346f97890d446f",
+          "is_coinbase": true,
+          "amount": 50.0
+        }
+      ]
+    },
+    {
+      "block_index": 165,
+      "block_hash": "000009c5f57d989b70a63c5407ca4f6e2c7940d30b365fb8ce1625ccd9bcf4c8",
+      "previous_hash": "000007f57631b95a6a3ca98838015887251f4ad660d304838d4f8abf7f1e15f2",
+      "miner_address": "1GukayKD1hRAXnQaJYKVwQcwCvVzsUbcJj",
+      "mined_by_node": "core7",
+      "timestamp": "2025-08-10T23:21:35.354355",
+      "nonce": 150581,
+      "difficulty": 5,
+      "transaction_count": 1,
+      "has_transactions": false,
+      "transactions": [
+        {
+          "tx_id": "2e70074e14b8b7c7c91700d262b812d88b0b7719b1a0d14c53d4de27ec15b88b",
+          "is_coinbase": true,
+          "amount": 50.0
+        }
+      ]
+    },
+    {
+      "block_index": 166,
+      "block_hash": "00000d2e02b4de5f01ade934dc72e0966eb21d4f71f247a38a018df4f939bb3e",
+      "previous_hash": "000009c5f57d989b70a63c5407ca4f6e2c7940d30b365fb8ce1625ccd9bcf4c8",
+      "miner_address": "1GukayKD1hRAXnQaJYKVwQcwCvVzsUbcJj",
+      "mined_by_node": "core7",
+      "timestamp": "2025-08-10T23:21:37.780386",
+      "nonce": 141512,
+      "difficulty": 5,
+      "transaction_count": 1,
+      "has_transactions": false,
+      "transactions": [
+        {
+          "tx_id": "55d07e2159e959a3df0f23b3ea0ffc5c2fbfabd46c991fce888157a80d4a794b",
+          "is_coinbase": true,
+          "amount": 50.0
+        }
+      ]
+    },
+    {
+      "block_index": 188,
+      "block_hash": "00000878c4b99d3084580dd5c15682e07245a6d6992fee0b6450389c9c3d87c3",
+      "previous_hash": "00000a15d2df5e9fcbcf39fbec0e40d55b7e04315e303314e2d2d0f2e2039256",
+      "miner_address": "1GukayKD1hRAXnQaJYKVwQcwCvVzsUbcJj",
+      "mined_by_node": "core7",
+      "timestamp": "2025-08-10T23:23:01.312974",
+      "nonce": 538681,
+      "difficulty": 5,
+      "transaction_count": 1,
+      "has_transactions": false,
+      "transactions": [
+        {
+          "tx_id": "1f7327d565deb2e88956bf952c4f2f0b31957b870fd99cbe953fde445c49bfc9",
+          "is_coinbase": true,
+          "amount": 50.0
+        }
+      ]
+    },
+    {
+      "block_index": 189,
+      "block_hash": "00000acd9dafab10831a4ebe691ef47d59065ecfbba5cfcded28c76e0f29b1d3",
+      "previous_hash": "00000878c4b99d3084580dd5c15682e07245a6d6992fee0b6450389c9c3d87c3",
+      "miner_address": "1GukayKD1hRAXnQaJYKVwQcwCvVzsUbcJj",
+      "mined_by_node": "core7",
+      "timestamp": "2025-08-10T23:23:02.728844",
+      "nonce": 48598,
+      "difficulty": 5,
+      "transaction_count": 1,
+      "has_transactions": false,
+      "transactions": [
+        {
+          "tx_id": "77dca0dd97b14a87bb8a8bd004786a64672f46652c3912ac0c217ac1eee272ba",
+          "is_coinbase": true,
+          "amount": 50.0
+        }
+      ]
+    },
+    {
+      "block_index": 215,
+      "block_hash": "00000c312d6c4309439ba3cdde767af0d5305b5437b3869384c0c1976d25fa4e",
+      "previous_hash": "000007ef3375c90e585ad4131890757672179db0f9ab9212119270cb174e1dc6",
+      "miner_address": "1GukayKD1hRAXnQaJYKVwQcwCvVzsUbcJj",
+      "mined_by_node": "core7",
+      "timestamp": "2025-08-10T23:24:41.160734",
+      "nonce": 250787,
+      "difficulty": 5,
+      "transaction_count": 1,
+      "has_transactions": false,
+      "transactions": [
+        {
+          "tx_id": "8bc5f1f6703a6d9d262ebe9c8e16fef55af314205d6ce455fdde399484804c81",
+          "is_coinbase": true,
+          "amount": 50.0
+        }
+      ]
+    },
+    {
+      "block_index": 216,
+      "block_hash": "00000218536544c6473cecdc33ddaf1e4a8da1f1878721fd37096e7a77632f65",
+      "previous_hash": "00000c312d6c4309439ba3cdde767af0d5305b5437b3869384c0c1976d25fa4e",
+      "miner_address": "1GukayKD1hRAXnQaJYKVwQcwCvVzsUbcJj",
+      "mined_by_node": "core7",
+      "timestamp": "2025-08-10T23:24:43.747199",
+      "nonce": 226497,
+      "difficulty": 5,
+      "transaction_count": 1,
+      "has_transactions": false,
+      "transactions": [
+        {
+          "tx_id": "6fcbe94a818eb88d97c127d5cc0efbd81cbf6090abfbb742e8227754964a1aa1",
+          "is_coinbase": true,
+          "amount": 50.0
+        }
+      ]
+    },
+    {
+      "block_index": 217,
+      "block_hash": "000008543855f262b4f7d6921c2e4585a9155465c88ce626cf9b4716d08d5668",
+      "previous_hash": "00000218536544c6473cecdc33ddaf1e4a8da1f1878721fd37096e7a77632f65",
+      "miner_address": "1GukayKD1hRAXnQaJYKVwQcwCvVzsUbcJj",
+      "mined_by_node": "core7",
+      "timestamp": "2025-08-10T23:24:44.940228",
+      "nonce": 1915,
+      "difficulty": 5,
+      "transaction_count": 1,
+      "has_transactions": false,
+      "transactions": [
+        {
+          "tx_id": "ed9d5a069468fbe983610538e1e6717e8a111a82e931170da89c3d5bb11d6b7f",
+          "is_coinbase": true,
+          "amount": 50.0
+        }
+      ]
+    },
+    {
+      "block_index": 219,
+      "block_hash": "00000033b9d1f8383bac0121af3f39ecaf3404d5cdb2860d2fba463597647c6c",
+      "previous_hash": "00000f4d3b43536e6ebd6d73dac3cc3f53e2937654abda798068ffbb56c6570f",
+      "miner_address": "1GukayKD1hRAXnQaJYKVwQcwCvVzsUbcJj",
+      "mined_by_node": "core7",
+      "timestamp": "2025-08-10T23:24:52.715806",
+      "nonce": 201677,
+      "difficulty": 5,
+      "transaction_count": 1,
+      "has_transactions": false,
+      "transactions": [
+        {
+          "tx_id": "1003480981c5e5ad1966baea0b71bde8f3191a8c467221bc90e0529283f76f52",
+          "is_coinbase": true,
+          "amount": 50.0
+        }
+      ]
+    },
+    {
+      "block_index": 221,
+      "block_hash": "000000e2f74f05fb2a8200f2f34301ce3072f7b64a5910e8ac81e5c538ddd34e",
+      "previous_hash": "0000094f414d29618d8f39d70d31870ccc556a3c1edfe505f6aa2ce0858c2099",
+      "miner_address": "1GukayKD1hRAXnQaJYKVwQcwCvVzsUbcJj",
+      "mined_by_node": "core7",
+      "timestamp": "2025-08-10T23:24:53.812515",
+      "nonce": 2120,
+      "difficulty": 5,
+      "transaction_count": 1,
+      "has_transactions": false,
+      "transactions": [
+        {
+          "tx_id": "74146efb3ed83f364725ea4d4ad0a10ff118563f8e8a12c202287d4dd738f340",
+          "is_coinbase": true,
+          "amount": 50.0
+        }
+      ]
+    },
+    {
+      "block_index": 222,
+      "block_hash": "00000e297e6572d6d8356f2671d8e79d30283ae7b50bf1c45410be6c415374a1",
+      "previous_hash": "000000e2f74f05fb2a8200f2f34301ce3072f7b64a5910e8ac81e5c538ddd34e",
+      "miner_address": "1GukayKD1hRAXnQaJYKVwQcwCvVzsUbcJj",
+      "mined_by_node": "core7",
+      "timestamp": "2025-08-10T23:24:56.299281",
+      "nonce": 172176,
+      "difficulty": 5,
+      "transaction_count": 1,
+      "has_transactions": false,
+      "transactions": [
+        {
+          "tx_id": "5225606ce9de12d8167e4f2b78fe1d7b8ddccd7f7b8e55e6a156bc7ad5a84bad",
+          "is_coinbase": true,
+          "amount": 50.0
+        }
+      ]
+    },
+    {
+      "block_index": 227,
+      "block_hash": "00000c98052fb55892b3fd0efe41566cd021e5239f4c57308fb9b38f2a7b6328",
+      "previous_hash": "000009492b307563a4b656fecf75ee373b3a66ad4c1f1d6bd705381cbcd79e79",
+      "miner_address": "1GukayKD1hRAXnQaJYKVwQcwCvVzsUbcJj",
+      "mined_by_node": "core7",
+      "timestamp": "2025-08-10T23:25:11.193555",
+      "nonce": 168955,
+      "difficulty": 5,
+      "transaction_count": 1,
+      "has_transactions": false,
+      "transactions": [
+        {
+          "tx_id": "25450f34d8fc3c9452a92338afc0f7117604c4df656df4225a07695db62603b8",
+          "is_coinbase": true,
+          "amount": 50.0
+        }
+      ]
+    },
+    {
+      "block_index": 228,
+      "block_hash": "000003ece0dc2f032d8dc0221ff092effde5562bb19a9e6264d92d9f347f99a4",
+      "previous_hash": "00000c98052fb55892b3fd0efe41566cd021e5239f4c57308fb9b38f2a7b6328",
+      "miner_address": "1GukayKD1hRAXnQaJYKVwQcwCvVzsUbcJj",
+      "mined_by_node": "core7",
+      "timestamp": "2025-08-10T23:25:12.919126",
+      "nonce": 90062,
+      "difficulty": 5,
+      "transaction_count": 1,
+      "has_transactions": false,
+      "transactions": [
+        {
+          "tx_id": "0873434859b4109c3976163dd8e0657d853fb8f91b76c4e8cc1a0a16664a692f",
+          "is_coinbase": true,
+          "amount": 50.0
+        }
+      ]
+    },
+    {
+      "block_index": 240,
+      "block_hash": "00000c1b1fb7dc06cba47f3957aad55146aeff8bd8a700b3dad1d7ff9721f0c1",
+      "previous_hash": "00000041e70f0bd68786d6c78e7f7920519318165070145aa57b6aca2fb1a3b8",
+      "miner_address": "1GukayKD1hRAXnQaJYKVwQcwCvVzsUbcJj",
+      "mined_by_node": "core7",
+      "timestamp": "2025-08-10T23:25:50.201782",
+      "nonce": 55699,
+      "difficulty": 5,
+      "transaction_count": 1,
+      "has_transactions": false,
+      "transactions": [
+        {
+          "tx_id": "711579aa5cfad2a51588c598251222ed17cec77deeda3ef5aae70d915af95bc0",
+          "is_coinbase": true,
+          "amount": 50.0
+        }
+      ]
+    },
+    {
+      "block_index": 276,
+      "block_hash": "0000027f12c9551e07b50e4b333bbd4158a9cb36992be0c888106f232594ed3f",
+      "previous_hash": "00000ccafc754accf82fac0e691fa59f7cfaf7d8f0d2080b3f0e149846b5cf4a",
+      "miner_address": "1GukayKD1hRAXnQaJYKVwQcwCvVzsUbcJj",
+      "mined_by_node": "core7",
+      "timestamp": "2025-08-10T23:27:59.392247",
+      "nonce": 549884,
+      "difficulty": 5,
+      "transaction_count": 1,
+      "has_transactions": false,
+      "transactions": [
+        {
+          "tx_id": "2a35485072f50c81239b46a4d49b62a279d99c6d1f3d961590f2dcc680809a6c",
+          "is_coinbase": true,
+          "amount": 50.0
+        }
+      ]
+    },
+    {
+      "block_index": 277,
+      "block_hash": "000002ae6dde6109d489594df393e09015c8be1c13527998bf91d10a3c635b4d",
+      "previous_hash": "0000027f12c9551e07b50e4b333bbd4158a9cb36992be0c888106f232594ed3f",
+      "miner_address": "1GukayKD1hRAXnQaJYKVwQcwCvVzsUbcJj",
+      "mined_by_node": "core7",
+      "timestamp": "2025-08-10T23:28:05.333201",
+      "nonce": 800990,
+      "difficulty": 5,
+      "transaction_count": 1,
+      "has_transactions": false,
+      "transactions": [
+        {
+          "tx_id": "2d34c901a6ed0e5466bbc8d37f4129c8e7c0ea8f440a0ea759e83d349d303257",
+          "is_coinbase": true,
+          "amount": 50.0
+        }
+      ]
+    },
+    {
+      "block_index": 278,
+      "block_hash": "00000497aae2c92d0d93943b87643c15e5cdfe9bbdaae1c7918a34ead046b6d7",
+      "previous_hash": "000002ae6dde6109d489594df393e09015c8be1c13527998bf91d10a3c635b4d",
+      "miner_address": "1GukayKD1hRAXnQaJYKVwQcwCvVzsUbcJj",
+      "mined_by_node": "core7",
+      "timestamp": "2025-08-10T23:28:09.997230",
+      "nonce": 475494,
+      "difficulty": 5,
+      "transaction_count": 1,
+      "has_transactions": false,
+      "transactions": [
+        {
+          "tx_id": "57500fe49ab386fa910ea201750453e530451c1581fe079957f75d21b66c4aaf",
+          "is_coinbase": true,
+          "amount": 50.0
+        }
+      ]
+    },
+    {
+      "block_index": 279,
+      "block_hash": "0000078dc886d198b8fc2f2a3d6e1006dc863cc9fd39dcfede21649936c82d37",
+      "previous_hash": "00000497aae2c92d0d93943b87643c15e5cdfe9bbdaae1c7918a34ead046b6d7",
+      "miner_address": "1GukayKD1hRAXnQaJYKVwQcwCvVzsUbcJj",
+      "mined_by_node": "core7",
+      "timestamp": "2025-08-10T23:28:11.420281",
+      "nonce": 29175,
+      "difficulty": 5,
+      "transaction_count": 1,
+      "has_transactions": false,
+      "transactions": [
+        {
+          "tx_id": "de13bcca5bacc14bd313b74c7c6afb071a44ff33e40c222b0f69d435cb980e83",
+          "is_coinbase": true,
+          "amount": 50.0
+        }
+      ]
+    },
+    {
+      "block_index": 280,
+      "block_hash": "0000024881d9836bb08f940ab35a2b0b88163b4b76d4d1576ae9967f3a28f55b",
+      "previous_hash": "0000078dc886d198b8fc2f2a3d6e1006dc863cc9fd39dcfede21649936c82d37",
+      "miner_address": "1GukayKD1hRAXnQaJYKVwQcwCvVzsUbcJj",
+      "mined_by_node": "core7",
+      "timestamp": "2025-08-10T23:28:12.652259",
+      "nonce": 26244,
+      "difficulty": 5,
+      "transaction_count": 1,
+      "has_transactions": false,
+      "transactions": [
+        {
+          "tx_id": "0e1cb2027cd7c99a6359e8a44c577b49130bcc8d9890eba9ca8f70773a196b71",
+          "is_coinbase": true,
+          "amount": 50.0
+        }
+      ]
+    },
+    {
+      "block_index": 284,
+      "block_hash": "0000011e5065541dc8a8e14ba1ead96f5ade96a84ba7b52f9ffd7ae6b98abbf0",
+      "previous_hash": "00000bb65a16276e573b4203850e105821c69335f1083433cbc2a442fce7db50",
+      "miner_address": "1GukayKD1hRAXnQaJYKVwQcwCvVzsUbcJj",
+      "mined_by_node": "core7",
+      "timestamp": "2025-08-10T23:28:24.892450",
+      "nonce": 54165,
+      "difficulty": 5,
+      "transaction_count": 1,
+      "has_transactions": false,
+      "transactions": [
+        {
+          "tx_id": "14ea27a189277ef112a08e058ddc048024860a66e59e53fce1aa98228896a6c9",
+          "is_coinbase": true,
+          "amount": 50.0
+        }
+      ]
+    },
+    {
+      "block_index": 291,
+      "block_hash": "00000b7be2088c286b4447c68d4ae9fc99282494fd91b59f876b4e1589053999",
+      "previous_hash": "0000013ebf47ccb7bb683c5ce0310383325cd1ce5951ddf916b825988d0779cc",
+      "miner_address": "1GukayKD1hRAXnQaJYKVwQcwCvVzsUbcJj",
+      "mined_by_node": "core7",
+      "timestamp": "2025-08-10T23:28:56.293038",
+      "nonce": 766900,
+      "difficulty": 5,
+      "transaction_count": 1,
+      "has_transactions": false,
+      "transactions": [
+        {
+          "tx_id": "e052efc23a75bd8284c3afa3353266dcc4aeb8390d5a9049a8ae5a069043d27c",
+          "is_coinbase": true,
+          "amount": 50.0
+        }
+      ]
+    },
+    {
+      "block_index": 292,
+      "block_hash": "00000f8a0c38a95d8c0a411bbd45c892216729b357ac81d4d2376e7b50dfc756",
+      "previous_hash": "00000b7be2088c286b4447c68d4ae9fc99282494fd91b59f876b4e1589053999",
+      "miner_address": "1GukayKD1hRAXnQaJYKVwQcwCvVzsUbcJj",
+      "mined_by_node": "core7",
+      "timestamp": "2025-08-10T23:28:58.716929",
+      "nonce": 163667,
+      "difficulty": 5,
+      "transaction_count": 1,
+      "has_transactions": false,
+      "transactions": [
+        {
+          "tx_id": "d4782ffc2c29fa1e3b038c9cc64ec985833964c7b53d8047853caba72e141cc4",
+          "is_coinbase": true,
+          "amount": 50.0
+        }
+      ]
+    },
+    {
+      "block_index": 332,
+      "block_hash": "00000da5c2f1d463b626d4454503068613f842b281d0a1355ac7144a1b9373d3",
+      "previous_hash": "00000debf373a46a2eb0460a1229acf267ca7853a73e79aa50b3047126cfd567",
+      "miner_address": "1GukayKD1hRAXnQaJYKVwQcwCvVzsUbcJj",
+      "mined_by_node": "core7",
+      "timestamp": "2025-08-10T23:31:47.607054",
+      "nonce": 197953,
+      "difficulty": 5,
+      "transaction_count": 1,
+      "has_transactions": false,
+      "transactions": [
+        {
+          "tx_id": "bed624119e0710915d4409e509783f2b737fbb8a44488f01e3ac53d72fc86abb",
+          "is_coinbase": true,
+          "amount": 50.0
+        }
+      ]
+    },
+    {
+      "block_index": 354,
+      "block_hash": "000009518db7fed8e659f0c7e1e820d9dbcf3e4a22d20ae1f4b813735d1d17d5",
+      "previous_hash": "00000e1a8fa4f0e1c3acb419802eb7e754f5f672a21c87d0f139c218fee1ed7d",
+      "miner_address": "1GukayKD1hRAXnQaJYKVwQcwCvVzsUbcJj",
+      "mined_by_node": "core7",
+      "timestamp": "2025-08-10T23:32:52.963381",
+      "nonce": 25123,
+      "difficulty": 5,
+      "transaction_count": 1,
+      "has_transactions": false,
+      "transactions": [
+        {
+          "tx_id": "064c50b7a3c5c1dd059946905281e13fcc6c8126956e688be5ed0b937c6c3437",
+          "is_coinbase": true,
+          "amount": 50.0
+        }
+      ]
+    }
+  ]
+}

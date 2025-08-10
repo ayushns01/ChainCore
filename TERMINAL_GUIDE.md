@@ -52,25 +52,28 @@ python3 wallet_client.py info --wallet bob.json
 python3 wallet_client.py info --wallet miner1.json
 python3 wallet_client.py info --wallet miner2.json
 
-### Terminal 5: Start First Miner
+### Terminal 5: Start Miner
 
 python3 mining_client.py --wallet 1CcUyVAiHT2dGP4ESxWqsDKFzazkQ2UW3n --node http://localhost:5000
 python3 mining_client.py --wallet 1GukayKD1hRAXnQaJYKVwQcwCvVzsUbcJj --node http://localhost:5001
 python3 mining_client.py --wallet 18NDhHYAa3bx3jAZkc7HZf3vKr1JrwVXG3 --node http://localhost:5002
+python3 mining_client.py --wallet 1CcUyVAiHT2dGP4ESxWqsDKFzazkQ2UW3n --node http://localhost:5003
+python3 mining_client.py --wallet 1GukayKD1hRAXnQaJYKVwQcwCvVzsUbcJj --node http://localhost:5004
+python3 mining_client.py --wallet 18NDhHYAa3bx3jAZkc7HZf3vKr1JrwVXG3 --node http://localhost:5005
+python3 mining_client.py --wallet 1CcUyVAiHT2dGP4ESxWqsDKFzazkQ2UW3n --node http://localhost:5006
+python3 mining_client.py --wallet 1GukayKD1hRAXnQaJYKVwQcwCvVzsUbcJj --node http://localhost:5007
+python3 mining_client.py --wallet 18NDhHYAa3bx3jAZkc7HZf3vKr1JrwVXG3 --node http://localhost:5008
+python3 mining_client.py --wallet 1CcUyVAiHT2dGP4ESxWqsDKFzazkQ2UW3n --node http://localhost:5009
+python3 mining_client.py --wallet 1GukayKD1hRAXnQaJYKVwQcwCvVzsUbcJj --node http://localhost:5010
+python3 mining_client.py --wallet 18NDhHYAa3bx3jAZkc7HZf3vKr1JrwVXG3 --node http://localhost:5011
 
 # Get balance
 
-curl http://localhost:5001/balance/1CcUyVAiHT2dGP4ESxWqsDKFzazkQ2UW3n
-curl http://localhost:5001/balance/1GukayKD1hRAXnQaJYKVwQcwCvVzsUbcJj
-curl http://localhost:5001/balance/18NDhHYAa3bx3jAZkc7HZf3vKr1JrwVXG3
-curl http://localhost:5001/balance/15vuSyM7ZFUNqBibgwHUgbkva4FDDn6pXq
-curl http://localhost:5001/balance/1FzanzSbcH7sik5kzymbdTrNci6h5HxBCe
-
-# Start mining on Node
-
-python3 mining_client.py --wallet 1CcUyVAiHT2dGP4ESxWqsDKFzazkQ2UW3n --node http://localhost:5000
-python3 mining_client.py --wallet 1GukayKD1hRAXnQaJYKVwQcwCvVzsUbcJj --node http://localhost:5001
-python3 mining_client.py --wallet 18NDhHYAa3bx3jAZkc7HZf3vKr1JrwVXG3 --node http://localhost:5002
+curl http://localhost:5000/balance/1CcUyVAiHT2dGP4ESxWqsDKFzazkQ2UW3n
+curl http://localhost:5000/balance/1GukayKD1hRAXnQaJYKVwQcwCvVzsUbcJj
+curl http://localhost:5000/balance/18NDhHYAa3bx3jAZkc7HZf3vKr1JrwVXG3
+curl http://localhost:5000/balance/15vuSyM7ZFUNqBibgwHUgbkva4FDDn6pXq
+curl http://localhost:5000/balance/1FzanzSbcH7sik5kzymbdTrNci6h5HxBCe
 
 ### Terminal 6: Start Second Miner (Competitive)
 
@@ -116,6 +119,19 @@ python3 network_node.py --node-id core8 --api-port 5008 --p2p-port 8008
 python3 network_node.py --node-id core9 --api-port 5009 --p2p-port 8009
 python3 network_node.py --node-id core10 --api-port 5010 --p2p-port 8010
 python3 network_node.py --node-id core11 --api-port 5011 --p2p-port 8011
+
+curl -X POST http://localhost:5000/sync_now
+curl -X POST http://localhost:5001/sync_now
+curl -X POST http://localhost:5002/sync_now
+curl -X POST http://localhost:5003/sync_now
+curl -X POST http://localhost:5004/sync_now
+curl -X POST http://localhost:5005/sync_now
+curl -X POST http://localhost:5006/sync_now
+curl -X POST http://localhost:5007/sync_now
+curl -X POST http://localhost:5008/sync_now
+curl -X POST http://localhost:5009/sync_now
+curl -X POST http://localhost:5010/sync_now
+curl -X POST http://localhost:5011/sync_now
 
 ### Continuous Network Status (run in any terminal)
 
