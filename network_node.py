@@ -87,7 +87,7 @@ class Blockchain:
         self.chain: List[Block] = []
         self.transaction_pool: List[Transaction] = []
         self.utxo_set: Dict[str, Dict] = {}
-        self.target_difficulty = 5
+        self.target_difficulty = 4
         self.block_reward = 50.0
         
         self._create_genesis_block()

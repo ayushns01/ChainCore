@@ -1,0 +1,54 @@
+{
+  "session_name": "session_15",
+  "session_number": 15,
+  "session_start_time": "2025-08-11T00:27:13.948533",
+  "blockchain_start_timestamp": 1754852233.9510822,
+  "nodes": [
+    {
+      "node_id": "core1",
+      "api_port": 5001,
+      "p2p_port": 8001,
+      "registration_time": "2025-08-11T00:27:13.960677",
+      "last_seen": 1754853066.335744
+    }
+  ],
+  "status": "active",
+  "mining_statistics": {
+    "total_blocks_mined": 40,
+    "blocks_per_core": {
+      "core1": {
+        "blocks_mined_count": 40,
+        "session_file": "session_core1_1754852233.json",
+        "start_time": "2025-08-11T00:25:17.162690",
+        "latest_blocks": [
+          {
+            "block_index": 72,
+            "block_hash": "00000bc3543e79bf...",
+            "timestamp": "2025-08-11T00:39:15.342477"
+          },
+          {
+            "block_index": 74,
+            "block_hash": "0000664905752480...",
+            "timestamp": "2025-08-11T00:39:30.930969"
+          },
+          {
+            "block_index": 76,
+            "block_hash": "0000dde87617b9c4...",
+            "timestamp": "2025-08-11T00:39:46.642106"
+          },
+          {
+            "block_index": 78,
+            "block_hash": "00007dc0dc7377ac...",
+            "timestamp": "2025-08-11T00:40:02.671385"
+          },
+          {
+            "block_index": 80,
+            "block_hash": "00005c56260e689c...",
+            "timestamp": "2025-08-11T00:40:18.912099"
+          }
+        ]
+      }
+    },
+    "last_updated": "2025-08-11T00:40:18.925314"
+  }
+}

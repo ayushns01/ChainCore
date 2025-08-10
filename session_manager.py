@@ -49,13 +49,15 @@ class SessionManager:
     def _find_active_session(self) -> Optional[str]:
         """
         Look for an existing active session with running nodes.
-        Only creates new session if NO nodes are currently active.
+        Uses more flexible logic to find joinable sessions.
         """
         if not os.path.exists(self.base_sessions_dir):
             return None
         
-        # Find the most recent active session
-        active_sessions = []
+        # Find recent sessions with active status or recent activity
+        candidate_sessions = []
+        current_time = time.time()
+        
         for item in os.listdir(self.base_sessions_dir):
             session_path = os.path.join(self.base_sessions_dir, item)
             if os.path.isdir(session_path) and item.startswith('session_'):
@@ -64,48 +66,78 @@ class SessionManager:
                     with open(metadata_file, 'r') as f:
                         metadata = json.load(f)
                     
+                    session_number = metadata.get('session_number', 0)
+                    nodes = metadata.get('nodes', [])
+                    
                     # Check if session is marked as active
                     if metadata.get('status') == 'active':
-                        # Check if any nodes in this session are actually running
-                        if self._has_active_nodes(metadata.get('nodes', [])):
-                            active_sessions.append({
+                        # Check for recent node activity (within 5 minutes)
+                        has_recent_activity = False
+                        for node in nodes:
+                            last_seen = node.get('last_seen', 0)
+                            if current_time - last_seen < 300:  # 5 minutes
+                                has_recent_activity = True
+                                break
+                        
+                        # If there's recent activity, check if nodes are actually running
+                        if has_recent_activity:
+                            candidate_sessions.append({
                                 'path': session_path,
-                                'number': metadata.get('session_number', 0),
-                                'metadata': metadata
+                                'number': session_number,
+                                'metadata': metadata,
+                                'recent_activity': has_recent_activity
                             })
                 except:
                     continue
         
-        # Return the highest numbered active session with running nodes
-        if active_sessions:
-            latest_session = max(active_sessions, key=lambda x: x['number'])
-            return latest_session['path']
+        # Sort by session number (most recent first) and try to join
+        candidate_sessions.sort(key=lambda x: x['number'], reverse=True)
+        
+        for session in candidate_sessions:
+            # Try to ping nodes in this session
+            if self._has_active_nodes(session['metadata'].get('nodes', [])):
+                return session['path']
+        
+        # If no active nodes found, but we have recent sessions, try the most recent one
+        # This handles cases where nodes are starting up
+        if candidate_sessions:
+            most_recent = candidate_sessions[0]
+            print(f"📁 No active nodes detected, but joining recent session: {os.path.basename(most_recent['path'])}")
+            return most_recent['path']
         
         return None
     
     def _has_active_nodes(self, nodes: list) -> bool:
         """
         Check if any nodes in the list are currently running by attempting to connect.
+        Uses more robust checking with longer timeouts and retry logic.
         """
         import requests
+        
+        active_found = False
         
         for node in nodes:
             api_port = node.get('api_port')
             if api_port:
-                try:
-                    # Quick health check to see if node is responsive
-                    response = requests.get(
-                        f"http://localhost:{api_port}/status", 
-                        timeout=2
-                    )
-                    if response.status_code == 200:
-                        # Update the last_seen timestamp for this node
-                        node['last_seen'] = time.time()
-                        return True  # At least one node is active
-                except:
-                    continue
+                # Try multiple times with increasing timeouts
+                for attempt, timeout in enumerate([1, 3, 5], 1):
+                    try:
+                        response = requests.get(
+                            f"http://localhost:{api_port}/status", 
+                            timeout=timeout
+                        )
+                        if response.status_code == 200:
+                            # Update the last_seen timestamp for this node
+                            node['last_seen'] = time.time()
+                            print(f"✅ Found active node {node.get('node_id', 'unknown')} on port {api_port}")
+                            active_found = True
+                            break  # Success, move to next node
+                    except requests.exceptions.RequestException:
+                        if attempt == 3:  # Last attempt
+                            print(f"❌ Node {node.get('node_id', 'unknown')} on port {api_port} not responding")
+                        continue
         
-        return False  # No nodes are responsive
+        return active_found
     
     def _create_new_session_folder(self):
         """Create a new session folder with sequential numbering"""
@@ -205,6 +237,9 @@ class SessionManager:
             json.dump(metadata, f, indent=2)
         
         print(f"📝 Registered {node_id} in session {os.path.basename(session_folder)}")
+        
+        # Check if we can consolidate fragmented sessions
+        self._consolidate_sessions_if_needed()
     
     def update_node_heartbeat(self, node_id: str):
         """Update the heartbeat timestamp for a node to show it's still active"""
@@ -288,6 +323,45 @@ class SessionManager:
         
         self._current_session_folder = None
         return self._create_new_session_folder()
+    
+    def _consolidate_sessions_if_needed(self):
+        """Check if multiple recent sessions should be consolidated"""
+        try:
+            if not os.path.exists(self.base_sessions_dir):
+                return
+            
+            current_time = time.time()
+            recent_sessions = []
+            
+            # Find sessions with recent activity (within 10 minutes)
+            for item in os.listdir(self.base_sessions_dir):
+                session_path = os.path.join(self.base_sessions_dir, item)
+                if os.path.isdir(session_path) and item.startswith('session_'):
+                    metadata_file = os.path.join(session_path, "session_metadata.json")
+                    try:
+                        with open(metadata_file, 'r') as f:
+                            metadata = json.load(f)
+                        
+                        if metadata.get('status') == 'active':
+                            nodes = metadata.get('nodes', [])
+                            for node in nodes:
+                                last_seen = node.get('last_seen', 0)
+                                if current_time - last_seen < 600:  # 10 minutes
+                                    recent_sessions.append({
+                                        'path': session_path,
+                                        'number': metadata.get('session_number', 0),
+                                        'metadata': metadata
+                                    })
+                                    break
+                    except:
+                        continue
+            
+            # If we have multiple recent active sessions, suggest consolidation
+            if len(recent_sessions) > 1:
+                session_numbers = [s['number'] for s in recent_sessions]
+                print(f"💡 Detected fragmented sessions: {session_numbers}. Consider restarting all nodes to use a single session.")
+        except Exception as e:
+            print(f"⚠️ Error during session consolidation check: {e}")
     
     def update_mining_stats(self):
         """Update session metadata with mining statistics from all node session files"""
