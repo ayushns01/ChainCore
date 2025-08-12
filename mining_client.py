@@ -67,12 +67,7 @@ class MiningClient:
             
             status = response.json()
             
-            # Check if node has peers
-            if status.get('peers', 0) == 0:
-                print("⚠️  Node has no peers - network isolated")
-                return False
-            
-            # Check if blockchain is growing (has more than genesis)
+            # Check if blockchain is initialized (has at least genesis block)
             if status.get('blockchain_length', 0) < 1:
                 print("⚠️  Blockchain not initialized")
                 return False

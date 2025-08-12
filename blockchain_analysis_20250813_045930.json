@@ -1,0 +1,85 @@
+{
+  "analysis_metadata": {
+    "timestamp": "2025-08-13T04:59:30.770675",
+    "node_url": "http://localhost:5000",
+    "analyzer_version": "1.0.0",
+    "total_blocks_analyzed": 1
+  },
+  "node_status": {
+    "api_calls": 133,
+    "blockchain_length": 1,
+    "node_id": "core0",
+    "peers": 2,
+    "pending_transactions": 0,
+    "target_difficulty": 4,
+    "thread_safe": true,
+    "uptime": 158.79933094978333
+  },
+  "blockchain_summary": {
+    "total_blocks": 1,
+    "genesis_block_hash": "0000215ccd98f1c5d1f9c2c4580d94849ed16f4180e1a7091875146f5cae3303",
+    "latest_block_hash": "0000215ccd98f1c5d1f9c2c4580d94849ed16f4180e1a7091875146f5cae3303",
+    "latest_block_index": 0,
+    "difficulty_range": {
+      "min": 4,
+      "max": 4,
+      "current": 4
+    },
+    "time_range": {
+      "genesis_time": "2025-08-13T04:56:51.852338",
+      "latest_time": "2025-08-13T04:56:51.852338",
+      "total_duration_seconds": 0
+    }
+  },
+  "detailed_blocks": [
+    {
+      "block_index": 0,
+      "block_hash": "0000215ccd98f1c5d1f9c2c4580d94849ed16f4180e1a7091875146f5cae3303",
+      "previous_hash": "0000000000000000000000000000000000000000000000000000000000000000",
+      "miner_address": "genesis",
+      "timestamp": 1755041211.8523378,
+      "human_time": "2025-08-13 04:56:51",
+      "target_difficulty": 4,
+      "nonce": 38967,
+      "transaction_count": 1,
+      "mining_reward": 50.0,
+      "transaction_fees": 0.0,
+      "total_reward": 50.0,
+      "validation": {
+        "hash_meets_difficulty": true,
+        "previous_hash_correct": true,
+        "index_correct": true,
+        "required_hash_prefix": "0000",
+        "actual_hash_prefix": "0000"
+      }
+    }
+  ],
+  "mining_distribution": {
+    "genesis": {
+      "blocks_mined": 1,
+      "block_indices": [
+        0
+      ],
+      "total_rewards": 50.0,
+      "first_block_index": 0,
+      "last_block_index": 0,
+      "average_difficulty": 0.0,
+      "percentage": 100.0,
+      "average_reward_per_block": 50.0
+    }
+  },
+  "hash_chain_integrity": {
+    "total_blocks": 1,
+    "valid_blocks": 1,
+    "invalid_blocks": 0,
+    "issues": [],
+    "overall_status": "perfect"
+  },
+  "statistics": {
+    "total_transactions": 1,
+    "total_mining_rewards": 50.0,
+    "average_block_time": 0,
+    "unique_miners": 1,
+    "most_productive_miner": "genesis"
+  }
+}

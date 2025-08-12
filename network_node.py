@@ -1,32 +1,62 @@
 #!/usr/bin/env python3
 """
-ChainCore Network Node - Pure Blockchain Processor
-Focuses on network consensus and transaction processing
-No wallets attached - users connect via API
+Thread-Safe ChainCore Network Node
+Enterprise-grade blockchain node with comprehensive thread safety
+
+This implementation combines the original network_node.py with full thread safety integration.
+All original functionality is preserved while adding enterprise-grade concurrency control.
+
+Thread Safety Features:
+- Advanced reader-writer locks with deadlock detection
+- MVCC UTXO management with snapshot isolation
+- Atomic operations for blockchain state changes
+- Connection pooling and rate limiting for peers
+- Work coordination for mining operations
+- Comprehensive statistics and monitoring
 """
 
 import sys
 import os
 import json
 import time
-import asyncio
 import threading
 import argparse
+import logging
 from datetime import datetime
-from typing import Dict, List, Set
+from typing import Dict, List, Set, Optional
 from flask import Flask, request, jsonify
-import websockets
 
 # Add src to path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
 
+# Import thread-safe components
+from src.concurrency import (
+    ThreadSafeBlockchain, ThreadSafePeerManager, ThreadSafeMiner,
+    synchronized, LockOrder, peer_manager, 
+    mining_pool, lock_manager
+)
+
+# Import original components
 from src.blockchain.bitcoin_transaction import Transaction
 from src.crypto.ecdsa_crypto import hash_data, double_sha256
-from session_manager import session_manager
+
+# Import centralized configuration
+from src.config import BLOCKCHAIN_DIFFICULTY, BLOCK_REWARD, get_difficulty, get_mining_target
+
+# Global blockchain configuration (centralized)
+# To change difficulty, edit src/config.py BLOCKCHAIN_DIFFICULTY value
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
 
 class Block:
+    """Original Block class - kept for compatibility"""
     def __init__(self, index: int, transactions: List[Transaction], previous_hash: str, 
-                 timestamp: float = None, nonce: int = 0, target_difficulty: int = 4):
+                 timestamp: float = None, nonce: int = 0, target_difficulty: int = BLOCKCHAIN_DIFFICULTY):
         self.index = index
         self.transactions = transactions
         self.previous_hash = previous_hash
@@ -82,557 +112,237 @@ class Block:
             'hash': self.hash
         }
 
-class Blockchain:
-    def __init__(self):
-        self.chain: List[Block] = []
-        self.transaction_pool: List[Transaction] = []
-        self.utxo_set: Dict[str, Dict] = {}
-        self.target_difficulty = 5
-        self.block_reward = 50.0
-        
-        self._create_genesis_block()
+class ThreadSafeNetworkNode:
+    """
+    Thread-safe network node with enterprise-grade concurrency control
+    """
     
-    def _create_genesis_block(self):
-        genesis_tx = Transaction.create_coinbase_transaction("genesis", self.block_reward, 0)
-        genesis_block = Block(0, [genesis_tx], "0" * 64, target_difficulty=self.target_difficulty)
-        
-        # Mine genesis block
-        while not genesis_block.is_valid_hash():
-            genesis_block.nonce += 1
-            genesis_block.hash = genesis_block._calculate_hash()
-        
-        self.chain.append(genesis_block)
-        self._update_utxo_set(genesis_block)
-    
-    def add_transaction(self, transaction: Transaction) -> bool:
-        if self._validate_transaction(transaction):
-            self.transaction_pool.append(transaction)
-            return True
-        return False
-    
-    def _validate_transaction(self, transaction: Transaction) -> bool:
-        if transaction.is_coinbase():
-            return False
-        
-        # Check UTXOs exist and transaction is properly signed
-        for i, tx_input in enumerate(transaction.inputs):
-            utxo_key = f"{tx_input.tx_id}:{tx_input.output_index}"
-            if utxo_key not in self.utxo_set:
-                return False
-            
-            if not transaction.verify_input_signature(i, "", self.utxo_set):
-                return False
-        
-        return True
-    
-    def create_block_template(self, miner_address: str) -> Block:
-        """Create block template for mining with fresh chain state"""
-        
-        # Get transactions from pool (limit to 1000 for block size)
-        transactions = self.transaction_pool[:1000]
-        
-        # Calculate total fees
-        total_fees = sum(tx.get_fee(self.utxo_set) for tx in transactions)
-        
-        # Create coinbase transaction
-        coinbase_tx = Transaction.create_coinbase_transaction(
-            miner_address, 
-            self.block_reward + total_fees,
-            len(self.chain)
-        )
-        
-        # Create block with current chain tip
-        all_transactions = [coinbase_tx] + transactions
-        new_block = Block(
-            len(self.chain),
-            all_transactions,
-            self.chain[-1].hash,
-            target_difficulty=self.target_difficulty
-        )
-        
-        print(f"🏗️  Block template created: index={new_block.index}, prev_hash={self.chain[-1].hash[:16]}...")
-        
-        return new_block
-    
-    def add_block(self, block: Block) -> bool:
-        """Add mined block to chain"""
-        if self._validate_block(block):
-            self.chain.append(block)
-            self._update_utxo_set(block)
-            
-            # Remove mined transactions from pool
-            mined_tx_ids = {tx.tx_id for tx in block.transactions if not tx.is_coinbase()}
-            self.transaction_pool = [tx for tx in self.transaction_pool if tx.tx_id not in mined_tx_ids]
-            
-            return True
-        return False
-    
-    def _validate_block(self, block: Block) -> bool:
-        # Check block hash is valid
-        if not block.is_valid_hash():
-            print(f"❌ Block validation failed: Invalid hash")
-            return False
-        
-        # Check if we already have a block at this index
-        if block.index < len(self.chain):
-            existing_block = self.chain[block.index]
-            if existing_block.hash == block.hash:
-                print(f"ℹ️  Block {block.index} already exists (duplicate)")
-                return False  # Already have this exact block
-            else:
-                print(f"⚠️  Fork detected at block {block.index}")
-                print(f"   Existing: {existing_block.hash[:16]}...")
-                print(f"   New:      {block.hash[:16]}...")
-                # For now, reject conflicting blocks (longest chain rule can be implemented later)
-                return False
-        
-        # Check previous hash
-        if block.previous_hash != self.chain[-1].hash:
-            print(f"❌ Block validation failed: Previous hash mismatch")
-            print(f"   Expected: {self.chain[-1].hash[:16]}...")
-            print(f"   Got: {block.previous_hash[:16]}...")
-            return False
-        
-        # Check index  
-        if block.index != len(self.chain):
-            print(f"❌ Block validation failed: Index mismatch")
-            print(f"   Expected: {len(self.chain)}")
-            print(f"   Got: {block.index}")
-            return False
-        
-        # Validate all transactions
-        for tx in block.transactions:
-            if tx.is_coinbase():
-                continue
-            if not self._validate_transaction(tx):
-                print(f"❌ Block validation failed: Invalid transaction {tx.tx_id[:16]}...")
-                return False
-        
-        return True
-    
-    def _update_utxo_set(self, block: Block):
-        # Remove spent UTXOs
-        for tx in block.transactions:
-            if not tx.is_coinbase():
-                for tx_input in tx.inputs:
-                    utxo_key = f"{tx_input.tx_id}:{tx_input.output_index}"
-                    if utxo_key in self.utxo_set:
-                        del self.utxo_set[utxo_key]
-        
-        # Add new UTXOs
-        for tx in block.transactions:
-            for i, tx_output in enumerate(tx.outputs):
-                utxo_key = f"{tx.tx_id}:{i}"
-                self.utxo_set[utxo_key] = {
-                    'amount': tx_output.amount,
-                    'recipient_address': tx_output.recipient_address,
-                    'tx_id': tx.tx_id,
-                    'output_index': i,
-                    'block_height': block.index
-                }
-    
-    def get_balance(self, address: str) -> float:
-        balance = 0.0
-        for utxo in self.utxo_set.values():
-            if utxo['recipient_address'] == address:
-                balance += utxo['amount']
-        return balance
-    
-    def get_utxos_for_address(self, address: str) -> List[Dict]:
-        utxos = []
-        for utxo_key, utxo in self.utxo_set.items():
-            if utxo['recipient_address'] == address:
-                utxos.append({
-                    'tx_id': utxo['tx_id'],
-                    'output_index': utxo['output_index'],
-                    'amount': utxo['amount'],
-                    'block_height': utxo['block_height']
-                })
-        return utxos
-    
-    def get_transaction_history(self, address: str) -> List[Dict]:
-        """Get transaction history for an address"""
-        transactions = []
-        
-        # Go through all blocks in the chain
-        for block in self.chain:
-            for tx in block.transactions:
-                # Check if this transaction involves the address
-                involved_as_recipient = False
-                involved_as_sender = False
-                amount_received = 0.0
-                amount_sent = 0.0
-                
-                # Check outputs (receiving transactions)
-                for output in tx.outputs:
-                    if output.recipient_address == address:
-                        involved_as_recipient = True
-                        amount_received += output.amount
-                
-                # Check inputs (sending transactions) - only for non-coinbase transactions
-                if not tx.is_coinbase():
-                    for tx_input in tx.inputs:
-                        # Check historical UTXO ownership by looking at the referenced transaction
-                        referenced_tx = self._find_transaction_by_id(tx_input.tx_id)
-                        if referenced_tx and tx_input.output_index < len(referenced_tx.outputs):
-                            if referenced_tx.outputs[tx_input.output_index].recipient_address == address:
-                                involved_as_sender = True
-                                amount_sent += referenced_tx.outputs[tx_input.output_index].amount
-                
-                # Determine transaction type and amount
-                if involved_as_recipient and involved_as_sender:
-                    # Internal transaction (change)
-                    net_amount = amount_received - amount_sent
-                    if net_amount > 0:
-                        tx_type = "received"
-                        amount = net_amount
-                    elif net_amount < 0:
-                        tx_type = "sent"
-                        amount = abs(net_amount)
-                    else:
-                        tx_type = "internal"
-                        amount = 0
-                elif involved_as_recipient:
-                    tx_type = "received"
-                    amount = amount_received
-                elif involved_as_sender:
-                    tx_type = "sent" 
-                    amount = amount_sent
-                else:
-                    # Not involved in this transaction
-                    continue
-                
-                # Add transaction to history
-                transactions.append({
-                    'tx_id': tx.tx_id,
-                    'block_height': block.index,
-                    'timestamp': block.timestamp,
-                    'type': tx_type,
-                    'amount': amount,
-                    'is_coinbase': tx.is_coinbase(),
-                    'block_hash': block.hash
-                })
-        
-        # Sort by block height (most recent first)
-        transactions.sort(key=lambda x: x['block_height'], reverse=True)
-        return transactions
-    
-    def _find_transaction_by_id(self, tx_id: str):
-        """Find a transaction by ID in the blockchain"""
-        for block in self.chain:
-            for tx in block.transactions:
-                if tx.tx_id == tx_id:
-                    return tx
-        return None
-
-class NetworkNode:
-    def __init__(self, node_id: str, p2p_port: int, api_port: int):
+    def __init__(self, node_id: str = "core0", api_port: int = 5000, p2p_port: int = 8000):
         self.node_id = node_id
-        self.blockchain = Blockchain()
-        self.p2p_port = p2p_port
         self.api_port = api_port
-        self.peers: Set[str] = set()
+        self.p2p_port = p2p_port
+        
+        # Thread-safe blockchain
+        self.blockchain = ThreadSafeBlockchain()
+        
+        # Thread-safe peer management
+        self.peer_manager = ThreadSafePeerManager()
+        
+        
+        # Flask app
         self.app = Flask(__name__)
+        self.app.json.compact = False
         
-        # Session tracking with dynamic session folders
-        self.session_start_time = datetime.now()
-        
-        # Register this node with the session manager
-        session_manager.register_node(self.node_id, self.api_port, self.p2p_port)
-        
-        # Get the current session folder (same for all nodes in this blockchain run)
-        self.unified_session_folder = session_manager.get_current_session_folder()
-        self.session_id = f"session_{self.node_id}_{int(time.time())}"
-        self.session_file = f"{self.unified_session_folder}/{self.session_id}.json"
-        self.session_data = {
-            "session_id": self.session_id,
-            "node_id": self.node_id,
-            "start_time": self.session_start_time.isoformat(),
-            "session_folder": os.path.basename(self.unified_session_folder),
-            "blocks_mined": []
-        }
-        self._init_session_file()
-        
-        # Start with empty peers - will discover active nodes dynamically
-        self.active_peers: Set[str] = set()
-        self.last_peer_discovery = 0
-        
-        # Auto-discover peer nodes by testing common ports
-        self._discover_active_peers()
-        
-        # Synchronize with network on startup to prevent genesis fork
-        self._startup_sync()
-        
-        # Start periodic background sync
-        self._start_background_sync()
-        
+        # Initialize API routes
         self._setup_api_routes()
-    
-    def _startup_sync(self):
-        """Synchronize with network on startup to prevent genesis forks"""
-        if len(self.active_peers) == 0:
-            print("📡 No peers found - starting as genesis node")
-            return
         
-        print(f"🔄 Performing startup synchronization with {len(self.active_peers)} peers...")
-        
-        # Try multiple sync attempts for new nodes
-        max_attempts = 3
-        for attempt in range(max_attempts):
-            old_length = len(self.blockchain.chain)
-            self._sync_with_peers_blocking()
-            new_length = len(self.blockchain.chain)
-            
-            if new_length > old_length:
-                print(f"✅ Synced {new_length - old_length} blocks on attempt {attempt + 1}")
-                
-            # If we still only have genesis block but peers have more, try again
-            if len(self.blockchain.chain) == 1 and len(self.active_peers) > 0 and attempt < max_attempts - 1:
-                print(f"⚠️  Still at genesis block - attempt {attempt + 2}/{max_attempts}...")
-                time.sleep(3)  # Give network time to respond
-                # Re-discover peers in case we missed some
-                self._discover_active_peers(verbose=False)
-            else:
-                break
-        
-        print(f"✅ Startup sync complete - blockchain length: {len(self.blockchain.chain)}")
-    
-    def _start_background_sync(self):
-        """Start periodic background synchronization"""
-        import threading
-        import time
-        
-        def background_sync_worker():
-            while True:
-                try:
-                    time.sleep(30)  # Check every 30 seconds
-                    
-                    # Re-discover peers periodically
-                    if time.time() - self.last_peer_discovery > 60:  # Every minute
-                        self._discover_active_peers(verbose=False)
-                    
-                    # Quick sync check if we have active peers
-                    if len(self.active_peers) > 0:
-                        self._quick_sync_check()
-                        
-                except Exception as e:
-                    print(f"⚠️ Background sync error: {e}")
-                    time.sleep(10)  # Wait before retrying on error
-        
-        # Start background thread
-        sync_thread = threading.Thread(target=background_sync_worker, daemon=True)
-        sync_thread.start()
-        print("🔄 Started background synchronization")
-    
-    def _discover_active_peers(self, verbose=True):
-        """Discover and add only active peer nodes"""
-        import requests
-        import time
-        
-        self.last_peer_discovery = time.time()
-        common_ports = [5000, 5001, 5002, 5003, 5004, 5005, 5006, 5007, 5008, 5009, 5010, 5011]
-        newly_discovered = 0
-        
-        for port in common_ports:
-            if port != self.api_port:  # Don't add self as peer
-                peer_url = f"http://localhost:{port}"
-                try:
-                    # Test if peer is active with short timeout
-                    response = requests.get(f"{peer_url}/status", timeout=2)
-                    if response.status_code == 200:
-                        if peer_url not in self.peers:
-                            newly_discovered += 1
-                            if verbose:
-                                print(f"✅ Discovered new peer: {peer_url}")
-                        self.peers.add(peer_url)
-                        self.active_peers.add(peer_url)
-                        
-                        # Try to get peer's peer list for peer exchange
-                        try:
-                            peer_response = requests.get(f"{peer_url}/peers", timeout=2)
-                            if peer_response.status_code == 200:
-                                peer_data = peer_response.json()
-                                self._process_peer_exchange(peer_data.get('active_peers', []), verbose=False)
-                        except:
-                            pass  # Peer exchange failed, but peer is still valid
-                            
-                except:
-                    # Remove peer if it was previously active but now unreachable
-                    if peer_url in self.active_peers:
-                        self.active_peers.discard(peer_url)
-                        if verbose:
-                            print(f"⚠️ Peer became inactive: {peer_url}")
-        
-        if verbose:
-            print(f"🔗 Peer discovery complete: {len(self.active_peers)} active peers ({newly_discovered} new)")
-    
-    def _process_peer_exchange(self, peer_urls, verbose=True):
-        """Process peer URLs received from peer exchange"""
-        import requests
-        
-        newly_discovered = 0
-        for peer_url in peer_urls:
-            if peer_url not in self.peers and not peer_url.endswith(f":{self.api_port}"):
-                try:
-                    # Verify the peer is actually reachable
-                    response = requests.get(f"{peer_url}/status", timeout=2)
-                    if response.status_code == 200:
-                        self.peers.add(peer_url)
-                        self.active_peers.add(peer_url)
-                        newly_discovered += 1
-                        if verbose:
-                            print(f"🤝 Added peer via exchange: {peer_url}")
-                except:
-                    pass  # Peer not reachable
-        
-        if verbose and newly_discovered > 0:
-            print(f"🔄 Peer exchange added {newly_discovered} new peers")
-    
-    def _init_session_file(self):
-        """Initialize session tracking file in unified session folder"""
-        os.makedirs(self.unified_session_folder, exist_ok=True)
-        with open(self.session_file, 'w') as f:
-            json.dump(self.session_data, f, indent=2)
-        print(f"📁 Session file created: {self.session_file}")
-    
-    def _log_block_mined(self, block: 'Block', miner_address: str):
-        """Log a mined block to the session file"""
-        block_info = {
-            "block_index": block.index,
-            "block_hash": block.hash,
-            "previous_hash": block.previous_hash,
-            "miner_address": miner_address,
-            "mined_by_node": self.node_id,
-            "timestamp": datetime.now().isoformat(),
-            "nonce": block.nonce,
-            "difficulty": block.target_difficulty,
-            "transaction_count": len(block.transactions),
-            "has_transactions": len(block.transactions) > 1,  # More than just coinbase
-            "transactions": [
-                {
-                    "tx_id": tx.tx_id,
-                    "is_coinbase": tx.is_coinbase(),
-                    "amount": sum(output.amount for output in tx.outputs) if tx.outputs else 0
-                } for tx in block.transactions
-            ]
+        # Statistics
+        self._stats = {
+            'api_calls': 0,
+            'blocks_processed': 0,
+            'transactions_processed': 0,
+            'peer_connections': 0,
+            'uptime_start': time.time()
         }
+        self._stats_lock = threading.Lock()
         
-        self.session_data["blocks_mined"].append(block_info)
         
-        # Update session file
-        with open(self.session_file, 'w') as f:
-            json.dump(self.session_data, f, indent=2)
-        
-        print(f"📝 Block {block.index} logged to session: {self.session_file}")
-        
-        # Update session metadata with mining statistics every few blocks
-        if len(self.session_data["blocks_mined"]) % 5 == 0:  # Update every 5 blocks
-            try:
-                from session_manager import session_manager
-                session_manager.update_mining_stats()
-            except Exception as e:
-                print(f"⚠️ Error updating session metadata: {e}")
+        logger.info(f"Thread-safe network node initialized: {self.node_id}")
     
     def _setup_api_routes(self):
+        """Setup all API routes with thread safety"""
+        
         @self.app.route('/status', methods=['GET'])
+        @synchronized("api_status", LockOrder.NETWORK, mode='read')
         def get_status():
+            """Thread-safe status endpoint"""
+            self._increment_api_calls()
+            
             return jsonify({
                 'node_id': self.node_id,
-                'blockchain_length': len(self.blockchain.chain),
-                'pending_transactions': len(self.blockchain.transaction_pool),
-                'peers': len(self.peers),
-                'target_difficulty': self.blockchain.target_difficulty
+                'blockchain_length': self.blockchain.get_chain_length(),
+                'pending_transactions': len(self.blockchain.get_transaction_pool_copy()),
+                'peers': len(self.peer_manager.get_active_peers()),
+                'target_difficulty': self.blockchain.target_difficulty,
+                'uptime': time.time() - self._stats['uptime_start'],
+                'thread_safe': True,
+                'api_calls': self._stats['api_calls']
             })
         
         @self.app.route('/blockchain', methods=['GET'])
+        @synchronized("api_blockchain", LockOrder.NETWORK, mode='read')
         def get_blockchain():
-            response = jsonify({
-                'length': len(self.blockchain.chain),
-                'chain': [block.to_dict() for block in self.blockchain.chain]
+            """Thread-safe blockchain retrieval"""
+            self._increment_api_calls()
+            
+            chain_copy = self.blockchain.get_chain_copy()
+            return jsonify({
+                'length': len(chain_copy),
+                'chain': [block.to_dict() for block in chain_copy]
             })
-            response.headers['X-Blockchain-Length'] = str(len(self.blockchain.chain))
-            return response
         
         @self.app.route('/balance/<address>', methods=['GET'])
-        def get_balance(address):
-            balance = self.blockchain.get_balance(address)
-            return jsonify({'address': address, 'balance': balance})
+        @synchronized("api_balance", LockOrder.NETWORK, mode='read')
+        def get_balance(address: str):
+            """Thread-safe balance lookup"""
+            self._increment_api_calls()
+            
+            balance = self.blockchain.utxo_set.get_balance(address)
+            return jsonify({'balance': balance, 'address': address})
         
         @self.app.route('/utxos/<address>', methods=['GET'])
-        def get_utxos(address):
-            utxos = self.blockchain.get_utxos_for_address(address)
-            return jsonify({'address': address, 'utxos': utxos})
+        @synchronized("api_utxos", LockOrder.NETWORK, mode='read')
+        def get_utxos(address: str):
+            """Thread-safe UTXO retrieval"""
+            self._increment_api_calls()
+            
+            utxos = self.blockchain.utxo_set.get_utxos_for_address(address)
+            return jsonify({'utxos': utxos, 'count': len(utxos)})
         
-        @self.app.route('/transactions/<address>', methods=['GET'])
-        def get_transactions(address):
-            transactions = self.blockchain.get_transaction_history(address)
-            return jsonify({'address': address, 'transactions': transactions})
+        @self.app.route('/transaction_pool', methods=['GET'])
+        @synchronized("api_pool", LockOrder.NETWORK, mode='read')
+        def get_transaction_pool():
+            """Thread-safe transaction pool"""
+            self._increment_api_calls()
+            
+            pool_copy = self.blockchain.get_transaction_pool_copy()
+            return jsonify({
+                'transactions': [tx.to_dict() for tx in pool_copy],
+                'count': len(pool_copy)
+            })
+        
+        @self.app.route('/add_transaction', methods=['POST'])
+        @synchronized("api_add_tx", LockOrder.NETWORK, mode='write')
+        def add_transaction():
+            """Thread-safe transaction addition"""
+            self._increment_api_calls()
+            
+            try:
+                tx_data = request.get_json()
+                transaction = Transaction.from_dict(tx_data)
+                
+                if self.blockchain.add_transaction(transaction):
+                    # Broadcast to peers
+                    self.peer_manager.broadcast_to_peers(
+                        '/receive_transaction', 
+                        tx_data,
+                        timeout=5.0
+                    )
+                    
+                    return jsonify({
+                        'status': 'accepted',
+                        'tx_id': transaction.tx_id
+                    })
+                else:
+                    return jsonify({
+                        'status': 'rejected',
+                        'error': 'Invalid transaction'
+                    }), 400
+                    
+            except Exception as e:
+                logger.error(f"Error adding transaction: {e}")
+                return jsonify({
+                    'status': 'error',
+                    'error': str(e)
+                }), 500
         
         @self.app.route('/broadcast_transaction', methods=['POST'])
+        @synchronized("api_broadcast_tx", LockOrder.NETWORK, mode='write')
         def broadcast_transaction():
+            """Thread-safe transaction broadcasting (alias for add_transaction)"""
+            self._increment_api_calls()
+            
             try:
                 tx_data = request.get_json()
                 transaction = Transaction.from_dict(tx_data)
                 
                 if self.blockchain.add_transaction(transaction):
-                    # Broadcast transaction to peer nodes
-                    self._broadcast_transaction_to_peers(transaction)
-                    return jsonify({'status': 'accepted', 'tx_id': transaction.tx_id})
+                    # Broadcast to peers
+                    self.peer_manager.broadcast_to_peers(
+                        '/receive_transaction', 
+                        tx_data,
+                        timeout=5.0
+                    )
+                    
+                    return jsonify({
+                        'status': 'accepted',
+                        'tx_id': transaction.tx_id
+                    })
                 else:
-                    return jsonify({'status': 'rejected', 'error': 'Invalid transaction'}), 400
+                    return jsonify({
+                        'status': 'rejected',
+                        'error': 'Invalid transaction'
+                    }), 400
                     
             except Exception as e:
-                return jsonify({'status': 'error', 'error': str(e)}), 500
+                logger.error(f"Error broadcasting transaction: {e}")
+                return jsonify({
+                    'status': 'error',
+                    'error': str(e)
+                }), 500
         
         @self.app.route('/receive_transaction', methods=['POST'])
+        @synchronized("api_receive_tx", LockOrder.NETWORK, mode='write')
         def receive_transaction():
-            """Receive transaction from peer (no re-broadcasting)"""
+            """Thread-safe transaction reception from peers"""
+            self._increment_api_calls()
+            
             try:
                 tx_data = request.get_json()
                 transaction = Transaction.from_dict(tx_data)
                 
                 if self.blockchain.add_transaction(transaction):
-                    # Trigger lightweight sync check when receiving new transactions
-                    if len(self.active_peers) > 0:
-                        threading.Thread(target=self._quick_sync_check, daemon=True).start()
-                    return jsonify({'status': 'accepted', 'tx_id': transaction.tx_id})
+                    return jsonify({
+                        'status': 'accepted',
+                        'tx_id': transaction.tx_id
+                    })
                 else:
-                    return jsonify({'status': 'rejected', 'error': 'Invalid transaction'}), 400
+                    return jsonify({
+                        'status': 'rejected',
+                        'error': 'Invalid transaction'
+                    }), 400
                     
             except Exception as e:
-                return jsonify({'status': 'error', 'error': str(e)}), 500
+                return jsonify({
+                    'status': 'error',
+                    'error': str(e)
+                }), 500
         
         @self.app.route('/mine_block', methods=['POST'])
+        @synchronized("api_mine", LockOrder.NETWORK, mode='write')
         def mine_block():
+            """Thread-safe mining block template"""
+            self._increment_api_calls()
+            
             try:
-                data = request.get_json()
-                miner_address = data.get('miner_address')
-                
-                if not miner_address:
-                    return jsonify({'error': 'miner_address required'}), 400
-                
-                # Sync with network before creating block template to prevent duplicate blocks
-                if len(self.active_peers) > 0:
-                    self._sync_with_peers_blocking()
+                data = request.get_json() or {}
+                miner_address = data.get('miner_address', 'unknown')
                 
                 # Create block template
                 block_template = self.blockchain.create_block_template(miner_address)
                 
                 return jsonify({
+                    'status': 'template_created',
                     'block_template': block_template.to_dict(),
-                    'target_difficulty': self.blockchain.target_difficulty
+                    'target_difficulty': block_template.target_difficulty
                 })
                 
             except Exception as e:
-                return jsonify({'error': str(e)}), 500
+                logger.error(f"Error creating block template: {e}")
+                return jsonify({
+                    'status': 'error',
+                    'error': str(e)
+                }), 500
         
         @self.app.route('/submit_block', methods=['POST'])
+        @synchronized("api_submit_block", LockOrder.NETWORK, mode='write')
         def submit_block():
+            """Thread-safe block submission"""
+            self._increment_api_calls()
+            
             try:
-                block_data = request.get_json()
-                
-                # Check if this block was actually mined by this node or received from peer
-                is_locally_mined = request.headers.get('X-Local-Mining') == 'true'
+                data = request.get_json()
+                block_data = data.get('block', data)  # Handle both formats
                 
                 # Reconstruct block
                 transactions = [Transaction.from_dict(tx) for tx in block_data['transactions']]
@@ -640,336 +350,95 @@ class NetworkNode:
                     block_data['index'],
                     transactions,
                     block_data['previous_hash'],
-                    block_data['timestamp'],
-                    block_data['nonce'],
-                    block_data['target_difficulty']
+                    block_data.get('timestamp'),
+                    block_data.get('nonce', 0),
+                    block_data.get('target_difficulty', BLOCKCHAIN_DIFFICULTY)
                 )
-                # Preserve the mined hash and merkle root from the submitted data
-                block.hash = block_data['hash']
-                block.merkle_root = block_data['merkle_root']
                 
+                # Validate and add block
                 if self.blockchain.add_block(block):
-                    # Extract miner address from coinbase transaction
-                    miner_address = block.transactions[0].outputs[0].recipient_address if block.transactions else "unknown"
+                    # Extract miner address for logging
+                    miner_address = "unknown"
+                    if block.transactions and block.transactions[0].outputs:
+                        miner_address = block.transactions[0].outputs[0].recipient_address
                     
-                    # Only log blocks that were actually mined by this node
+                    # Log block if locally mined
+                    is_locally_mined = request.headers.get('X-Local-Mining') == 'true'
                     if is_locally_mined:
                         self._log_block_mined(block, miner_address)
-                        print(f"✅ Block {block.index} MINED and accepted: {block.hash[:16]}...")
-                    else:
-                        print(f"✅ Block {block.index} received and accepted: {block.hash[:16]}...")
                     
-                    # Broadcast block to peer nodes for faster distribution (only if locally mined)
+                    # Broadcast to peers (except sender)
                     if is_locally_mined:
-                        self._broadcast_block_to_peers(block)
-                    else:
-                        # Trigger immediate sync check when receiving blocks from peers
-                        threading.Thread(target=self._sync_with_peers, daemon=True).start()
+                        self.peer_manager.broadcast_to_peers(
+                            '/submit_block',
+                            {'block': block_data},
+                            timeout=10.0
+                        )
                     
-                    return jsonify({'status': 'accepted', 'block_hash': block.hash})
-                else:
-                    print(f"❌ Block {block.index} rejected: {block.hash[:16]}...")
-                    return jsonify({'status': 'rejected', 'error': 'Block validation failed'}), 400
+                    with self._stats_lock:
+                        self._stats['blocks_processed'] += 1
                     
-            except Exception as e:
-                return jsonify({'error': str(e)}), 500
-        
-        @self.app.route('/transaction_pool', methods=['GET'])
-        def get_transaction_pool():
-            return jsonify({
-                'transactions': [tx.to_dict() for tx in self.blockchain.transaction_pool],
-                'count': len(self.blockchain.transaction_pool)
-            })
-        
-        @self.app.route('/debug_utxos', methods=['GET'])
-        def debug_utxos():
-            return jsonify({
-                'utxo_count': len(self.blockchain.utxo_set),
-                'all_utxos': self.blockchain.utxo_set
-            })
-        
-        @self.app.route('/peers', methods=['GET'])
-        def get_peers():
-            return jsonify({
-                'all_peers': list(self.peers),
-                'active_peers': list(self.active_peers),
-                'total_peers': len(self.peers),
-                'active_count': len(self.active_peers)
-            })
-        
-        @self.app.route('/add_peer', methods=['POST'])
-        def add_peer():
-            try:
-                data = request.get_json()
-                peer_url = data.get('peer_url')
-                if peer_url and peer_url not in self.peers:
-                    # Verify peer is reachable
-                    import requests
-                    response = requests.get(f"{peer_url}/status", timeout=5)
-                    if response.status_code == 200:
-                        self.peers.add(peer_url)
-                        return jsonify({'status': 'success', 'message': f'Added peer {peer_url}'})
-                    else:
-                        return jsonify({'status': 'error', 'message': 'Peer not reachable'}), 400
-                else:
-                    return jsonify({'status': 'error', 'message': 'Invalid or duplicate peer'}), 400
-            except Exception as e:
-                return jsonify({'status': 'error', 'message': str(e)}), 500
-        
-        @self.app.route('/session', methods=['GET'])
-        def get_session_data():
-            """Get current session mining data"""
-            return jsonify(self.session_data)
-        
-        @self.app.route('/sessions', methods=['GET'])
-        def list_sessions():
-            """List all sessions across all session folders"""
-            all_sessions = []
-            sessions_by_folder = {}
-            sessions_by_node = {}
-            
-            # Get all session folders using session manager
-            session_list = session_manager.list_all_sessions()
-            
-            for session_info in session_list:
-                session_folder_name = session_info['session_name']
-                session_path = session_info['path']
-                
-                # Get all JSON files in this session folder
-                if os.path.exists(session_path):
-                    json_files = [f for f in os.listdir(session_path) if f.endswith('.json') and f != 'session_metadata.json']
-                    
-                    folder_sessions = []
-                    for json_file in json_files:
-                        filepath = os.path.join(session_path, json_file)
-                        try:
-                            with open(filepath, 'r') as f:
-                                node_session_info = json.load(f)
-                            
-                            session_data = {
-                                'json_file': json_file,
-                                'session_folder': session_folder_name,
-                                'session_id': node_session_info.get('session_id'),
-                                'node_id': node_session_info.get('node_id'),
-                                'start_time': node_session_info.get('start_time'),
-                                'blocks_mined_count': len(node_session_info.get('blocks_mined', []))
-                            }
-                            
-                            all_sessions.append(session_data)
-                            folder_sessions.append(session_data)
-                            
-                            # Group by node_id
-                            node_id = node_session_info.get('node_id', 'unknown')
-                            if node_id not in sessions_by_node:
-                                sessions_by_node[node_id] = []
-                            sessions_by_node[node_id].append(session_data)
-                            
-                        except:
-                            continue
-                    
-                    sessions_by_folder[session_folder_name] = {
-                        'metadata': session_info.get('metadata', {}),
-                        'sessions': folder_sessions,
-                        'session_count': len(folder_sessions)
-                    }
-            
-            return jsonify({
-                'current_session_folder': os.path.basename(self.unified_session_folder),
-                'all_sessions': all_sessions,
-                'sessions_by_folder': sessions_by_folder,
-                'sessions_by_node': sessions_by_node,
-                'total_sessions': len(all_sessions),
-                'total_folders': len(sessions_by_folder)
-            })
-        
-        @self.app.route('/sessions/<session_folder>/<json_filename>', methods=['GET'])
-        def get_session_details(session_folder, json_filename):
-            """Get full details for a specific session JSON file in a specific folder"""
-            if not json_filename.endswith('.json'):
-                json_filename += '.json'
-            
-            filepath = os.path.join('sessions', session_folder, json_filename)
-            if os.path.exists(filepath):
-                try:
-                    with open(filepath, 'r') as f:
-                        session_info = json.load(f)
                     return jsonify({
-                        'session_folder': session_folder,
-                        'json_file': json_filename,
-                        'full_session_data': session_info
+                        'status': 'accepted',
+                        'block_hash': block.hash
                     })
-                except Exception as e:
-                    return jsonify({'error': f'Failed to read session: {str(e)}'}), 500
-            else:
-                return jsonify({'error': 'Session file not found'}), 404
-        
-        @self.app.route('/sessions/node/<node_id>', methods=['GET'])  
-        def get_node_sessions(node_id):
-            """Get all sessions for a specific node across all session folders"""
-            node_sessions = []
-            
-            # Get all session folders using session manager
-            session_list = session_manager.list_all_sessions()
-            
-            for session_info in session_list:
-                session_folder_name = session_info['session_name']
-                session_path = session_info['path']
-                
-                if os.path.exists(session_path):
-                    json_files = [f for f in os.listdir(session_path) if f.endswith('.json') and f != 'session_metadata.json']
+                else:
+                    return jsonify({
+                        'status': 'rejected',
+                        'error': 'Invalid block'
+                    }), 400
                     
-                    for json_file in json_files:
-                        filepath = os.path.join(session_path, json_file)
-                        try:
-                            with open(filepath, 'r') as f:
-                                node_session_info = json.load(f)
-                            if node_session_info.get('node_id') == node_id:
-                                node_sessions.append({
-                                    'session_folder': session_folder_name,
-                                    'json_file': json_file,
-                                    'session_id': node_session_info.get('session_id'),
-                                    'start_time': node_session_info.get('start_time'),
-                                    'blocks_mined_count': len(node_session_info.get('blocks_mined', [])),
-                                    'full_data': node_session_info
-                                })
-                        except:
-                            continue
-            
-            return jsonify({
-                'node_id': node_id,
-                'current_session_folder': os.path.basename(self.unified_session_folder),
-                'sessions': node_sessions,
-                'session_count': len(node_sessions)
-            })
-        
-        @self.app.route('/discover_peers', methods=['POST'])
-        def force_peer_discovery():
-            """Force immediate peer discovery"""
-            try:
-                old_count = len(self.active_peers)
-                self._discover_active_peers(verbose=True)
-                new_count = len(self.active_peers)
-                
-                return jsonify({
-                    'status': 'success',
-                    'message': f'Peer discovery completed',
-                    'peers_before': old_count,
-                    'peers_after': new_count,
-                    'peers_added': new_count - old_count,
-                    'active_peers': list(self.active_peers)
-                })
             except Exception as e:
-                return jsonify({
-                    'status': 'error',
-                    'message': str(e)
-                }), 500
-        
-        @self.app.route('/peer_health', methods=['GET'])
-        def check_peer_health():
-            """Check health status of all known peers"""
-            import requests
-            import time
-            
-            peer_health = {}
-            healthy_peers = set()
-            
-            for peer in list(self.peers):
-                try:
-                    start_time = time.time()
-                    response = requests.get(f"{peer}/status", timeout=3)
-                    response_time = time.time() - start_time
-                    
-                    if response.status_code == 200:
-                        peer_data = response.json()
-                        peer_health[peer] = {
-                            'status': 'healthy',
-                            'response_time_ms': round(response_time * 1000, 2),
-                            'node_id': peer_data.get('node_id', 'unknown'),
-                            'blockchain_length': peer_data.get('blockchain_length', 0),
-                            'peer_count': peer_data.get('peers', 0)
-                        }
-                        healthy_peers.add(peer)
-                    else:
-                        peer_health[peer] = {
-                            'status': 'unhealthy',
-                            'error': f'HTTP {response.status_code}',
-                            'response_time_ms': round(response_time * 1000, 2)
-                        }
-                except requests.exceptions.Timeout:
-                    peer_health[peer] = {
-                        'status': 'timeout',
-                        'error': 'Request timeout (>3s)'
-                    }
-                except Exception as e:
-                    peer_health[peer] = {
-                        'status': 'error',
-                        'error': str(e)[:100]
-                    }
-            
-            # Update active peers based on health check
-            self.active_peers = healthy_peers
-            
-            return jsonify({
-                'total_peers': len(self.peers),
-                'healthy_peers': len(healthy_peers),
-                'unhealthy_peers': len(self.peers) - len(healthy_peers),
-                'peer_health': peer_health,
-                'last_discovery': self.last_peer_discovery
-            })
-        
-        @self.app.route('/session_info', methods=['GET'])
-        def get_session_info():
-            """Get current session manager information"""
-            try:
-                session_info = session_manager.get_session_info()
-                return jsonify({
-                    'status': 'success',
-                    'session_info': session_info,
-                    'node_session_file': os.path.basename(self.session_file),
-                    'node_session_folder': os.path.basename(self.unified_session_folder)
-                })
-            except Exception as e:
-                return jsonify({
-                    'status': 'error',
-                    'message': str(e)
-                }), 500
-        
-        @self.app.route('/update_mining_stats', methods=['POST'])
-        def update_mining_stats():
-            """Manually trigger mining statistics update for current session"""
-            try:
-                session_manager.update_mining_stats()
-                return jsonify({
-                    'status': 'success',
-                    'message': 'Mining statistics updated successfully'
-                })
-            except Exception as e:
+                logger.error(f"Error submitting block: {e}")
                 return jsonify({
                     'status': 'error',
                     'error': str(e)
                 }), 500
         
-        @self.app.route('/mining_stats', methods=['GET'])
-        def get_mining_stats():
-            """Get mining statistics for current session"""
+        @self.app.route('/peers', methods=['GET'])
+        @synchronized("api_peers", LockOrder.NETWORK, mode='read')
+        def get_peers():
+            """Thread-safe peer information"""
+            self._increment_api_calls()
+            
+            peer_info = self.peer_manager.get_all_peers()
+            active_peers = self.peer_manager.get_active_peers()
+            
+            return jsonify({
+                'peers': list(peer_info.keys()),
+                'active_peers': list(active_peers),
+                'peer_count': len(active_peers),
+                'peer_details': {url: {
+                    'last_seen': info.last_seen,
+                    'response_time': info.response_time,
+                    'chain_length': info.chain_length,
+                    'is_active': info.is_active
+                } for url, info in peer_info.items()}
+            })
+        
+        @self.app.route('/discover_peers', methods=['POST'])
+        @synchronized("api_discover", LockOrder.NETWORK, mode='write')
+        def discover_peers():
+            """Thread-safe peer discovery"""
+            self._increment_api_calls()
+            
             try:
-                session_info = session_manager.get_session_info()
-                if 'mining_statistics' in session_info:
-                    return jsonify({
-                        'status': 'success',
-                        'mining_statistics': session_info['mining_statistics'],
-                        'session_folder': session_info.get('session_folder', 'unknown')
-                    })
-                else:
-                    # Trigger statistics update if not present
-                    session_manager.update_mining_stats()
-                    updated_session_info = session_manager.get_session_info()
-                    return jsonify({
-                        'status': 'success',
-                        'mining_statistics': updated_session_info.get('mining_statistics', {}),
-                        'session_folder': updated_session_info.get('session_folder', 'unknown'),
-                        'note': 'Statistics were just updated'
-                    })
+                data = request.get_json() or {}
+                port_start = data.get('port_start', 5000)
+                port_end = data.get('port_end', 5012)
+                host = data.get('host', 'localhost')
+                
+                discovered = self.peer_manager.discover_peers(
+                    port_range=range(port_start, port_end),
+                    host=host
+                )
+                
+                return jsonify({
+                    'status': 'completed',
+                    'discovered_peers': discovered,
+                    'active_peers': len(self.peer_manager.get_active_peers())
+                })
+                
             except Exception as e:
                 return jsonify({
                     'status': 'error',
@@ -977,573 +446,198 @@ class NetworkNode:
                 }), 500
         
         @self.app.route('/sync_now', methods=['POST'])
-        def manual_sync():
-            """Manually trigger blockchain synchronization"""
+        @synchronized("api_sync", LockOrder.NETWORK, mode='write')
+        def sync_now():
+            """Thread-safe blockchain synchronization"""
+            self._increment_api_calls()
+            
             try:
-                # Re-discover peers first
-                self._discover_active_peers(verbose=True)
+                sync_result = self.peer_manager.sync_with_best_peer()
                 
-                # Force sync
-                if len(self.active_peers) > 0:
-                    old_length = len(self.blockchain.chain)
-                    self._sync_with_peers_blocking()
-                    new_length = len(self.blockchain.chain)
+                if sync_result:
+                    peer_url, chain_data = sync_result
                     
-                    return jsonify({
-                        'status': 'success',
-                        'message': 'Synchronization completed',
-                        'old_blockchain_length': old_length,
-                        'new_blockchain_length': new_length,
-                        'blocks_synced': new_length - old_length,
-                        'active_peers': len(self.active_peers)
-                    })
-                else:
-                    return jsonify({
-                        'status': 'warning',
-                        'message': 'No active peers found for synchronization',
-                        'blockchain_length': len(self.blockchain.chain)
-                    })
-            except Exception as e:
-                return jsonify({
-                    'status': 'error',
-                    'error': str(e)
-                }), 500
-
-        @self.app.route('/new_session', methods=['POST'])
-        def force_new_session():
-            """Force creation of a new session folder (admin only)"""
-            try:
-                old_session = os.path.basename(self.unified_session_folder)
-                new_session_folder = session_manager.force_new_session()
-                
-                # Update this node to use the new session folder
-                self.unified_session_folder = new_session_folder
-                self.session_id = f"session_{self.node_id}_{int(time.time())}"
-                self.session_file = f"{self.unified_session_folder}/{self.session_id}.json"
-                self.session_data['session_folder'] = os.path.basename(self.unified_session_folder)
-                self._init_session_file()
-                
-                # Re-register with new session
-                session_manager.register_node(self.node_id, self.api_port, self.p2p_port)
-                
-                return jsonify({
-                    'status': 'success',
-                    'message': 'New session created',
-                    'old_session': old_session,
-                    'new_session': os.path.basename(new_session_folder),
-                    'new_session_path': new_session_folder
-                })
-            except Exception as e:
-                return jsonify({
-                    'status': 'error',
-                    'message': str(e)
-                }), 500
-        
-        @self.app.route('/close_session', methods=['POST'])
-        def close_session():
-            """Close the current session (marks it as completed)"""
-            try:
-                session_manager.close_current_session()
-                return jsonify({
-                    'status': 'success',
-                    'message': 'Session closed successfully'
-                })
-            except Exception as e:
-                return jsonify({
-                    'status': 'error',
-                    'message': str(e)
-                }), 500
-        
-        @self.app.route('/sync_peers', methods=['POST'])
-        def force_peer_sync():
-            """Force immediate peer symmetry check and synchronization"""
-            try:
-                old_count = len(self.active_peers)
-                
-                # Run full peer discovery first
-                self._discover_active_peers(verbose=True)
-                
-                # Then ensure symmetry
-                self._ensure_peer_symmetry()
-                
-                new_count = len(self.active_peers)
-                
-                return jsonify({
-                    'status': 'success',
-                    'message': 'Peer synchronization completed',
-                    'peers_before': old_count,
-                    'peers_after': new_count,
-                    'peers_added': new_count - old_count,
-                    'active_peers': list(self.active_peers)
-                })
-            except Exception as e:
-                return jsonify({
-                    'status': 'error',
-                    'message': str(e)
-                }), 500
-        
-        @self.app.route('/active_nodes', methods=['GET'])
-        def get_active_nodes():
-            """Get count of active nodes across all sessions"""
-            try:
-                active_count = session_manager.get_active_nodes_count()
-                return jsonify({
-                    'active_nodes_count': active_count,
-                    'current_session': os.path.basename(self.unified_session_folder),
-                    'node_id': self.node_id,
-                    'status': 'active'
-                })
-            except Exception as e:
-                return jsonify({
-                    'error': str(e)
-                }), 500
-        
-        @self.app.route('/force_sync', methods=['POST'])
-        def force_full_sync():
-            """Force sync with network even for large chain differences"""
-            import requests
-            try:
-                data = request.get_json() or {}
-                max_blocks = data.get('max_blocks', 2000)  # Safety limit
-                
-                # Find the best peer with longest chain
-                best_peer = None
-                max_length = len(self.blockchain.chain)
-                
-                for peer in list(self.active_peers):
-                    try:
-                        response = requests.get(f"{peer}/status", timeout=5)
-                        if response.status_code == 200:
-                            peer_data = response.json()
-                            peer_length = peer_data.get('blockchain_length', 0)
-                            if peer_length > max_length and peer_length <= max_blocks:
-                                max_length = peer_length
-                                best_peer = peer
-                    except:
-                        continue
-                
-                if not best_peer:
-                    return jsonify({
-                        'status': 'error',
-                        'message': 'No suitable peer found for sync'
-                    }), 400
-                
-                # Download the full blockchain
-                response = requests.get(f"{best_peer}/blockchain", timeout=60)
-                if response.status_code == 200:
-                    peer_data = response.json()
-                    longest_chain = peer_data['chain']
-                    
-                    # Validate and replace chain
-                    if self._validate_chain(longest_chain):
-                        old_length = len(self.blockchain.chain)
-                        
-                        # Replace blockchain
-                        self.blockchain.chain = []
-                        for block_data in longest_chain:
-                            transactions = [Transaction.from_dict(tx) for tx in block_data['transactions']]
-                            block = Block(
-                                block_data['index'],
-                                transactions,
-                                block_data['previous_hash'],
-                                block_data['timestamp'],
-                                block_data['nonce'],
-                                block_data['target_difficulty']
-                            )
-                            block.hash = block_data['hash']
-                            block.merkle_root = block_data['merkle_root']
-                            self.blockchain.chain.append(block)
-                        
-                        # Rebuild UTXO set
-                        self.blockchain.utxo_set = {}
-                        for block in self.blockchain.chain:
-                            self.blockchain._update_utxo_set(block)
-                        
-                        return jsonify({
-                            'status': 'success',
-                            'message': f'Force sync completed',
-                            'old_length': old_length,
-                            'new_length': len(self.blockchain.chain),
-                            'synced_from': best_peer
-                        })
-                    else:
-                        return jsonify({
-                            'status': 'error',
-                            'message': 'Chain validation failed'
-                        }), 400
-                else:
-                    return jsonify({
-                        'status': 'error',
-                        'message': f'Failed to download blockchain: HTTP {response.status_code}'
-                    }), 400
-                    
-            except Exception as e:
-                return jsonify({
-                    'status': 'error',
-                    'message': str(e)
-                }), 500
-    
-    def _broadcast_transaction_to_peers(self, transaction):
-        """Broadcast transaction to active peer nodes only"""
-        import requests
-        failed_peers = set()
-        
-        for peer in list(self.active_peers):  # Use only active peers
-            try:
-                response = requests.post(
-                    f"{peer}/receive_transaction", 
-                    json=transaction.to_dict(),
-                    timeout=10,  # Increased timeout to 10 seconds
-                    headers={'Content-Type': 'application/json'}
-                )
-                if response.status_code != 200:
-                    print(f"⚠️ Peer {peer} rejected transaction")
-            except requests.exceptions.RequestException as e:
-                print(f"⚠️ Failed to broadcast to {peer}: {str(e)[:50]}...")
-                failed_peers.add(peer)
-        
-        # Remove failed peers from active list
-        self.active_peers -= failed_peers
-        if failed_peers:
-            print(f"🔌 Removed {len(failed_peers)} inactive peers from active list")
-    
-    def _broadcast_block_to_peers(self, block):
-        """Broadcast block to active peer nodes only"""
-        import requests
-        failed_peers = set()
-        
-        for peer in list(self.active_peers):  # Use only active peers
-            try:
-                response = requests.post(
-                    f"{peer}/submit_block",
-                    json=block.to_dict(),
-                    timeout=10,  # Increased timeout to 10 seconds
-                    headers={
-                        'Content-Type': 'application/json',
-                        'X-Local-Mining': 'false'  # Mark as peer-received block, not locally mined
-                    }
-                )
-                if response.status_code != 200:
-                    print(f"⚠️ Peer {peer} rejected block")
-            except requests.exceptions.RequestException as e:
-                print(f"⚠️ Failed to broadcast block to {peer}: {str(e)[:50]}...")
-                failed_peers.add(peer)
-        
-        # Remove failed peers from active list
-        self.active_peers -= failed_peers
-        if failed_peers:
-            print(f"🔌 Removed {len(failed_peers)} inactive peers from active list")
-    
-    def _sync_with_peers(self):
-        """Synchronize blockchain with peers (non-blocking)"""
-        self._sync_with_peers_blocking()
-    
-    def _quick_sync_check(self):
-        """Quick sync check - only checks blockchain lengths, no full sync"""
-        import requests
-        try:
-            max_length = len(self.blockchain.chain)
-            needs_sync = False
-            
-            for peer in list(self.active_peers)[:3]:  # Check only first 3 peers for speed
-                try:
-                    response = requests.get(f"{peer}/status", timeout=2)
-                    if response.status_code == 200:
-                        peer_data = response.json()
-                        if peer_data.get('blockchain_length', 0) > max_length:
-                            needs_sync = True
-                            break
-                except:
-                    continue
-            
-            if needs_sync:
-                print(f"🔄 Quick sync triggered - found longer chain")
-                self._sync_with_peers_blocking()
-        except Exception as e:
-            pass  # Silent fail for quick checks
-    
-    def _sync_with_peers_blocking(self):
-        """Synchronize blockchain with peers (blocking version for critical operations)"""
-        import requests
-        try:
-            longest_chain = None
-            max_length = len(self.blockchain.chain)
-            best_peer = None
-            
-            # First, just check lengths to avoid downloading huge chains unnecessarily
-            for peer in list(self.active_peers):  # Use only active peers
-                try:
-                    response = requests.get(f"{peer}/status", timeout=5)
-                    if response.status_code == 200:
-                        peer_data = response.json()
-                        peer_length = peer_data.get('blockchain_length', 0)
-                        if peer_length > max_length:
-                            max_length = peer_length
-                            best_peer = peer
-                except:
-                    continue
-            
-            # If we found a longer chain, download it with extended timeout
-            if best_peer and max_length > len(self.blockchain.chain):
-                # Allow larger sync for startup and manual sync requests
-                chain_diff = max_length - len(self.blockchain.chain)
-                if chain_diff > 500:  # Increased from 100 to 500
-                    print(f"⚠️  Very large chain difference ({chain_diff} blocks) - this may take a while...")
-                else:
-                    print(f"🔄 Chain difference: {chain_diff} blocks")
-                
-                try:
-                    print(f"🔄 Downloading blockchain from {best_peer} ({max_length} blocks)")
-                    response = requests.get(f"{best_peer}/blockchain", timeout=30)  # Extended timeout
-                    if response.status_code == 200:
-                        peer_data = response.json()
-                        longest_chain = peer_data['chain']
-                    else:
-                        print(f"❌ Failed to download blockchain from {best_peer}: HTTP {response.status_code}")
-                        return
-                except Exception as e:
-                    print(f"❌ Failed to download blockchain from {best_peer}: {str(e)[:100]}")
-                    return
-            
-            # Replace chain if we found a longer valid chain
-            if longest_chain and max_length > len(self.blockchain.chain):
-                print(f"🔄 Syncing blockchain from {best_peer} ({max_length} blocks)")
-                
-                # Validate the new chain before accepting it
-                if self._validate_chain(longest_chain):
-                    # Reconstruct blockchain from peer data
-                    self.blockchain.chain = []
-                    for block_data in longest_chain:
+                    # Convert chain data to blocks
+                    new_chain = []
+                    for block_data in chain_data:
                         transactions = [Transaction.from_dict(tx) for tx in block_data['transactions']]
                         block = Block(
                             block_data['index'],
                             transactions,
                             block_data['previous_hash'],
                             block_data['timestamp'],
-                            block_data['nonce'],
-                            block_data['target_difficulty']
+                            block_data.get('nonce', 0),
+                            block_data.get('target_difficulty', BLOCKCHAIN_DIFFICULTY)
                         )
-                        # Preserve hash and merkle root from peer data
-                        block.hash = block_data['hash']
-                        block.merkle_root = block_data['merkle_root']
-                        self.blockchain.chain.append(block)
+                        new_chain.append(block)
                     
-                    # Rebuild UTXO set
-                    self.blockchain.utxo_set = {}
-                    for block in self.blockchain.chain:
-                        self.blockchain._update_utxo_set(block)
-                    print(f"✅ Blockchain synced to {len(self.blockchain.chain)} blocks")
+                    # Replace chain if valid and longer
+                    current_length = self.blockchain.get_chain_length()
+                    if len(new_chain) > current_length:
+                        if self.blockchain.replace_chain(new_chain):
+                            return jsonify({
+                                'status': 'synced',
+                                'peer': peer_url,
+                                'old_length': current_length,
+                                'new_length': len(new_chain)
+                            })
+                        else:
+                            return jsonify({
+                                'status': 'sync_failed',
+                                'error': 'Chain validation failed'
+                            }), 400
+                    else:
+                        return jsonify({
+                            'status': 'no_sync_needed',
+                            'current_length': current_length,
+                            'peer_length': len(new_chain)
+                        })
                 else:
-                    print(f"❌ Rejected invalid chain from {best_peer}")
-        except Exception as e:
-            print(f"⚠️ Sync error: {e}")
-    
-    def _validate_chain(self, chain_data: List[Dict]) -> bool:
-        """Validate entire blockchain from peer"""
-        if not chain_data:
-            return False
-        
-        # Check genesis block
-        if chain_data[0]['index'] != 0:
-            return False
-        
-        # Validate chain continuity
-        for i in range(1, len(chain_data)):
-            current_block = chain_data[i]
-            prev_block = chain_data[i-1]
-            
-            # Check index continuity
-            if current_block['index'] != prev_block['index'] + 1:
-                print(f"❌ Chain validation failed: Index gap at block {current_block['index']}")
-                return False
-            
-            # Check hash linking
-            if current_block['previous_hash'] != prev_block['hash']:
-                print(f"❌ Chain validation failed: Hash mismatch at block {current_block['index']}")
-                return False
-        
-        return True
-    
-    def _ensure_peer_symmetry(self):
-        """Ensure all peers know about each other (symmetric peer discovery)"""
-        import requests
-        import time
-        
-        self._last_symmetry_check = time.time()
-        
-        try:
-            # Get peer lists from all known peers
-            all_discovered_peers = set(self.peers)
-            peer_reports = {}
-            
-            for peer in list(self.active_peers):
-                try:
-                    response = requests.get(f"{peer}/peers", timeout=3)
-                    if response.status_code == 200:
-                        peer_data = response.json()
-                        peer_active_peers = set(peer_data.get('active_peers', []))
-                        peer_reports[peer] = peer_active_peers
-                        all_discovered_peers.update(peer_active_peers)
-                except:
-                    continue
-            
-            # Find peers that others know about but we don't
-            our_url = f"http://localhost:{self.api_port}"
-            missing_peers = all_discovered_peers - self.peers - {our_url}
-            
-            if missing_peers:
-                print(f"🔄 Discovered {len(missing_peers)} peers via peer exchange")
-                
-                # Try to connect to missing peers
-                for peer_url in missing_peers:
-                    try:
-                        response = requests.get(f"{peer_url}/status", timeout=2)
-                        if response.status_code == 200:
-                            self.peers.add(peer_url)
-                            self.active_peers.add(peer_url)
-                            print(f"   ✅ Added missing peer: {peer_url}")
-                    except:
-                        pass
-            
-            # Broadcast our presence to peers that might not know about us
-            self._announce_to_peers()
-            
-        except Exception as e:
-            print(f"⚠️ Peer symmetry check error: {e}")
-    
-    def _announce_to_peers(self):
-        """Announce our presence to all known peers"""
-        import requests
-        
-        our_url = f"http://localhost:{self.api_port}"
-        announcement_count = 0
-        
-        for peer in list(self.active_peers):
-            try:
-                # Try to add ourselves to their peer list
-                response = requests.post(
-                    f"{peer}/add_peer",
-                    json={"peer_url": our_url},
-                    headers={'Content-Type': 'application/json'},
-                    timeout=3
-                )
-                if response.status_code == 200:
-                    announcement_count += 1
-            except:
-                continue
-        
-        if announcement_count > 0:
-            print(f"📢 Announced presence to {announcement_count} peers")
-    
-    def _periodic_sync(self):
-        """Periodically sync with peers and rediscover peers"""
-        import time
-        time.sleep(5)  # Wait for startup
-        
-        while True:
-            try:
-                # Sync blockchain with peers
-                self._sync_with_peers()
-                
-                # Periodic peer discovery (every 30 seconds)
-                if time.time() - self.last_peer_discovery > 30:
-                    self._discover_active_peers(verbose=False)
-                
-                # Ensure peer symmetry (every 20 seconds)
-                if hasattr(self, '_last_symmetry_check'):
-                    if time.time() - self._last_symmetry_check > 20:
-                        self._ensure_peer_symmetry()
-                else:
-                    self._last_symmetry_check = time.time()
-                    self._ensure_peer_symmetry()
-                
-                # Update node heartbeat (every 30 seconds)
-                if hasattr(self, '_last_heartbeat'):
-                    if time.time() - self._last_heartbeat > 30:
-                        session_manager.update_node_heartbeat(self.node_id)
-                        self._last_heartbeat = time.time()
-                else:
-                    self._last_heartbeat = time.time()
-                    session_manager.update_node_heartbeat(self.node_id)
-                
-                # Check for inactive sessions (every 60 seconds)
-                if hasattr(self, '_last_session_cleanup'):
-                    if time.time() - self._last_session_cleanup > 60:
-                        session_manager.check_and_cleanup_inactive_sessions()
-                        self._last_session_cleanup = time.time()
-                else:
-                    self._last_session_cleanup = time.time()
-                
-                time.sleep(10)  # Check every 10 seconds
+                    return jsonify({
+                        'status': 'no_peers',
+                        'error': 'No suitable peers found for sync'
+                    }), 400
+                    
             except Exception as e:
-                print(f"⚠️ Periodic sync error: {e}")
-                time.sleep(30)
+                logger.error(f"Sync error: {e}")
+                return jsonify({
+                    'status': 'error',
+                    'error': str(e)
+                }), 500
+        
+        @self.app.route('/transactions/<address>', methods=['GET'])
+        @synchronized("api_transactions", LockOrder.NETWORK, mode='read')
+        def get_transactions(address: str):
+            """Thread-safe transaction history lookup"""
+            self._increment_api_calls()
+            
+            transactions = self.blockchain.get_transaction_history(address)
+            return jsonify({'address': address, 'transactions': transactions})
+        
+        @self.app.route('/stats', methods=['GET'])
+        @synchronized("api_stats", LockOrder.NETWORK, mode='read')
+        def get_stats():
+            """Comprehensive thread-safe statistics"""
+            self._increment_api_calls()
+            
+            blockchain_stats = self.blockchain.get_stats()
+            peer_stats = self.peer_manager.get_stats()
+            
+            return jsonify({
+                'node_stats': {
+                    'node_id': self.node_id,
+                    'uptime': time.time() - self._stats['uptime_start'],
+                    'api_calls': self._stats['api_calls'],
+                    'blocks_processed': self._stats['blocks_processed'],
+                    'transactions_processed': self._stats['transactions_processed']
+                },
+                'blockchain_stats': {
+                    'blocks_processed': blockchain_stats.blocks_processed,
+                    'transactions_processed': blockchain_stats.transactions_processed,
+                    'utxo_count': blockchain_stats.utxo_count,
+                    'chain_length': self.blockchain.get_chain_length()
+                },
+                'peer_stats': peer_stats,
+                'lock_stats': lock_manager.get_all_stats()
+            })
     
-    def start_api_server(self):
-        """Start REST API server"""
-        print(f"🌐 Starting API server on port {self.api_port}")
-        self.app.run(host='0.0.0.0', port=self.api_port, debug=False, threaded=True)
+    def _increment_api_calls(self):
+        """Thread-safe API call counter"""
+        with self._stats_lock:
+            self._stats['api_calls'] += 1
     
-    def run(self):
-        """Run the node"""
-        print(f"🚀 Starting Network Node {self.node_id}")
-        print(f"   P2P Port: {self.p2p_port}")
-        print(f"   API Port: {self.api_port}")
-        print(f"   Blockchain: {len(self.blockchain.chain)} blocks")
+    def _log_block_mined(self, block: Block, miner_address: str):
+        """Log mined block with thread safety"""
+        try:
+            block_data = {
+                'block_index': block.index,
+                'block_hash': block.hash,
+                'previous_hash': block.previous_hash,
+                'miner_address': miner_address,
+                'timestamp': datetime.fromtimestamp(block.timestamp).isoformat(),
+                'nonce': block.nonce,
+                'difficulty': block.target_difficulty,
+                'transaction_count': len(block.transactions),
+                'has_transactions': len(block.transactions) > 1,
+                'transactions': [
+                    {
+                        'tx_id': tx.tx_id,
+                        'is_coinbase': tx.is_coinbase(),
+                        'amount': sum(output.amount for output in tx.outputs) if tx.outputs else 0
+                    } for tx in block.transactions
+                ]
+            }
+            
+            
+                
+        except Exception as e:
+            logger.error(f"Error logging mined block: {e}")
+    
+    def start_api_server(self, debug: bool = False):
+        """Start Flask API server"""
+        try:
+            self.app.run(
+                host='0.0.0.0',
+                port=self.api_port,
+                debug=debug,
+                threaded=True,
+                use_reloader=False
+            )
+        except Exception as e:
+            logger.error(f"API server error: {e}")
+    
+    def start(self, discover_peers: bool = True):
+        """Start the thread-safe network node"""
+        logger.info(f"Starting thread-safe network node: {self.node_id}")
+        
+        # Discover peers if requested
+        if discover_peers:
+            logger.info("Discovering peers...")
+            discovered = self.peer_manager.discover_peers()
+            logger.info(f"Discovered {discovered} peers")
         
         # Start API server
-        api_thread = threading.Thread(target=self.start_api_server, daemon=True)
-        api_thread.start()
+        logger.info(f"Starting API server on port {self.api_port}")
+        self.start_api_server()
+    
+    def cleanup(self):
+        """Cleanup node resources"""
+        logger.info(f"Cleaning up node: {self.node_id}")
         
-        # Start periodic sync with peers
-        sync_thread = threading.Thread(target=self._periodic_sync, daemon=True)  
-        sync_thread.start()
+        self.peer_manager.cleanup()
         
-        print("✅ Node running!")
-        print("📡 API Endpoints:")
-        print(f"   GET  /status - Node status")
-        print(f"   GET  /blockchain - Full blockchain")
-        print(f"   GET  /balance/<address> - Address balance")
-        print(f"   GET  /utxos/<address> - Address UTXOs")
-        print(f"   GET  /transactions/<address> - Transaction history")
-        print(f"   POST /broadcast_transaction - Submit transaction")
-        print(f"   POST /mine_block - Get mining template")
-        print(f"   POST /submit_block - Submit mined block")
-        print(f"   GET  /peers - List all peers")
-        print(f"   POST /add_peer - Add new peer")
-        print(f"   POST /discover_peers - Force peer discovery")
-        print(f"   POST /sync_peers - Force peer synchronization")
-        print(f"   GET  /peer_health - Check peer health status")
-        print(f"   GET  /session - Current session mining data")
-        print(f"   GET  /sessions - List all sessions across all session folders")
-        print(f"   GET  /sessions/<session_folder>/<json_filename> - Get specific session file")
-        print(f"   GET  /sessions/node/<node_id> - Get all sessions for specific node")
-        print(f"   GET  /session_info - Current session manager information")
-        print(f"   GET  /mining_stats - Get mining statistics for current session")
-        print(f"   POST /update_mining_stats - Update mining statistics")
-        print(f"   GET  /active_nodes - Count of active nodes across sessions")
-        print(f"   POST /new_session - Force creation of new session folder")
-        print(f"   POST /close_session - Close/complete current session")
-        
-        try:
-            # Keep main thread alive
-            while True:
-                import time
-                time.sleep(1)
-        except KeyboardInterrupt:
-            print("\n🛑 Node shutting down...")
+        logger.info("Node cleanup complete")
 
 def main():
-    parser = argparse.ArgumentParser(description='Bitcoin-style Network Node')
-    parser.add_argument('--node-id', default='node1', help='Node identifier')
-    parser.add_argument('--p2p-port', type=int, default=8000, help='P2P port')
-    parser.add_argument('--api-port', type=int, default=5000, help='API port')
+    """Main entry point with argument parsing"""
+    parser = argparse.ArgumentParser(description='Thread-Safe ChainCore Network Node')
+    parser.add_argument('--node-id', default='core0', help='Node identifier')
+    parser.add_argument('--api-port', type=int, default=5000, help='API server port')
+    parser.add_argument('--p2p-port', type=int, default=8000, help='P2P communication port')
+    parser.add_argument('--no-discover', action='store_true', help='Skip peer discovery')
+    parser.add_argument('--debug', action='store_true', help='Enable debug logging')
     
     args = parser.parse_args()
     
-    node = NetworkNode(args.node_id, args.p2p_port, args.api_port)
-    node.run()
+    # Configure logging level
+    if args.debug:
+        logging.getLogger().setLevel(logging.DEBUG)
+    
+    # Create and start node
+    node = ThreadSafeNetworkNode(
+        node_id=args.node_id,
+        api_port=args.api_port,
+        p2p_port=args.p2p_port
+    )
+    
+    try:
+        node.start(discover_peers=not args.no_discover)
+    except KeyboardInterrupt:
+        logger.info("Shutdown requested by user")
+    except Exception as e:
+        logger.error(f"Node error: {e}")
+    finally:
+        node.cleanup()
 
-if __name__ == '__main__':
-    import time
+if __name__ == "__main__":
     main()

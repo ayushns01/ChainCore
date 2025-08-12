@@ -1,0 +1,36 @@
+{
+    "block_template": {
+        "hash": "158f91c10dfc16b2a2332b8333e57506f4af4252de303d54862543475d133aff",
+        "index": 1,
+        "merkle_root": "b0165fa6c1cf7285c9e12e2aa2a62be18e6efa997ea005e29173a0350cf3bd42",
+        "nonce": 0,
+        "previous_hash": "00001c1eb1a6c33ae1148f70a6cfabcc49e249d081c157cab34c16eb5b560f3a",
+        "target_difficulty": 4,
+        "timestamp": 1755042147.51524,
+        "transactions": [
+            {
+                "inputs": [
+                    {
+                        "output_index": 4294967295,
+                        "script_sig": "COINBASE_BLOCK_1",
+                        "signature": {},
+                        "tx_id": "0000000000000000000000000000000000000000000000000000000000000000"
+                    }
+                ],
+                "lock_time": 0,
+                "outputs": [
+                    {
+                        "amount": 50.0,
+                        "recipient_address": "test_miner_001",
+                        "script_pubkey": "PAY_TO_ADDRESS(test_miner_001)"
+                    }
+                ],
+                "timestamp": 1755042147.515085,
+                "tx_id": "b0165fa6c1cf7285c9e12e2aa2a62be18e6efa997ea005e29173a0350cf3bd42",
+                "version": 1
+            }
+        ]
+    },
+    "status": "template_created",
+    "target_difficulty": 4
+}

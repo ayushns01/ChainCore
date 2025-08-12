@@ -1,0 +1,247 @@
+⛏️  Bitcoin-style Mining Client
+========================================
+🎯 Mining for address: test_miner_no_sessions
+🔗 Node: http://localhost:5000
+Press Ctrl+C to stop mining
+----------------------------------------
+🚀 Starting mining for address: test_miner_no_sessions
+🔗 Connected to node: http://localhost:5000
+⛏️  Mining block 1 (attempt 1/3)
+⛏️  Mining block 1...
+   Target difficulty: 4 leading zeros
+   Transactions: 1
+   Timeout: 60 seconds
+   Mining... Nonce: 100,000, Rate: 284047 H/s, Remaining: 60s
+✅ Block mined!
+   Hash: 00006d1273d1cf13dc8b11a0e215add9dac17af7b83316cb7bbbee77f26d1a92
+   Nonce: 115214
+   Time: 0.40s
+   Hash rate: 285217.43 H/s
+✅ Block submitted successfully!
+   Status: accepted
+   Block hash: 00006d1273d1cf13dc8b11a0e215add9dac17af7b83316cb7bbbee77f26d1a92
+✅ Block 1 successfully submitted!
+🎉 Total blocks mined: 1
+⛏️  Mining block 2 (attempt 1/3)
+⛏️  Mining block 2...
+   Target difficulty: 4 leading zeros
+   Transactions: 1
+   Timeout: 60 seconds
+   Mining... Nonce: 100,000, Rate: 311393 H/s, Remaining: 60s
+✅ Block mined!
+   Hash: 000015d30c472960c8851ef032257b62f55823dab88dba9af906c03e199be627
+   Nonce: 161991
+   Time: 0.52s
+   Hash rate: 309365.93 H/s
+✅ Block submitted successfully!
+   Status: accepted
+   Block hash: 000015d30c472960c8851ef032257b62f55823dab88dba9af906c03e199be627
+✅ Block 2 successfully submitted!
+🎉 Total blocks mined: 2
+⛏️  Mining block 3 (attempt 1/3)
+⛏️  Mining block 3...
+   Target difficulty: 4 leading zeros
+   Transactions: 1
+   Timeout: 60 seconds
+✅ Block mined!
+   Hash: 00001a54860be17ae45f8b15e16cd092fc70f83678b48716697392cc6f49d401
+   Nonce: 32702
+   Time: 0.12s
+   Hash rate: 275556.12 H/s
+✅ Block submitted successfully!
+   Status: accepted
+   Block hash: 00001a54860be17ae45f8b15e16cd092fc70f83678b48716697392cc6f49d401
+✅ Block 3 successfully submitted!
+🎉 Total blocks mined: 3
+⛏️  Mining block 4 (attempt 1/3)
+⛏️  Mining block 4...
+   Target difficulty: 4 leading zeros
+   Transactions: 1
+   Timeout: 60 seconds
+✅ Block mined!
+   Hash: 00005300bbe0b7eb3f1206c058878d55d895b012390722de5293022dfc057a7b
+   Nonce: 39667
+   Time: 0.13s
+   Hash rate: 294463.19 H/s
+✅ Block submitted successfully!
+   Status: accepted
+   Block hash: 00005300bbe0b7eb3f1206c058878d55d895b012390722de5293022dfc057a7b
+✅ Block 4 successfully submitted!
+🎉 Total blocks mined: 4
+⛏️  Mining block 5 (attempt 1/3)
+⛏️  Mining block 5...
+   Target difficulty: 4 leading zeros
+   Transactions: 1
+   Timeout: 60 seconds
+✅ Block mined!
+   Hash: 00009cb2327cc80c0eb32c5c69b62d27d447437cb215a5932bf34ee1b690d8dd
+   Nonce: 6483
+   Time: 0.02s
+   Hash rate: 290868.00 H/s
+✅ Block submitted successfully!
+   Status: accepted
+   Block hash: 00009cb2327cc80c0eb32c5c69b62d27d447437cb215a5932bf34ee1b690d8dd
+✅ Block 5 successfully submitted!
+🎉 Total blocks mined: 5
+⛏️  Mining block 6 (attempt 1/3)
+⛏️  Mining block 6...
+   Target difficulty: 4 leading zeros
+   Transactions: 1
+   Timeout: 60 seconds
+✅ Block mined!
+   Hash: 00002fc7d9c930067f9b914783cce363031f1138c2dc7db6fbffd8a11b72e091
+   Nonce: 70090
+   Time: 0.24s
+   Hash rate: 294641.19 H/s
+✅ Block submitted successfully!
+   Status: accepted
+   Block hash: 00002fc7d9c930067f9b914783cce363031f1138c2dc7db6fbffd8a11b72e091
+✅ Block 6 successfully submitted!
+🎉 Total blocks mined: 6
+⛏️  Mining block 7 (attempt 1/3)
+⛏️  Mining block 7...
+   Target difficulty: 4 leading zeros
+   Transactions: 1
+   Timeout: 60 seconds
+✅ Block mined!
+   Hash: 00004bcdf1c3f96ec8038a922a01552ec03ae7d7ff93c16b5fada66e1152dba2
+   Nonce: 82662
+   Time: 0.27s
+   Hash rate: 303904.54 H/s
+✅ Block submitted successfully!
+   Status: accepted
+   Block hash: 00004bcdf1c3f96ec8038a922a01552ec03ae7d7ff93c16b5fada66e1152dba2
+✅ Block 7 successfully submitted!
+🎉 Total blocks mined: 7
+⛏️  Mining block 8 (attempt 1/3)
+⛏️  Mining block 8...
+   Target difficulty: 4 leading zeros
+   Transactions: 1
+   Timeout: 60 seconds
+✅ Block mined!
+   Hash: 0000b518ed18e768a4b9a9940144b784a1341513bc8cfb30df2c673e3d59133f
+   Nonce: 79477
+   Time: 0.26s
+   Hash rate: 304133.45 H/s
+✅ Block submitted successfully!
+   Status: accepted
+   Block hash: 0000b518ed18e768a4b9a9940144b784a1341513bc8cfb30df2c673e3d59133f
+✅ Block 8 successfully submitted!
+🎉 Total blocks mined: 8
+⛏️  Mining block 9 (attempt 1/3)
+⛏️  Mining block 9...
+   Target difficulty: 4 leading zeros
+   Transactions: 1
+   Timeout: 60 seconds
+   Mining... Nonce: 100,000, Rate: 294007 H/s, Remaining: 60s
+✅ Block mined!
+   Hash: 0000c4ea7b915149d15d196545c6cf83d502096dc79ce18856efbe3e22c28f23
+   Nonce: 125779
+   Time: 0.42s
+   Hash rate: 297560.31 H/s
+✅ Block submitted successfully!
+   Status: accepted
+   Block hash: 0000c4ea7b915149d15d196545c6cf83d502096dc79ce18856efbe3e22c28f23
+✅ Block 9 successfully submitted!
+🎉 Total blocks mined: 9
+⛏️  Mining block 10 (attempt 1/3)
+⛏️  Mining block 10...
+   Target difficulty: 4 leading zeros
+   Transactions: 1
+   Timeout: 60 seconds
+✅ Block mined!
+   Hash: 0000ea0b61a1925be12666336f60e02afb48385689a38dda7917d47583020b6c
+   Nonce: 38995
+   Time: 0.13s
+   Hash rate: 294384.80 H/s
+✅ Block submitted successfully!
+   Status: accepted
+   Block hash: 0000ea0b61a1925be12666336f60e02afb48385689a38dda7917d47583020b6c
+✅ Block 10 successfully submitted!
+🎉 Total blocks mined: 10
+⛏️  Mining block 11 (attempt 1/3)
+⛏️  Mining block 11...
+   Target difficulty: 4 leading zeros
+   Transactions: 1
+   Timeout: 60 seconds
+✅ Block mined!
+   Hash: 00008af61bf949784ea8f006dc1d7cb8a41907a8687cd85c18c7853d342b44fe
+   Nonce: 9123
+   Time: 0.05s
+   Hash rate: 184230.10 H/s
+✅ Block submitted successfully!
+   Status: accepted
+   Block hash: 00008af61bf949784ea8f006dc1d7cb8a41907a8687cd85c18c7853d342b44fe
+✅ Block 11 successfully submitted!
+🎉 Total blocks mined: 11
+⛏️  Mining block 12 (attempt 1/3)
+⛏️  Mining block 12...
+   Target difficulty: 4 leading zeros
+   Transactions: 1
+   Timeout: 60 seconds
+✅ Block mined!
+   Hash: 00002a5fa3c0b9dd5b5a08298b96874f545d5282d3f41bf25ac9f052e28f8cf8
+   Nonce: 55668
+   Time: 0.19s
+   Hash rate: 289511.08 H/s
+✅ Block submitted successfully!
+   Status: accepted
+   Block hash: 00002a5fa3c0b9dd5b5a08298b96874f545d5282d3f41bf25ac9f052e28f8cf8
+✅ Block 12 successfully submitted!
+🎉 Total blocks mined: 12
+⛏️  Mining block 13 (attempt 1/3)
+⛏️  Mining block 13...
+   Target difficulty: 4 leading zeros
+   Transactions: 1
+   Timeout: 60 seconds
+✅ Block mined!
+   Hash: 0000c4e66cefb3251a63428c307e9361ca930e2f8d7d5f7b2d88d86211229a1f
+   Nonce: 27633
+   Time: 0.10s
+   Hash rate: 268275.93 H/s
+✅ Block submitted successfully!
+   Status: accepted
+   Block hash: 0000c4e66cefb3251a63428c307e9361ca930e2f8d7d5f7b2d88d86211229a1f
+✅ Block 13 successfully submitted!
+🎉 Total blocks mined: 13
+⛏️  Mining block 14 (attempt 1/3)
+⛏️  Mining block 14...
+   Target difficulty: 4 leading zeros
+   Transactions: 1
+   Timeout: 60 seconds
+✅ Block mined!
+   Hash: 000008704778a05529b791a7cff6d8f203a6a5397cd613ed4de62e19b5a59f41
+   Nonce: 63801
+   Time: 0.22s
+   Hash rate: 287488.25 H/s
+✅ Block submitted successfully!
+   Status: accepted
+   Block hash: 000008704778a05529b791a7cff6d8f203a6a5397cd613ed4de62e19b5a59f41
+✅ Block 14 successfully submitted!
+🎉 Total blocks mined: 14
+⛏️  Mining block 15 (attempt 1/3)
+⛏️  Mining block 15...
+   Target difficulty: 4 leading zeros
+   Transactions: 1
+   Timeout: 60 seconds
+✅ Block mined!
+   Hash: 0000284fa90911e879043213f20fe74734fc4fc1ca5ab8ebd955a51ce15806fb
+   Nonce: 52305
+   Time: 0.19s
+   Hash rate: 282391.67 H/s
+✅ Block submitted successfully!
+   Status: accepted
+   Block hash: 0000284fa90911e879043213f20fe74734fc4fc1ca5ab8ebd955a51ce15806fb
+✅ Block 15 successfully submitted!
+🎉 Total blocks mined: 15
+⛏️  Mining block 16 (attempt 1/3)
+⛏️  Mining block 16...
+   Target difficulty: 4 leading zeros
+   Transactions: 1
+   Timeout: 60 seconds
+✅ Block mined!
+   Hash: 0000045bae991bc42001f7be66e10f8432a2d50406951963a9423274bb6b2fe8
+   Nonce: 24368
+   Time: 0.09s
+   Hash rate: 259875.86 H/s
+✅ Block submitted successfully!
