@@ -1,302 +1,353 @@
-# AI CONTEXT - ChainCore Blockchain System
+# CLAUDE.md - ChainCore Blockchain AI Context
 
 ## 🚨 CRITICAL INFORMATION FOR AI ASSISTANTS
 
-This document provides essential context about the ChainCore blockchain system for AI assistants working on this codebase. **READ THIS CAREFULLY** before making any modifications.
+This document provides comprehensive context about the ChainCore blockchain system, including all major functionality updates and architectural changes. **This is the authoritative reference for AI assistants working on this codebase.**
 
 ---
 
-## 📊 CURRENT SYSTEM STATUS
+## 📊 SYSTEM OVERVIEW & ARCHITECTURE
 
-### ✅ FULLY FUNCTIONAL COMPONENTS
-- **Blockchain Core**: Complete Bitcoin-style blockchain with UTXO model
-- **P2P Network**: Multi-node networking with auto-discovery and synchronization
-- **Mining System**: Proof-of-Work mining with adjustable difficulty
-- **Wallet System**: ECDSA key management with transaction capabilities
-- **REST API**: 25+ endpoints for complete blockchain operations
-- **Session Management**: Automated session tracking and mining statistics
+ChainCore is a **enterprise-grade Bitcoin-style blockchain** implementation featuring:
 
-### 🏗️ ARCHITECTURE OVERVIEW
+- **Thread-safe concurrent operations** with enterprise-grade locking
+- **Real-time blockchain monitoring** and analytics
+- **Advanced peer discovery** and network synchronization
+- **Production-ready mining** with intelligent retry logic
+- **Bitcoin-compatible cryptography** and transaction system
+
+### 🏗️ CURRENT PROJECT STRUCTURE
+
 ```
 ChainCore/
-├── network_node.py          # Main blockchain node (1,549 lines)
-├── mining_client.py         # PoW mining client (390 lines)
-├── wallet_client.py         # Cryptocurrency wallet (273 lines)
-├── session_manager.py       # Session coordination (441 lines)
-├── src/
-│   ├── blockchain/
-│   │   └── bitcoin_transaction.py  # Transaction system (210 lines)
-│   └── crypto/
-│       └── ecdsa_crypto.py         # ECDSA cryptography (145 lines)
-├── requirements.txt         # 5 Python dependencies
-├── sessions/               # Dynamic session folders
-└── *.json                  # Pre-configured wallet files
+├── 🔧 CORE BLOCKCHAIN ENGINE
+│   ├── network_node.py              # Thread-safe network node (742 lines)
+│   ├── mining_client.py             # Enhanced mining client (385 lines)
+│   └── wallet_client.py             # Cryptocurrency wallet (273 lines)
+├──
+├── 📊 BLOCKCHAIN MONITORING & ANALYTICS
+│   ├── blockchain_monitor.py        # Real-time blockchain monitor (569 lines)
+│   ├── src/blockchain/blockchain_monitor.py        # Monitoring module
+│   ├── src/blockchain/blockchain_tracker_with_json.py # JSON analytics
+│   └── src/blockchain/quick_blockchain_check.py    # Quick validation
+├──
+├── 🔒 ENTERPRISE THREAD SAFETY
+│   ├── src/concurrency/
+│   │   ├── __init__.py             # Thread safety module exports
+│   │   ├── thread_safety.py       # Core thread safety framework
+│   │   ├── blockchain_safe.py     # Thread-safe blockchain
+│   │   ├── network_safe.py        # Thread-safe networking (776 lines)
+│   │   ├── mining_safe.py         # Thread-safe mining coordination
+│   │   └── THREAD_SAFETY_GUIDE.md # Comprehensive guide
+├──
+├── 🌐 NETWORK & TESTING
+│   ├── test_peer_discovery.py     # Peer discovery testing
+│   ├── test_blockchain_sync.py    # Blockchain sync testing
+│   └── test-scripts/              # Comprehensive test suite
+├──
+├── 🔑 CORE LIBRARIES & CONFIG
+│   ├── src/config.py              # Centralized configuration
+│   ├── src/blockchain/bitcoin_transaction.py # Transaction system (210 lines)
+│   └── src/crypto/ecdsa_crypto.py # ECDSA cryptography (145 lines)
+└──
+└── 📖 DOCUMENTATION & WALLETS
+    ├── AI_CONTEXT.md              # Previous AI context
+    ├── PROJECT_STRUCTURE.md       # Project documentation
+    ├── THREAD_SAFETY_GUIDE.md     # Thread safety documentation
+    ├── [wallet files].json        # Pre-configured wallets
+    └── requirements.txt           # Python dependencies
 ```
 
 ---
 
-## 🔒 SECURITY & CRYPTOGRAPHY STATUS
+## 🆕 NEW FUNCTIONALITY SINCE LAST UPDATE
 
-### ✅ IMPLEMENTED SECURITY FEATURES
-- **ECDSA Signatures**: Bitcoin-compatible secp256k1 curve
-- **Double SHA-256**: Block and transaction hashing
-- **Base58 Encoding**: Address generation with checksum validation
-- **UTXO Model**: Prevents double-spending attacks
-- **Merkle Trees**: Transaction verification and block integrity
-- **Digital Signatures**: All transactions cryptographically signed
+### 1. 🔒 **ENTERPRISE THREAD SAFETY** (`src/concurrency/`)
 
-### 🛡️ SECURITY ASSESSMENT
-- **✅ NO MALICIOUS CODE DETECTED**
-- **✅ STANDARD CRYPTOGRAPHIC PRACTICES**
-- **✅ PROPER INPUT VALIDATION**
-- **✅ NO BACKDOORS OR VULNERABILITIES**
-- **✅ LEGITIMATE BLOCKCHAIN IMPLEMENTATION**
+**Industry-grade concurrency control** following Bitcoin Core and enterprise blockchain patterns:
 
----
+- **Lock Hierarchy System**: Prevents deadlocks through ordered lock acquisition
+- **Advanced Reader-Writer Locks**: High-performance concurrent access
+- **MVCC UTXO Management**: Multi-version concurrency control for UTXO set
+- **Deadlock Detection**: Real-time cycle detection in wait-for graphs
+- **Atomic Operations**: Race-condition-free state updates
 
-## 🌐 NETWORK ARCHITECTURE
+**Key Files:**
 
-### P2P Network Features
-- **Auto-Discovery**: Scans ports 5000-5011 for active peers
-- **Peer Health Monitoring**: Regular connectivity checks
-- **Chain Synchronization**: Longest chain rule with fork detection
-- **Block Propagation**: Real-time block distribution
-- **Transaction Broadcasting**: Mempool management across nodes
+- `src/concurrency/thread_safety.py` - Core thread safety primitives
+- `src/concurrency/blockchain_safe.py` - Thread-safe blockchain implementation
+- `src/concurrency/network_safe.py` - Thread-safe peer management (776 lines)
 
-### API Endpoints (25+ Available)
-- **Blockchain Operations**: `/status`, `/blockchain`, `/submit_block`
-- **Wallet Functions**: `/balance/<addr>`, `/utxos/<addr>`, `/transactions/<addr>`
-- **Mining Interface**: `/mine_block`, `/submit_block`, `/mining_stats`
-- **Network Management**: `/peers`, `/discover_peers`, `/sync_now`
-- **Session Tracking**: `/sessions`, `/session_info`, `/new_session`
+**Usage:**
 
----
+```python
+from src.concurrency import ThreadSafeBlockchain, ThreadSafePeerManager
+from src.concurrency import synchronized, LockOrder
 
-## ⛏️ MINING SYSTEM STATUS
-
-### Current Mining Implementation
-- **Algorithm**: Proof-of-Work with SHA-256
-- **Difficulty**: Adjustable target (currently 5 leading zeros)
-- **Block Reward**: 50 ChainCoin (CC) + transaction fees
-- **Block Time**: Variable based on network hash rate
-- **Timeout Protection**: 60-120 second mining limits
-- **Retry Logic**: Intelligent stale block handling
-
-### Mining Statistics Tracking
-- **Hash Rate Monitoring**: Real-time H/s calculations
-- **Block Success Rates**: Mining attempt success tracking
-- **Session Records**: Persistent mining history in JSON files
-- **Multi-Node Coordination**: Prevents duplicate mining efforts
-
----
-
-## 💼 WALLET SYSTEM STATUS
-
-### Wallet Capabilities
-- **Key Generation**: ECDSA keypair creation with secp256k1
-- **Address Creation**: Bitcoin-style Base58 addresses with checksums
-- **Transaction Creation**: Automatic UTXO selection and change handling
-- **Balance Tracking**: Real-time balance queries via node API
-- **History Management**: Complete transaction history retrieval
-
-### Pre-Configured Wallets
-```
-miner.json   - Primary mining wallet (1CcUyVAiHT2dGP4ESxWqsDKFzazkQ2UW3n)
-miner1.json  - Mining wallet 1 (1GukayKD1hRAXnQaJYKVwQcwCvVzsUbcJj)
-miner2.json  - Mining wallet 2 (18NDhHYAa3bx3jAZkc7HZf3vKr1JrwVXG3)
-alice.json   - Test user wallet (15vuSyM7ZFUNqBibgwHUgbkva4FDDn6pXq)
-bob.json     - Test user wallet (1FzanzSbcH7sik5kzymbdTrNci6h5HxBCe)
+@synchronized("blockchain", LockOrder.BLOCKCHAIN, mode='write')
+def add_block(self, block):
+    # Thread-safe block addition
 ```
 
----
+### 2. 📊 **BLOCKCHAIN MONITORING & ANALYTICS**
 
-## 📊 SESSION MANAGEMENT
+**Real-time blockchain analysis** with comprehensive tracking:
 
-### Session System Features
-- **Dynamic Session Folders**: `sessions/session_N/` with sequential numbering
-- **Node Registration**: Automatic node discovery and registration
-- **Heartbeat Monitoring**: Node health tracking with timestamps
-- **Mining Statistics**: Aggregated block mining data across all nodes
-- **Session Lifecycle**: Active → Completed status transitions
-- **Auto-Cleanup**: Inactive session detection and closure
+**Features:**
 
-### Session Data Structure
-```json
-{
-  "session_name": "session_12",
-  "session_number": 12,
-  "session_start_time": "2025-01-10T14:30:22",
-  "nodes": [
-    {
-      "node_id": "core0",
-      "api_port": 5000,
-      "p2p_port": 8000,
-      "last_seen": 1736524222.5
-    }
-  ],
-  "status": "active",
-  "mining_statistics": {
-    "total_blocks_mined": 157,
-    "blocks_per_core": {...}
-  }
-}
+- **Real-time block monitoring** with auto-discovery of active nodes
+- **Mining distribution analysis** showing which nodes mined which blocks
+- **Hash chain integrity verification** with detailed issue reporting
+- **JSON export** for historical analysis and storage
+- **Network health monitoring** with peer discovery status
+
+**Key Files:**
+
+- `blockchain_monitor.py` - Standalone monitoring tool
+- `src/blockchain/blockchain_monitor.py` - Monitoring module (569 lines)
+- `src/blockchain/blockchain_tracker_with_json.py` - JSON analytics (433 lines)
+
+**Usage:**
+
+```bash
+# Real-time monitoring with auto-discovery
+python3 blockchain_monitor.py monitor
+
+# Full blockchain analysis with JSON export
+python3 src/blockchain/blockchain_tracker_with_json.py analyze
+```
+
+### 3. 🌐 **ENHANCED PEER DISCOVERY & NETWORKING**
+
+**Intelligent network management** with enterprise-grade features:
+
+**Features:**
+
+- **Continuous peer discovery** (every 60 seconds) even when peers exist
+- **Network status assessment** (isolated/under-connected/well-connected)
+- **Automatic blockchain synchronization** (every 30 seconds)
+- **Connection pooling** and rate limiting for efficient networking
+- **Optimized peer limits** for 20-node prototype networks
+
+**Configuration:**
+
+```python
+# In src/config.py
+MIN_PEERS = 2          # Minimum peers to maintain
+TARGET_PEERS = 6       # Optimal number of peers
+MAX_PEERS = 10         # Maximum peers to prevent congestion
+CONTINUOUS_DISCOVERY_INTERVAL = 60  # Discovery interval in seconds
+```
+
+**Testing:**
+
+```bash
+# Monitor peer discovery behavior
+python3 test_peer_discovery.py monitor
+
+# Test blockchain synchronization
+python3 test_blockchain_sync.py monitor
+```
+
+### 4. ⛏️ **ENHANCED MINING SYSTEM**
+
+**Production-ready mining** with intelligent failure handling:
+
+**Features:**
+
+- **Intelligent retry logic** for stale block templates
+- **Network health checking** before mining attempts
+- **Enhanced error reporting** with specific failure reasons
+- **Hash rate tracking** and performance statistics
+- **Timeout-based mining** to prevent infinite loops
+
+**Key Improvements in `mining_client.py`:**
+
+- `mine_with_retry()` - Intelligent retry logic for stale templates
+- `check_network_health()` - Pre-mining network validation
+- `submit_block_with_validation()` - Enhanced block submission with detailed errors
+
+### 5. 🔧 **CENTRALIZED CONFIGURATION**
+
+**Single source of truth** for all blockchain parameters in `src/config.py`:
+
+```python
+# Mining difficulty - change this single value to adjust across entire system
+BLOCKCHAIN_DIFFICULTY = 6  # Very easy for testing
+
+# Network settings optimized for 20-node prototype
+MIN_PEERS = 2
+TARGET_PEERS = 6
+MAX_PEERS = 10
+PEER_DISCOVERY_RANGE = (5000, 5020)
+
+# Thread safety settings
+LOCK_TIMEOUT = 10.0
+DEADLOCK_DETECTION_ENABLED = True
 ```
 
 ---
 
-## 🔧 CURRENT WORKING CONFIGURATION
+## 🔧 TECHNICAL IMPLEMENTATION DETAILS
 
-### Network Configuration
-- **Default API Ports**: 5000-5011 (HTTP REST API)
-- **Default P2P Ports**: 8000-8011 (WebSocket P2P)
-- **Difficulty Target**: 5 leading zeros (adjustable)
-- **Block Reward**: 50.0 ChainCoin + fees
-- **Network Currency**: ChainCoin (CC)
+### Thread Safety Architecture
 
-### File System Layout
-- **Session Storage**: `sessions/` directory with numbered folders
-- **Wallet Storage**: `.json` files in root directory  
-- **Log Files**: Individual node session tracking files
-- **Metadata**: `session_metadata.json` in each session folder
+**Lock Hierarchy** (prevents deadlocks):
 
----
-
-## ⚠️ CRITICAL AI ASSISTANT GUIDELINES
-
-### 🚫 DO NOT MODIFY
-1. **Core cryptographic functions** - Risk breaking security
-2. **Session folder structure** - Will break mining history
-3. **UTXO validation logic** - Could enable double-spending
-4. **P2P discovery mechanism** - May fragment network
-5. **Wallet private key handling** - Could compromise funds
-
-### ✅ SAFE TO MODIFY
-1. **API endpoint additions** (follow existing patterns)
-2. **Mining statistics display** (read-only operations)
-3. **Session management UI improvements**
-4. **Network health monitoring enhancements**
-5. **Documentation and logging improvements**
-
-### 🔍 ALWAYS VERIFY BEFORE CHANGES
-1. **Test with existing wallet files** before modifying wallet code
-2. **Check session compatibility** when changing session management
-3. **Validate blockchain integrity** after core modifications
-4. **Confirm P2P network connectivity** after network changes
-5. **Verify mining functionality** after mining system changes
-
----
-
-## 📈 PERFORMANCE CHARACTERISTICS
-
-### Current Benchmarks
-- **Block Mining Time**: 10-300 seconds (difficulty dependent)
-- **Transaction Throughput**: ~1000 transactions per block
-- **Network Sync Speed**: 500+ blocks in ~30 seconds
-- **API Response Time**: <100ms for most endpoints
-- **Memory Usage**: ~50MB per node
-- **Disk Usage**: ~1MB per 100 blocks
-
-### Scalability Limits
-- **Max Peers**: ~10 active nodes recommended
-- **Max Block Size**: ~1000 transactions per block
-- **Session History**: Unlimited (managed by cleanup)
-- **Wallet Limit**: No theoretical limit
-
----
-
-## 🐛 KNOWN LIMITATIONS & EDGE CASES
-
-### Current Limitations
-1. **No Smart Contracts**: Simple transaction-only blockchain
-2. **Fixed Block Reward**: No halving mechanism implemented
-3. **Basic P2P Protocol**: No advanced routing or sharding
-4. **Single Network**: No testnet/mainnet separation
-5. **Memory Pool**: Basic FIFO transaction ordering
-
-### Edge Cases to Consider
-1. **Network Partitions**: Nodes may form temporary separate chains
-2. **Simultaneous Mining**: Multiple nodes may mine same block
-3. **Session Conflicts**: Rapid node restart may cause session issues
-4. **UTXO Exhaustion**: Large wallets may have UTXO selection issues
-5. **Fork Resolution**: Longest chain rule may cause temporary inconsistencies
-
----
-
-## 📚 DEPENDENCIES & REQUIREMENTS
-
-### Python Dependencies (requirements.txt)
-```
-cryptography>=41.0.0  # ECDSA, SHA-256, secp256k1
-requests>=2.31.0      # HTTP client for API calls
-flask>=2.3.0         # REST API server framework
-websockets>=11.0.0   # P2P WebSocket communication
-base58>=2.1.0        # Bitcoin-style address encoding
+```python
+class LockOrder(Enum):
+    BLOCKCHAIN = 1      # Highest priority
+    UTXO_SET = 2       # UTXO modifications
+    MEMPOOL = 3        # Transaction pool
+    PEERS = 4          # Peer management
+    MINING = 6         # Mining operations
+    NETWORK = 7        # Network I/O (lowest)
 ```
 
-### System Requirements
-- **Python**: 3.8+ (tested on 3.9-3.12)
-- **Memory**: 256MB minimum, 1GB recommended
-- **Disk**: 100MB for code, variable for blockchain data
-- **Network**: Local ports 5000-5011 and 8000-8011 available
-- **OS**: Cross-platform (Linux, macOS, Windows)
+**Thread-Safe Components:**
+
+- `ThreadSafeBlockchain` - MVCC blockchain with atomic operations
+- `ThreadSafePeerManager` - Connection pooling and peer health monitoring
+- `ThreadSafeUTXOSet` - Concurrent UTXO management with conflict detection
+
+### Blockchain Monitoring Architecture
+
+**Real-time monitoring** with intelligent node discovery:
+
+- Auto-discovers active nodes in port range 5000-5019
+- Connects to node with longest blockchain
+- Tracks mining distribution across all discovered miners
+- Verifies hash chain integrity with detailed issue reporting
+
+### Enhanced Mining Flow
+
+1. **Network Health Check** - Verify node is responsive and blockchain initialized
+2. **Get Fresh Template** - Request latest block template from node
+3. **Mine with Timeout** - Proof-of-work with configurable timeout
+4. **Intelligent Retry** - Handle stale templates with fresh requests
+5. **Enhanced Submission** - Detailed error reporting and classification
 
 ---
 
-## 🎯 RECOMMENDED NEXT DEVELOPMENT AREAS
+## 🚀 USAGE EXAMPLES
 
-### High Priority Enhancements
-1. **GUI Dashboard**: Web interface for node and mining monitoring
-2. **Advanced Mining Pool**: Coordinated multi-miner support
-3. **Transaction Fees Market**: Dynamic fee calculation
-4. **Network Statistics**: Real-time network health metrics
-5. **Backup/Restore**: Blockchain and wallet backup system
+### Starting a Thread-Safe Network Node
 
-### Medium Priority Features
-1. **Multi-signature Wallets**: Enhanced security for high-value wallets
-2. **Light Clients**: SPV-style clients for mobile/low-resource devices
-3. **Block Explorer**: Web-based blockchain browsing interface
-4. **API Rate Limiting**: DDoS protection for public nodes
-5. **Configuration Management**: Dynamic node configuration
+```bash
+python3 network_node.py --node-id core0 --api-port 5000
+```
 
-### Low Priority Additions
-1. **Smart Contract VM**: Basic programmable transaction support
-2. **Sharding**: Horizontal scaling for larger networks
-3. **Privacy Features**: Optional transaction privacy enhancements
-4. **Cross-Chain Bridges**: Interoperability with other blockchains
-5. **Governance System**: On-chain governance and voting mechanisms
+### Real-Time Blockchain Monitoring
 
----
+```bash
+# Auto-discover and monitor all active nodes
+python3 blockchain_monitor.py monitor
 
-## 📞 SUPPORT & MAINTENANCE
+# Monitor specific node
+python3 blockchain_monitor.py monitor http://localhost:5001 2
 
-### Code Quality Standards
-- **Type Hints**: All functions should include proper typing
-- **Error Handling**: Comprehensive try-catch blocks with logging
-- **Documentation**: Docstrings for all classes and complex functions
-- **Testing**: Unit tests for critical cryptographic and consensus functions
-- **Code Style**: PEP 8 compliance with 100-character line limits
+# Full analysis with JSON export
+python3 src/blockchain/blockchain_tracker_with_json.py analyze
+```
 
-### Monitoring & Debugging
-- **Session Logs**: Check `sessions/session_N/*.json` for mining history
-- **API Debugging**: Use `/debug_utxos` and `/transaction_pool` endpoints
-- **Network Health**: Monitor `/peer_health` for connectivity issues
-- **Mining Performance**: Track hash rates and success rates in statistics
-- **Error Logs**: Console output provides detailed error information
+### Enhanced Mining
+
+```bash
+# Mining with intelligent retry and network health checking
+python3 mining_client.py --wallet miner.json --node http://localhost:5000
+```
+
+### Peer Discovery Testing
+
+```bash
+# Monitor 20-node network peer discovery
+python3 test_peer_discovery.py monitor
+
+# Test blockchain synchronization
+python3 test_blockchain_sync.py test
+```
 
 ---
 
-## ⚡ FINAL NOTES FOR AI ASSISTANTS
+## 🔒 SECURITY & VALIDATION
 
-This is a **PRODUCTION-READY** blockchain implementation with real cryptographic security. Any modifications should be made with extreme care to avoid:
+### Thread Safety Security
 
-- ❌ Compromising wallet security
-- ❌ Breaking consensus mechanisms  
-- ❌ Corrupting blockchain data
-- ❌ Disrupting network connectivity
-- ❌ Losing mining session history
+- **Deadlock prevention** through hierarchical locking
+- **Race condition elimination** with atomic operations
+- **MVCC isolation** prevents dirty reads in UTXO operations
+- **Connection pooling** prevents resource exhaustion attacks
 
-When in doubt, **ASK THE USER** before making significant changes to core blockchain functionality.
+### Blockchain Validation
 
-**Last Updated**: January 10, 2025  
-**Version**: ChainCore v1.0 - Tier 1 Branch  
-**Status**: ✅ Fully Operational
+- **Hash chain integrity** verification with detailed issue reporting
+- **Double-spending prevention** through UTXO conflict detection
+- **Mining validation** with difficulty verification
+- **Peer authenticity** through cryptographic signatures
+
+---
+
+## 🧪 TESTING & MONITORING
+
+### Comprehensive Test Suite
+
+- `test-scripts/` - Full blockchain testing scenarios
+- `test_peer_discovery.py` - Peer network validation
+- `test_blockchain_sync.py` - Synchronization testing
+- Real-time monitoring tools for production use
+
+### Performance Monitoring
+
+- **Lock contention statistics** and deadlock detection
+- **Network performance metrics** with connection pooling
+- **Mining hash rate tracking** and efficiency analysis
+- **Blockchain sync performance** with peer comparison
+
+---
+
+## 🏆 ENTERPRISE FEATURES SUMMARY
+
+1. **Thread Safety**: Industry-standard concurrency control
+2. **Real-time Monitoring**: Comprehensive blockchain analytics
+3. **Intelligent Networking**: Auto-discovery and synchronization
+4. **Production Mining**: Fault-tolerant with retry logic
+5. **Centralized Config**: Single point of configuration management
+6. **Comprehensive Testing**: Full validation and monitoring suite
+
+---
+
+## ⚠️ IMPORTANT NOTES FOR AI ASSISTANTS
+
+1. **Thread Safety First**: Always use thread-safe components from `src/concurrency/`
+2. **Configuration Changes**: Modify `src/config.py` for system-wide changes
+3. **Monitoring Integration**: Use blockchain monitoring tools for debugging
+4. **Testing Required**: Run test suite after any changes
+5. **Documentation**: Update this file when adding new functionality
+
+### Common Commands for AI Reference
+
+```bash
+# Start node with thread safety
+python3 network_node.py --node-id core0 --api-port 5000
+
+# Monitor blockchain in real-time
+python3 blockchain_monitor.py monitor
+
+# Enhanced mining with retry logic
+python3 mining_client.py --wallet miner.json
+
+# Peer discovery testing
+python3 test_peer_discovery.py monitor
+
+# Blockchain sync testing
+python3 test_blockchain_sync.py test
+
+# Full blockchain analysis with JSON export
+python3 src/blockchain/blockchain_tracker_with_json.py analyze
+```
+
+---
+
+**Last Updated**: August 13, 2025  
+**Version**: 2.0 (Thread Safety & Monitoring Update)  
+**Status**: Production Ready ✅

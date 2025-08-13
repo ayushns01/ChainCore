@@ -8,8 +8,9 @@ import os
 import requests
 import json
 
-# Add src to path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
+# Add src and parent directory to path
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from src.crypto.ecdsa_crypto import double_sha256
 from src.blockchain.bitcoin_transaction import Transaction
 
@@ -86,7 +87,7 @@ def verify_hash_consistency():
     print("\n🔍 Step 3: Test Block object creation...")
     
     # Import Block
-    sys.path.insert(0, os.path.join(os.path.dirname(__file__)))
+    sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
     from network_node import Block
     
     # Create Block object like the submit_block handler does

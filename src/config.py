@@ -9,7 +9,7 @@ Centralized configuration for blockchain parameters
 # ==========================================
 
 # Mining difficulty - change this single value to adjust across entire system
-BLOCKCHAIN_DIFFICULTY = 4  # Very easy for testing - just needs "0" prefix
+BLOCKCHAIN_DIFFICULTY = 6  # Very easy for testing - just needs "0" prefix
 
 # Block reward for miners
 BLOCK_REWARD = 50.0
@@ -20,7 +20,13 @@ DEFAULT_TRANSACTION_FEE = 0.01
 # Network settings
 DEFAULT_API_PORT = 5000
 DEFAULT_P2P_PORT = 8000
-PEER_DISCOVERY_RANGE = (5000, 5012)
+PEER_DISCOVERY_RANGE = (5000, 5020)  # Extended range for 20-node prototype
+
+# Peer management settings (optimized for max 20-node prototype network)
+MIN_PEERS = 2          # Minimum peers to maintain
+TARGET_PEERS = 6       # Optimal number of peers (30% of max network)
+MAX_PEERS = 10         # Maximum peers (50% of max network, prevents congestion)
+CONTINUOUS_DISCOVERY_INTERVAL = 60  # Seconds between discovery attempts
 
 # Mining settings
 MINING_TIMEOUT = 60  # seconds

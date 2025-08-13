@@ -6,8 +6,9 @@ Test script to verify centralized difficulty configuration works
 import sys
 import os
 
-# Add src to path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
+# Add src and parent directory to path
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 def test_config_import():
     """Test that config can be imported correctly"""

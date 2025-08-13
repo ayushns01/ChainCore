@@ -17,25 +17,25 @@ python3 mining_client.py --wallet test_miner --node http://localhost:5000 &
 ### **Real-Time Monitoring:**
 ```bash
 # Live blockchain monitor (shows new blocks as they're mined)
-python3 blockchain_monitor.py monitor
+python3 src/blockchain/blockchain_monitor.py monitor
 
 # Quick block summary with miners
-python3 quick_blockchain_check.py summary
+python3 src/blockchain/quick_blockchain_check.py summary
 
 # Hash chain integrity check
-python3 quick_blockchain_check.py hashchain
+python3 src/blockchain/quick_blockchain_check.py hashchain
 ```
 
 ### **Generate & Save Complete Analysis:**
 ```bash
 # Full analysis saved to JSON file
-python3 blockchain_tracker_with_json.py analyze
+python3 src/blockchain/blockchain_tracker_with_json.py analyze
 
 # Custom filename
-python3 blockchain_tracker_with_json.py analyze http://localhost:5000 my_blockchain_report.json
+python3 src/blockchain/blockchain_tracker_with_json.py analyze http://localhost:5000 my_blockchain_report.json
 
 # Quick analysis without saving
-python3 blockchain_tracker_with_json.py quick
+python3 src/blockchain/blockchain_tracker_with_json.py quick
 ```
 
 ### **Compare Multiple Nodes:**
@@ -44,10 +44,10 @@ python3 blockchain_tracker_with_json.py quick
 python3 network_node.py --node-id core1 --api-port 5001 --p2p-port 8001 &
 
 # Compare synchronization
-python3 quick_blockchain_check.py compare http://localhost:5000 http://localhost:5001
+python3 src/blockchain/quick_blockchain_check.py compare http://localhost:5000 http://localhost:5001
 
 # Detailed comparison
-python3 blockchain_monitor.py compare http://localhost:5000 http://localhost:5001
+python3 src/blockchain/blockchain_monitor.py compare http://localhost:5000 http://localhost:5001
 ```
 
 ### **Manual Verification Commands:**
@@ -196,13 +196,13 @@ for block in data['chain']:
 curl -s http://localhost:5000/status
 
 # Restart tracking with different node
-python3 blockchain_monitor.py monitor http://localhost:5001
+python3 src/blockchain/blockchain_monitor.py monitor http://localhost:5001
 ```
 
 ### **If hash chain shows issues:**
 ```bash
 # Check for node synchronization problems
-python3 quick_blockchain_check.py compare http://localhost:5000 http://localhost:5001
+python3 src/blockchain/quick_blockchain_check.py compare http://localhost:5000 http://localhost:5001
 
 # Restart nodes to resync
 pkill -f network_node.py
@@ -211,4 +211,4 @@ python3 network_node.py --node-id core0 --api-port 5000 --p2p-port 8000
 
 ---
 
-**💡 Tip**: Use `blockchain_tracker_with_json.py analyze` to generate comprehensive reports for blockchain auditing and performance analysis!
+**💡 Tip**: Use `src/blockchain/blockchain_tracker_with_json.py analyze` to generate comprehensive reports for blockchain auditing and performance analysis!

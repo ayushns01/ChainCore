@@ -158,6 +158,7 @@ class ThreadSafeNetworkNode:
             """Thread-safe status endpoint"""
             self._increment_api_calls()
             
+            peer_stats = self.peer_manager.get_stats()
             return jsonify({
                 'node_id': self.node_id,
                 'blockchain_length': self.blockchain.get_chain_length(),
@@ -166,7 +167,25 @@ class ThreadSafeNetworkNode:
                 'target_difficulty': self.blockchain.target_difficulty,
                 'uptime': time.time() - self._stats['uptime_start'],
                 'thread_safe': True,
-                'api_calls': self._stats['api_calls']
+                'api_calls': self._stats['api_calls'],
+                'peer_discovery': {
+                    'total_peers': peer_stats['total_peers'],
+                    'active_peers': peer_stats['active_peers'],
+                    'continuous_discovery_enabled': self.peer_manager._continuous_discovery_enabled,
+                    'discovery_interval': self.peer_manager._peer_discovery_interval,
+                    'peer_limits': {
+                        'min_peers': self.peer_manager._min_peers,
+                        'target_peers': self.peer_manager._target_peers,
+                        'max_peers': self.peer_manager._max_peers
+                    }
+                },
+                'blockchain_sync': {
+                    'auto_sync_enabled': self.peer_manager._blockchain_sync_enabled,
+                    'sync_interval': self.peer_manager._blockchain_sync_interval,
+                    'successful_syncs': self._stats.get('successful_syncs', 0),
+                    'failed_syncs': self._stats.get('failed_syncs', 0),
+                    'last_sync_time': self._stats.get('last_sync_time', 0)
+                }
             })
         
         @self.app.route('/blockchain', methods=['GET'])
@@ -590,6 +609,21 @@ class ThreadSafeNetworkNode:
         """Start the thread-safe network node"""
         logger.info(f"Starting thread-safe network node: {self.node_id}")
         
+        # Configure continuous peer discovery with proper settings
+        from src.config import CONTINUOUS_DISCOVERY_INTERVAL
+        self.peer_manager.configure_continuous_discovery(
+            enabled=True, 
+            interval=CONTINUOUS_DISCOVERY_INTERVAL
+        )
+        
+        # Configure automatic blockchain synchronization
+        self.peer_manager.configure_blockchain_sync(enabled=True, interval=30.0)
+        self.peer_manager.set_blockchain_reference(self.blockchain)
+        self.peer_manager.set_sync_callback(self._perform_automatic_sync)
+        
+        # Configure self-awareness for peer discovery  
+        self.peer_manager._self_url = f"http://localhost:{self.api_port}"
+        
         # Discover peers if requested
         if discover_peers:
             logger.info("Discovering peers...")
@@ -600,6 +634,71 @@ class ThreadSafeNetworkNode:
         logger.info(f"Starting API server on port {self.api_port}")
         self.start_api_server()
     
+    def _perform_automatic_sync(self, peer_url: str, current_length: int, peer_length: int):
+        """Callback for automatic blockchain synchronization"""
+        try:
+            logger.info(f"Performing automatic blockchain sync with {peer_url}")
+            logger.info(f"Chain lengths: local={current_length}, peer={peer_length}")
+            
+            # Use existing sync logic from sync_now endpoint
+            sync_result = self.peer_manager.sync_with_best_peer()
+            
+            if sync_result:
+                peer_url_result, chain_data = sync_result
+                
+                # Convert chain data to blocks (same logic as sync_now endpoint)
+                new_chain = []
+                for block_data in chain_data:
+                    try:
+                        # Create transactions
+                        transactions = []
+                        for tx_data in block_data.get('transactions', []):
+                            tx = Transaction(
+                                inputs=tx_data.get('inputs', []),
+                                outputs=[
+                                    type('Output', (), {
+                                        'recipient_address': out['recipient_address'],
+                                        'amount': out['amount']
+                                    })() for out in tx_data.get('outputs', [])
+                                ]
+                            )
+                            transactions.append(tx)
+                        
+                        # Create block
+                        block = Block(
+                            index=block_data['index'],
+                            transactions=transactions,
+                            previous_hash=block_data['previous_hash'],
+                            timestamp=block_data.get('timestamp', time.time()),
+                            nonce=block_data.get('nonce', 0),
+                            target_difficulty=block_data.get('target_difficulty', 1)
+                        )
+                        new_chain.append(block)
+                        
+                    except Exception as e:
+                        logger.error(f"Error creating block from sync data: {e}")
+                        return
+                
+                # Replace chain if the new one is longer and valid
+                if len(new_chain) > current_length:
+                    if self.blockchain.replace_chain(new_chain):
+                        logger.info(f"✅ Automatic sync successful: {current_length} -> {len(new_chain)} blocks")
+                        
+                        # Update stats
+                        self._stats['successful_syncs'] = self._stats.get('successful_syncs', 0) + 1
+                        self._stats['last_sync_time'] = time.time()
+                    else:
+                        logger.error("❌ Automatic sync failed: chain validation failed")
+                        self._stats['failed_syncs'] = self._stats.get('failed_syncs', 0) + 1
+                else:
+                    logger.debug("Automatic sync: no longer chain found")
+            else:
+                logger.debug("Automatic sync: no suitable peers found")
+                
+        except Exception as e:
+            logger.error(f"Error in automatic blockchain sync: {e}")
+            self._stats['failed_syncs'] = self._stats.get('failed_syncs', 0) + 1
+
     def cleanup(self):
         """Cleanup node resources"""
         logger.info(f"Cleaning up node: {self.node_id}")

@@ -10,8 +10,8 @@ import json
 import time
 
 # Add paths
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
-sys.path.insert(0, os.path.join(os.path.dirname(__file__)))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from src.crypto.ecdsa_crypto import double_sha256
 from src.blockchain.bitcoin_transaction import Transaction
