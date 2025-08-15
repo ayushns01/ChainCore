@@ -34,16 +34,55 @@ class BlockchainMonitor:
             print(f"❌ Connection Error: {e}")
             return None
     
-    def extract_miner_from_block(self, block: Dict) -> str:
-        """Extract miner address from block's coinbase transaction"""
+    def extract_miner_from_block(self, block: Dict) -> tuple:
+        """Extract miner address and identify the mining source from block's coinbase transaction"""
         try:
             # First transaction should be coinbase
             coinbase_tx = block['transactions'][0]
             if coinbase_tx['outputs']:
-                return coinbase_tx['outputs'][0]['recipient_address']
-            return "unknown"
+                miner_address = coinbase_tx['outputs'][0]['recipient_address']
+                
+                # Try to identify which node/client mined this block
+                mining_source = self.identify_mining_source(miner_address, block)
+                
+                return miner_address, mining_source
+            return "unknown", "unknown"
         except (KeyError, IndexError):
-            return "unknown"
+            return "unknown", "unknown"
+    
+    def identify_mining_source(self, miner_address: str, block: Dict) -> str:
+        """Identify which mining client/node mined this block"""
+        # Check if we have node discovery data
+        if not self.discovered_nodes:
+            self.discovered_nodes = self.discover_network_nodes(verbose=False)
+        
+        # Try to correlate mining time with node activity
+        block_time = block.get('timestamp', 0)
+        
+        # If all miners use same address, try to identify by timing/nonce patterns
+        if miner_address in self.address_to_node:
+            return self.address_to_node[miner_address]
+        
+        # Try to identify by querying nodes about recent mining activity
+        for port, node_info in self.discovered_nodes.items():
+            try:
+                # Check if this node has been actively mining recently
+                response = requests.get(f"{node_info['url']}/status", timeout=2)
+                if response.status_code == 200:
+                    status = response.json()
+                    
+                    # Check if this node has mining activity indicators
+                    api_calls = status.get('api_calls', 0)
+                    if api_calls > 10:  # Active node indicator
+                        # Store this correlation for future use
+                        self.address_to_node[miner_address] = f"Node-{port}"
+                        return f"Node-{port} ({node_info.get('node_id', 'unknown')})"
+                        
+            except requests.RequestException:
+                continue
+        
+        # Default identification
+        return f"Mining-Client-{miner_address[-8:]}"
     
     def discover_network_nodes(self, verbose: bool = False) -> Dict[str, Dict]:
         """Discover all active nodes in the network"""
@@ -283,9 +322,14 @@ class BlockchainMonitor:
         miner_stats = {}
         
         for block in blocks:
-            miner = self.extract_miner_from_block(block)
-            if miner not in miner_stats:
-                miner_stats[miner] = {
+            miner_address, mining_source = self.extract_miner_from_block(block)
+            # Use mining source as key for better differentiation
+            miner_key = f"{mining_source} ({miner_address[:10]}...)" if len(miner_address) > 10 else f"{mining_source} ({miner_address})"
+            
+            if miner_key not in miner_stats:
+                miner_stats[miner_key] = {
+                    'miner_address': miner_address,
+                    'mining_source': mining_source,
                     'blocks_mined': 0,
                     'block_indices': [],
                     'total_rewards': 0.0,
@@ -293,7 +337,7 @@ class BlockchainMonitor:
                     'last_block': block['index']
                 }
             
-            stats = miner_stats[miner]
+            stats = miner_stats[miner_key]
             stats['blocks_mined'] += 1
             stats['block_indices'].append(block['index'])
             stats['last_block'] = block['index']
@@ -310,8 +354,8 @@ class BlockchainMonitor:
     
     def display_block_details(self, block: Dict, is_new: bool = False):
         """Display detailed block information"""
-        miner_address = self.extract_miner_from_block(block)
-        mining_node = self.identify_mining_node(miner_address)
+        miner_address, mining_source = self.extract_miner_from_block(block)
+        mining_node = mining_source if mining_source != "unknown" else self.identify_mining_node(miner_address)
         timestamp = datetime.fromtimestamp(block['timestamp']).strftime("%H:%M:%S")
         
         # Determine if hash meets difficulty requirement
@@ -348,11 +392,12 @@ class BlockchainMonitor:
         
         total_blocks = sum(stats['blocks_mined'] for stats in miner_stats.values())
         
-        for miner_address, stats in sorted(miner_stats.items(), key=lambda x: x[1]['blocks_mined'], reverse=True):
+        for miner_key, stats in sorted(miner_stats.items(), key=lambda x: x[1]['blocks_mined'], reverse=True):
             percentage = (stats['blocks_mined'] / total_blocks * 100) if total_blocks > 0 else 0
-            mining_node = self.identify_mining_node(miner_address)
+            miner_address = stats.get('miner_address', 'unknown')
+            mining_source = stats.get('mining_source', 'unknown')
             
-            print(f"Mining Node: {mining_node}")
+            print(f"Mining Source: {mining_source}")
             print(f"  📍 Address: {miner_address[:30]}..." if len(miner_address) > 30 else f"  📍 Address: {miner_address}")
             print(f"  📦 Blocks: {stats['blocks_mined']} ({percentage:.1f}%)")
             print(f"  💰 Rewards: {stats['total_rewards']}")

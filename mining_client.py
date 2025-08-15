@@ -58,22 +58,43 @@ class MiningClient:
         return self.submit_block_with_validation(mined_block)
     
     def check_network_health(self) -> bool:
-        """Check if network is stable before mining"""
+        """Enhanced network health check with peer connectivity validation"""
         try:
-            response = requests.get(f"{self.node_url}/status", timeout=5)
+            response = requests.get(f"{self.node_url}/status", timeout=10)
             if response.status_code != 200:
-                print("⚠️  Node not responding")
+                print(f"⚠️  Node not responding (HTTP {response.status_code})")
                 return False
             
             status = response.json()
             
             # Check if blockchain is initialized (has at least genesis block)
-            if status.get('blockchain_length', 0) < 1:
-                print("⚠️  Blockchain not initialized")
+            blockchain_length = status.get('blockchain_length', 0)
+            if blockchain_length < 1:
+                print("⚠️  Blockchain not initialized - waiting for genesis block")
+                return False
+            
+            # Check thread safety status
+            if not status.get('thread_safe', False):
+                print("⚠️  Node thread safety issues detected")
                 return False
                 
+            # Check peer connectivity for better mining coordination
+            peer_count = status.get('peers', 0)
+            if peer_count == 0:
+                print("ℹ️  Single node mode - no peers connected")
+            else:
+                print(f"🌐 Connected to {peer_count} peers")
+                
+            print(f"✅ Network healthy - Chain length: {blockchain_length}")
             return True
             
+        except requests.exceptions.ConnectionError:
+            print(f"❌ Cannot connect to node at {self.node_url}")
+            print("   💡 Make sure the network node is running")
+            return False
+        except requests.exceptions.Timeout:
+            print(f"⏰ Node timeout at {self.node_url}")
+            return False
         except Exception as e:
             print(f"⚠️  Network health check failed: {e}")
             return False

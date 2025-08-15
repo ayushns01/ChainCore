@@ -8,8 +8,8 @@ Centralized configuration for blockchain parameters
 # BLOCKCHAIN CONFIGURATION
 # ==========================================
 
-# Mining difficulty - change this single value to adjust across entire system
-BLOCKCHAIN_DIFFICULTY = 6  # Very easy for testing - just needs "0" prefix
+# Mining difficulty - standardized across all nodes for competitive mining
+BLOCKCHAIN_DIFFICULTY = 4  # Consistent difficulty for fair competition
 
 # Dynamic difficulty adjustment settings
 DIFFICULTY_ADJUSTMENT_ENABLED = True
@@ -30,11 +30,17 @@ DEFAULT_API_PORT = 5000
 DEFAULT_P2P_PORT = 8000
 PEER_DISCOVERY_RANGE = (5000, 5100)  # Extended range for 100+ nodes
 
-# Peer management settings (supports unlimited miners)
-MIN_PEERS = 2          # Minimum peers to maintain
-TARGET_PEERS = 8       # Optimal number of peers
-MAX_PEERS = 20         # Maximum peers (prevents network congestion)
-CONTINUOUS_DISCOVERY_INTERVAL = 60  # Seconds between discovery attempts
+# Enhanced peer management settings (supports unlimited miners)
+MIN_PEERS = 1          # Minimum peers to maintain (allow single node)
+TARGET_PEERS = 10      # Optimal number of peers  
+MAX_PEERS = 50         # Maximum peers (increased for better network)
+CONTINUOUS_DISCOVERY_INTERVAL = 30  # Faster discovery - every 30 seconds
+
+# Peer discovery optimization
+DISCOVERY_TIMEOUT = 3.0          # Fast timeout for peer discovery
+MAX_DISCOVERY_WORKERS = 20       # More concurrent workers
+PEER_HEALTH_CHECK_INTERVAL = 30  # Health check every 30 seconds
+PEER_FAILURE_THRESHOLD = 3       # Remove peer after 3 failures
 
 # Mining settings
 MINING_TIMEOUT = 60  # seconds

@@ -22,7 +22,7 @@ pip install -r requirements.txt
 ```bash
 cd /Users/ayush/Desktop/ChainCore
 source venv/bin/activate
-python3 network_node.py --node-id core0 --api-port 5001 --p2p-port 8000
+python3 network_node.py --node-id core0 --api-port 5000 --p2p-port 8000
 ```
 
 ### Terminal 2: Start Second Network Node
@@ -30,7 +30,7 @@ python3 network_node.py --node-id core0 --api-port 5001 --p2p-port 8000
 ```bash
 cd /Users/ayush/Desktop/ChainCore
 source venv/bin/activate
-python3 network_node.py --node-id core1 --api-port 5002 --p2p-port 8001
+python3 network_node.py --node-id core1 --api-port 5001 --p2p-port 8001
 ```
 
 ### Terminal 3: Start Third Network Node
@@ -38,7 +38,7 @@ python3 network_node.py --node-id core1 --api-port 5002 --p2p-port 8001
 ```bash
 cd /Users/ayush/Desktop/ChainCore
 source venv/bin/activate
-python3 network_node.py --node-id core2 --api-port 5003 --p2p-port 8002
+python3 network_node.py --node-id core2 --api-port 5002 --p2p-port 8002
 ```
 
 ### Terminal 4: Additional Nodes (Optional)
@@ -169,6 +169,7 @@ sleep 30 && curl -s http://localhost:5001/status | jq '.blockchain_length'
 **Symptoms**: Mining client runs but blockchain length stays at 1
 
 **Solutions**:
+
 ```bash
 # 1. Use port 5001 instead of 5000 (avoids macOS AirPlay conflict)
 python3 network_node.py --node-id core1 --api-port 5001
@@ -485,8 +486,9 @@ curl -s http://localhost:5001/status | jq '.blockchain_length'
 
 ```bash
 # Check balance first
-python3 wallet_client.py balance --wallet sender.json --node http://localhost:5000
-
+python3 wallet_client.py balance --wallet miner.json --node http://localhost:5000
+python3 wallet_client.py balance --wallet miner1.json --node http://localhost:5000
+python3 wallet_client.py balance --wallet miner2.json --node http://localhost:5000
 # Check transaction pool
 curl http://localhost:5000/transaction_pool
 

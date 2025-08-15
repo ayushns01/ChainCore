@@ -93,7 +93,8 @@ class ConnectionPool:
         
         # Apply rate limiting
         if host in self._rate_limiters:
-            self._rate_limiters[host].acquire()
+            if not self._rate_limiters[host].acquire():
+                raise requests.exceptions.Timeout("Rate limit exceeded")
         
         session = self.get_session(host)
         
@@ -128,11 +129,19 @@ class RateLimiter:
                     self._tokens -= 1.0
                     return True
             
+            # Check timeout before waiting
             if timeout and (time.time() - start_time) > timeout:
                 return False
             
-            # Wait for next token
-            time.sleep(1.0 / self._rate)
+            # Wait for next token, but not longer than remaining timeout
+            wait_time = min(1.0 / self._rate, 0.1)  # Max 100ms wait
+            if timeout:
+                remaining_time = timeout - (time.time() - start_time)
+                if remaining_time <= 0:
+                    return False
+                wait_time = min(wait_time, remaining_time)
+            
+            time.sleep(wait_time)
 
 class ThreadSafePeerManager:
     """
@@ -180,11 +189,22 @@ class ThreadSafePeerManager:
         self._last_network_stats_sync = 0
         self._network_stats_sync_interval = 60.0  # Sync network stats every 60 seconds
         
-        # Peer count management
-        from ..config import MIN_PEERS, TARGET_PEERS, MAX_PEERS
+        # Peer count management and discovery configuration
+        from ..config import MIN_PEERS, TARGET_PEERS, MAX_PEERS, PEER_DISCOVERY_RANGE
         self._min_peers = MIN_PEERS
         self._target_peers = TARGET_PEERS  
         self._max_peers = MAX_PEERS
+        self._discovery_range = PEER_DISCOVERY_RANGE  # Fix for missing attribute
+        
+        # Self-awareness for peer discovery
+        self._self_url = None  # Will be set by network node
+        self._is_main_node = False  # Track if this is the main coordinator node
+        
+        # Enhanced discovery settings for robust peer finding
+        self._discovery_timeout = 3.0  # Fast discovery timeout
+        self._max_discovery_workers = 20  # More workers for faster scanning
+        self._backoff_multiplier = 1.5  # Exponential backoff for failed peers
+        self._max_backoff = 300.0  # Max 5 minutes backoff
         
         # Statistics
         self._stats = {
@@ -737,25 +757,47 @@ class ThreadSafePeerManager:
             return False
     
     def _update_peer_status(self, peer_url: str, is_healthy: bool):
-        """Update peer active status"""
+        """Update peer active status with atomic operations and exponential backoff"""
+        # Use consistent lock ordering: peers_lock then active_lock
         with self._peers_lock.write_lock():
-            if peer_url in self._peers:
-                peer_info = self._peers[peer_url]
+            if peer_url not in self._peers:
+                return
                 
-                if is_healthy:
-                    peer_info.is_active = True
-                    peer_info.failures = 0
+            peer_info = self._peers[peer_url]
+            
+            if is_healthy:
+                # Peer is healthy - reset failure count and mark active
+                peer_info.is_active = True
+                peer_info.failures = 0
+                peer_info.last_seen = time.time()
+                
+                # Add to active peers atomically
+                with self._active_lock.write_lock():
+                    self._active_peers.add(peer_url)
+                    
+                logger.debug(f"✅ Peer {peer_url} marked as healthy")
+                
+            else:
+                # Peer is unhealthy - increment failures and apply backoff
+                peer_info.failures += 1
+                current_time = time.time()
+                
+                # Calculate exponential backoff delay
+                backoff_delay = min(
+                    self._max_backoff,
+                    (self._backoff_multiplier ** peer_info.failures) * 10.0
+                )
+                
+                # Remove from active peers after 3 failures
+                if peer_info.failures >= 3:
+                    peer_info.is_active = False
                     
                     with self._active_lock.write_lock():
-                        self._active_peers.add(peer_url)
-                else:
-                    peer_info.failures += 1
+                        self._active_peers.discard(peer_url)
                     
-                    # Remove from active peers after 3 failures
-                    if peer_info.failures >= 3:
-                        peer_info.is_active = False
-                        with self._active_lock.write_lock():
-                            self._active_peers.discard(peer_url)
+                    logger.info(f"❌ Peer {peer_url} marked as inactive (failures: {peer_info.failures})")
+                else:
+                    logger.debug(f"⚠️  Peer {peer_url} health check failed (failures: {peer_info.failures}, backoff: {backoff_delay:.1f}s)")
     
     def _discovery_worker(self):
         """Background worker for peer discovery"""
@@ -774,59 +816,222 @@ class ThreadSafePeerManager:
     
     def discover_peers(self, port_range: range = None, host: str = "localhost") -> int:
         """
-        Thread-safe peer discovery with intelligent connection management
+        Enhanced peer discovery with proper future handling and main node detection
         Returns number of new peers discovered
         """
-        # Use configured port range if none provided
+        # Use configured port range if none provided (5000-5099)
         if port_range is None:
-            from ..config import PEER_DISCOVERY_RANGE
-            port_range = range(*PEER_DISCOVERY_RANGE)
+            port_range = range(*self._discovery_range)
         
         discovered_count = 0
         current_active_peers = len(self.get_active_peers())
+        discovered_nodes = []  # Track discovered nodes for main node selection
         
-        logger.info(f"Starting peer discovery (current: {current_active_peers} active peers, scanning ports {port_range.start}-{port_range.stop-1})")
+        logger.info(f"🔍 Starting Enhanced Peer Discovery")
+        logger.info(f"   📊 Current: {current_active_peers} active peers")
+        logger.info(f"   🎯 Scanning: ports {port_range.start}-{port_range.stop-1}")
+        logger.info(f"   ⚡ Workers: {self._max_discovery_workers}")
         
-        with concurrent.futures.ThreadPoolExecutor(max_workers=8) as executor:
-            futures = []
+        with concurrent.futures.ThreadPoolExecutor(max_workers=self._max_discovery_workers) as executor:
+            # Submit all discovery tasks
+            future_to_url = {}
             
             for port in port_range:
                 peer_url = f"http://{host}:{port}"
                 
-                # Skip self (check against our own known URLs)
+                # Skip self URL
                 if self._is_self_url(peer_url):
+                    logger.debug(f"   ⏭️  Skipping self URL: {peer_url}")
                     continue
                 
-                future = executor.submit(self._try_discover_peer, peer_url)
-                futures.append(future)
+                future = executor.submit(self._try_discover_peer_enhanced, peer_url)
+                future_to_url[future] = peer_url
             
-            for future in concurrent.futures.as_completed(futures, timeout=30):
-                try:
-                    if future.result():
-                        discovered_count += 1
-                        
-                        # Check if we've reached our maximum peer limit
-                        current_total = len(self._peers)
-                        if current_total >= self._max_peers:
-                            logger.info(f"Reached maximum peer limit ({self._max_peers}), stopping discovery")
-                            break
+            # Process completed futures with timeout handling
+            completed_futures = 0
+            timeout_duration = 15.0  # 15 second total timeout
+            
+            try:
+                for future in concurrent.futures.as_completed(future_to_url.keys(), timeout=timeout_duration):
+                    completed_futures += 1
+                    peer_url = future_to_url[future]
+                    
+                    try:
+                        peer_info = future.result()
+                        if peer_info:
+                            discovered_count += 1
+                            discovered_nodes.append((peer_url, peer_info))
+                            logger.info(f"   ✅ Found peer: {peer_url} (chain: {peer_info.chain_length})")
                             
-                except Exception as e:
-                    logger.debug(f"Peer discovery error: {e}")
+                            # Early exit if we have enough peers
+                            if len(self._peers) >= self._max_peers:
+                                logger.info(f"   🎯 Reached max peers ({self._max_peers}), stopping discovery")
+                                break
+                                
+                    except Exception as e:
+                        logger.debug(f"   ❌ Discovery failed for {peer_url}: {e}")
+                        self._stats['failed_connections'].increment()
+            
+            except concurrent.futures.TimeoutError:
+                logger.info(f"   ⏰ Discovery timeout after {timeout_duration}s")
+            
+            # Cancel any remaining futures to prevent resource leaks
+            remaining_futures = [f for f in future_to_url.keys() if not f.done()]
+            if remaining_futures:
+                logger.debug(f"   🔄 Cancelling {len(remaining_futures)} unfinished futures")
+                for future in remaining_futures:
+                    future.cancel()
+        
+        # Determine main node based on discovery results
+        self._determine_main_node(discovered_nodes)
         
         final_active_peers = len(self.get_active_peers())
-        logger.info(f"Peer discovery complete: {discovered_count} new peers discovered "
-                   f"(active peers: {current_active_peers} → {final_active_peers})")
+        logger.info(f"🎉 Peer Discovery Complete!")
+        logger.info(f"   📈 Discovered: {discovered_count} new peers")
+        logger.info(f"   📊 Active peers: {current_active_peers} → {final_active_peers}")
+        logger.info(f"   🏆 Main node: {'Yes' if self._is_main_node else 'No'}")
+        
         return discovered_count
+    
+    def _try_discover_peer_enhanced(self, peer_url: str) -> Optional[PeerInfo]:
+        """Enhanced peer discovery with better error handling and info gathering"""
+        try:
+            with self._connection_pool.request(f"{peer_url}/status") as session:
+                response = session.get(f"{peer_url}/status", timeout=self._discovery_timeout)
+                
+                if response.status_code == 200:
+                    peer_data = response.json()
+                    
+                    # Create comprehensive peer info
+                    peer_info = PeerInfo(
+                        url=peer_url,
+                        last_seen=time.time(),
+                        chain_length=peer_data.get('blockchain_length', 0),
+                        version=peer_data.get('version', ''),
+                        is_active=True,
+                        failures=0,
+                        response_time=response.elapsed.total_seconds() if response.elapsed else 0.0
+                    )
+                    
+                    # Add peer to our registry
+                    self.add_peer(peer_url, peer_info)
+                    
+                    # Mark as active
+                    with self._active_lock.write_lock():
+                        self._active_peers.add(peer_url)
+                    
+                    self._stats['successful_connections'].increment()
+                    return peer_info
+                    
+        except requests.exceptions.Timeout:
+            logger.debug(f"Timeout discovering {peer_url}")
+            self._stats['peer_timeouts'].increment()
+        except requests.exceptions.ConnectionError:
+            logger.debug(f"Connection refused by {peer_url}")
+            self._stats['failed_connections'].increment()
+        except Exception as e:
+            logger.debug(f"Discovery error for {peer_url}: {e}")
+            self._stats['failed_connections'].increment()
+        
+        return None
+    
+    def _determine_main_node(self, discovered_nodes: List[Tuple[str, PeerInfo]]):
+        """Determine if this node should be the main coordinator node"""
+        if not discovered_nodes:
+            # No other nodes found - we are the main node
+            self._is_main_node = True
+            logger.info("🏆 This node is the MAIN NODE (first to start)")
+            return
+        
+        # Find the node with the lowest port number (earliest started)
+        all_nodes = [(self._self_url, self._get_self_info())] + discovered_nodes
+        all_nodes = [node for node in all_nodes if node[0]]  # Filter out None URLs
+        
+        if all_nodes:
+            # Sort by port number (assumes URL format http://host:port)
+            main_node_url = min(all_nodes, key=lambda x: self._extract_port(x[0]))[0]
+            
+            self._is_main_node = (main_node_url == self._self_url)
+            
+            if self._is_main_node:
+                logger.info(f"🏆 This node is the MAIN NODE (lowest port: {self._extract_port(self._self_url)})")
+            else:
+                main_port = self._extract_port(main_node_url)
+                logger.info(f"👥 This node is a PEER NODE (main node: port {main_port})")
+    
+    def _extract_port(self, url: str) -> int:
+        """Extract port number from URL"""
+        try:
+            import urllib.parse
+            parsed = urllib.parse.urlparse(url)
+            return parsed.port or 80
+        except:
+            return 999999  # High number for invalid URLs
+    
+    def _get_self_info(self) -> PeerInfo:
+        """Get info about this node"""
+        return PeerInfo(
+            url=self._self_url or "",
+            last_seen=time.time(),
+            chain_length=0,  # Will be updated by blockchain reference
+            is_active=True,
+            failures=0
+        )
     
     def _is_self_url(self, peer_url: str) -> bool:
         """Check if a URL points to this node itself"""
         # Check against self URL if configured
-        if hasattr(self, '_self_url') and peer_url == self._self_url:
+        if self._self_url and peer_url == self._self_url:
             return True
+        
+        # Extract port and check if it matches our port
+        if self._self_url:
+            try:
+                self_port = self._extract_port(self._self_url)
+                peer_port = self._extract_port(peer_url)
+                if self_port == peer_port:
+                    return True
+            except:
+                pass
             
-        # Also skip URLs we already know about
-        return peer_url in self._peers
+        return False
+    
+    def set_self_url(self, self_url: str):
+        """Set this node's URL for self-awareness in peer discovery"""
+        self._self_url = self_url
+        logger.info(f"🆔 Node self-URL set: {self_url}")
+        
+        # Trigger immediate peer discovery to find existing nodes
+        if self._continuous_discovery_enabled:
+            discovery_thread = threading.Thread(
+                target=self._immediate_peer_discovery,
+                daemon=True
+            )
+            discovery_thread.start()
+    
+    def _immediate_peer_discovery(self):
+        """Immediate peer discovery when node starts with smart delay"""
+        try:
+            # Add small randomized delay to prevent thundering herd when starting multiple nodes
+            import random
+            delay = random.uniform(1.0, 3.0)  # 1-3 second delay
+            logger.info(f"🚀 Starting peer discovery in {delay:.1f} seconds...")
+            time.sleep(delay)
+            
+            logger.info("🔍 Discovering existing nodes in network...")
+            discovered = self.discover_peers()
+            
+            if discovered > 0:
+                logger.info(f"🎉 Successfully connected to {discovered} existing nodes")
+            else:
+                logger.info("📡 No existing nodes found - this may be the first node in the network")
+                
+        except Exception as e:
+            logger.error(f"Error in immediate peer discovery: {e}")
+    
+    def get_main_node_status(self) -> bool:
+        """Check if this node is the main coordinator node"""
+        return self._is_main_node
     
     def _try_discover_peer(self, peer_url: str) -> bool:
         """Try to discover a single peer"""
@@ -1026,11 +1231,34 @@ class ThreadSafePeerManager:
         }
     
     def cleanup(self):
-        """Cleanup resources"""
+        """Enhanced cleanup of peer manager resources"""
         try:
-            if hasattr(self, '_health_monitor'):
+            # Stop health monitoring
+            if hasattr(self, '_health_monitor') and self._health_monitor:
                 self._health_monitor.cancel()
-        except:
+                logger.debug("Health monitor stopped")
+            
+            # Clear all peer data
+            with self._peers_lock.write_lock():
+                self._peers.clear()
+                
+            with self._active_lock.write_lock():
+                self._active_peers.clear()
+                
+            # Close connection pool sessions
+            try:
+                with self._connection_pool._pool_lock:
+                    for session in self._connection_pool._pools.values():
+                        session.close()
+                    self._connection_pool._pools.clear()
+                    logger.debug("Connection pool cleaned up")
+            except:
+                pass  # Ignore cleanup errors
+                
+            logger.info("🧹 Peer manager cleanup complete")
+            
+        except Exception as e:
+            logger.error(f"Error during peer manager cleanup: {e}")
             pass
         
         logger.info("Peer manager cleanup complete")

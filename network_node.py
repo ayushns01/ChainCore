@@ -101,48 +101,253 @@ class ThreadSafeNetworkNode:
         @self.app.route('/status', methods=['GET'])
         @synchronized("api_status", LockOrder.NETWORK, mode='read')
         def get_status():
-            """Thread-safe status endpoint"""
+            """Enhanced user-friendly status endpoint with comprehensive information"""
             self._increment_api_calls()
             
+            # Get current statistics
+            blockchain_length = self.blockchain.get_chain_length()
+            pending_txs = len(self.blockchain.get_transaction_pool_copy())
+            active_peers = self.peer_manager.get_active_peers()
             peer_stats = self.peer_manager.get_stats()
+            uptime_seconds = time.time() - self._stats['uptime_start']
+            
+            # Calculate uptime in human readable format
+            uptime_hours = int(uptime_seconds // 3600)
+            uptime_minutes = int((uptime_seconds % 3600) // 60)
+            uptime_readable = f"{uptime_hours}h {uptime_minutes}m" if uptime_hours > 0 else f"{uptime_minutes}m"
+            
+            # Determine network health status
+            if len(active_peers) == 0:
+                network_status = "isolated"
+                network_health = "⚠️  Single Node Mode"
+            elif len(active_peers) < self.peer_manager._min_peers:
+                network_status = "under_connected"
+                network_health = "🔍 Seeking More Peers"
+            elif len(active_peers) >= self.peer_manager._target_peers:
+                network_status = "well_connected"
+                network_health = "🌐 Well Connected"
+            else:
+                network_status = "connecting"
+                network_health = "🔄 Building Network"
+            
+            # Determine blockchain status
+            if blockchain_length <= 1:
+                blockchain_status = "genesis"
+                blockchain_health = "🏁 Genesis Block Only"
+            elif pending_txs == 0:
+                blockchain_status = "idle"
+                blockchain_health = "💤 No Pending Transactions"
+            else:
+                blockchain_status = "active"
+                blockchain_health = f"⚡ Processing {pending_txs} Transactions"
+            
+            # Determine node role
+            is_main_node = self.peer_manager.get_main_node_status()
+            node_role = "🏆 Main Coordinator" if is_main_node else "👥 Peer Node"
+            
+            # Get mining difficulty status
+            difficulty_status = "🔥 Very Hard" if self.blockchain.target_difficulty > 6 else \
+                              "⚡ Hard" if self.blockchain.target_difficulty > 4 else \
+                              "🟢 Moderate" if self.blockchain.target_difficulty > 2 else \
+                              "🟡 Easy"
+            
             return jsonify({
-                'node_id': self.node_id,
-                'blockchain_length': self.blockchain.get_chain_length(),
-                'pending_transactions': len(self.blockchain.get_transaction_pool_copy()),
-                'peers': len(self.peer_manager.get_active_peers()),
-                'target_difficulty': self.blockchain.target_difficulty,
-                'uptime': time.time() - self._stats['uptime_start'],
-                'thread_safe': True,
-                'api_calls': self._stats['api_calls'],
-                'peer_discovery': {
-                    'total_peers': peer_stats['total_peers'],
-                    'active_peers': peer_stats['active_peers'],
-                    'continuous_discovery_enabled': self.peer_manager._continuous_discovery_enabled,
-                    'discovery_interval': self.peer_manager._peer_discovery_interval,
+                # === OVERVIEW SECTION ===
+                'status': 'online',
+                'summary': {
+                    'node_health': '✅ Operational',
+                    'network_status': network_health,
+                    'blockchain_status': blockchain_health,
+                    'node_role': node_role,
+                    'uptime': uptime_readable
+                },
+                
+                # === NODE INFORMATION ===
+                'node_info': {
+                    'node_id': self.node_id,
+                    'api_port': self.api_port,
+                    'api_url': f"http://localhost:{self.api_port}",
+                    'uptime_seconds': int(uptime_seconds),
+                    'uptime_readable': uptime_readable,
+                    'version': '1.0',
+                    'thread_safe': True,
+                    'api_calls_handled': self._stats['api_calls']
+                },
+                
+                # === BLOCKCHAIN STATUS ===
+                'blockchain': {
+                    'chain_length': blockchain_length,
+                    'status': blockchain_status,
+                    'status_message': blockchain_health,
+                    'latest_block_index': blockchain_length - 1 if blockchain_length > 0 else None,
+                    'pending_transactions': pending_txs,
+                    'mining_difficulty': self.blockchain.target_difficulty,
+                    'difficulty_status': difficulty_status,
+                    'genesis_initialized': blockchain_length > 0
+                },
+                
+                # === NETWORK STATUS ===
+                'network': {
+                    'status': network_status,
+                    'status_message': network_health,
+                    'active_peers': len(active_peers),
+                    'peer_urls': list(active_peers),
+                    'is_main_node': is_main_node,
                     'peer_limits': {
-                        'min_peers': self.peer_manager._min_peers,
+                        'minimum_peers': self.peer_manager._min_peers,
                         'target_peers': self.peer_manager._target_peers,
-                        'max_peers': self.peer_manager._max_peers
+                        'maximum_peers': self.peer_manager._max_peers
+                    },
+                    'discovery': {
+                        'enabled': self.peer_manager._continuous_discovery_enabled,
+                        'interval_seconds': self.peer_manager._peer_discovery_interval,
+                        'scan_range': f"ports {self.peer_manager._discovery_range[0]}-{self.peer_manager._discovery_range[1]-1}",
+                        'total_discoveries': peer_stats.get('discovery_attempts', 0),
+                        'successful_connections': peer_stats.get('successful_connections', 0),
+                        'failed_connections': peer_stats.get('failed_connections', 0)
                     }
                 },
-                'blockchain_sync': {
-                    'auto_sync_enabled': self.peer_manager._blockchain_sync_enabled,
-                    'sync_interval': self.peer_manager._blockchain_sync_interval,
-                    'successful_syncs': self._stats.get('successful_syncs', 0),
-                    'failed_syncs': self._stats.get('failed_syncs', 0),
-                    'last_sync_time': self._stats.get('last_sync_time', 0)
+                
+                # === SYNCHRONIZATION STATUS ===
+                'sync_status': {
+                    'blockchain_sync': {
+                        'enabled': self.peer_manager._blockchain_sync_enabled,
+                        'interval_seconds': self.peer_manager._blockchain_sync_interval,
+                        'successful_syncs': self._stats.get('successful_syncs', 0)
+                    },
+                    'mempool_sync': {
+                        'enabled': self.peer_manager._mempool_sync_enabled,
+                        'interval_seconds': self.peer_manager._mempool_sync_interval
+                    }
                 },
-                'mempool_sync': {
-                    'enabled': self.peer_manager._mempool_sync_enabled,
-                    'interval': self.peer_manager._mempool_sync_interval,
-                    'syncs_completed': self.peer_manager._stats['mempool_syncs'].value
+                
+                # === PERFORMANCE METRICS ===
+                'performance': {
+                    'blocks_processed': self._stats.get('blocks_processed', 0),
+                    'transactions_processed': self._stats.get('transactions_processed', 0),
+                    'average_response_time': '< 100ms',  # Placeholder - could be calculated
+                    'memory_usage': 'Normal',  # Placeholder - could use psutil
+                    'connection_pool_size': len(self.peer_manager._connection_pool._pools)
                 },
-                'network_stats_sync': {
-                    'enabled': self.peer_manager._network_stats_sync_enabled,
-                    'interval': self.peer_manager._network_stats_sync_interval,
-                    'syncs_completed': self.peer_manager._stats['network_stats_syncs'].value
-                }
+                
+                # === QUICK ACTIONS ===
+                'actions': {
+                    'available_endpoints': {
+                        'mine_block': f"POST {self.api_port}/mine_block",
+                        'send_transaction': f"POST {self.api_port}/broadcast_transaction", 
+                        'get_blockchain': f"GET {self.api_port}/blockchain",
+                        'sync_blockchain': f"POST {self.api_port}/sync_blockchain",
+                        'discover_peers': f"POST {self.api_port}/discover_peers"
+                    },
+                    'health_check_url': f"http://localhost:{self.api_port}/status"
+                },
+                
+                # === LEGACY COMPATIBILITY ===
+                'node_id': self.node_id,
+                'blockchain_length': blockchain_length,
+                'pending_transactions': pending_txs,
+                'peers': len(active_peers),
+                'target_difficulty': self.blockchain.target_difficulty,
+                'uptime': uptime_seconds,
+                'thread_safe': True,
+                'api_calls': self._stats['api_calls']
             })
+        
+        @self.app.route('/status/human', methods=['GET'])
+        @self.app.route('/', methods=['GET'])  # Also serve on root URL
+        def get_human_status():
+            """Human-readable HTML status page for browser viewing"""
+            status_data = get_status().json
+            
+            html = f"""
+<!DOCTYPE html>
+<html>
+<head>
+    <title>ChainCore Node Status - {status_data['node_info']['node_id']}</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+        body {{ font-family: system-ui, -apple-system, sans-serif; line-height: 1.6; margin: 0; padding: 20px; background: #f5f7fa; }}
+        .container {{ max-width: 1200px; margin: 0 auto; }}
+        .header {{ background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 20px; border-radius: 10px; margin-bottom: 20px; }}
+        .status-grid {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; }}
+        .status-card {{ background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }}
+        .status-card h3 {{ margin-top: 0; color: #333; border-bottom: 2px solid #eee; padding-bottom: 10px; }}
+        .metric {{ display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #f0f0f0; }}
+        .metric:last-child {{ border-bottom: none; }}
+        .metric-label {{ font-weight: 500; color: #666; }}
+        .metric-value {{ font-weight: bold; color: #333; }}
+        .status-online {{ color: #10b981; }}
+        .status-warning {{ color: #f59e0b; }}
+        .status-error {{ color: #ef4444; }}
+        .refresh-btn {{ background: #667eea; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; }}
+        .refresh-btn:hover {{ background: #5a67d8; }}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🌐 ChainCore Blockchain Node</h1>
+            <p>Node ID: <strong>{status_data['node_info']['node_id']}</strong> • 
+               Port: <strong>{status_data['node_info']['api_port']}</strong> • 
+               Status: <span class="status-online">{status_data['summary']['node_health']}</span></p>
+            <button class="refresh-btn" onclick="location.reload()">🔄 Refresh Status</button>
+        </div>
+        
+        <div class="status-grid">
+            <div class="status-card">
+                <h3>📊 Node Overview</h3>
+                <div class="metric"><span class="metric-label">Health Status</span><span class="metric-value">{status_data['summary']['node_health']}</span></div>
+                <div class="metric"><span class="metric-label">Network Status</span><span class="metric-value">{status_data['summary']['network_status']}</span></div>
+                <div class="metric"><span class="metric-label">Blockchain Status</span><span class="metric-value">{status_data['summary']['blockchain_status']}</span></div>
+                <div class="metric"><span class="metric-label">Node Role</span><span class="metric-value">{status_data['summary']['node_role']}</span></div>
+                <div class="metric"><span class="metric-label">Uptime</span><span class="metric-value">{status_data['summary']['uptime']}</span></div>
+            </div>
+            
+            <div class="status-card">
+                <h3>⛓️ Blockchain Status</h3>
+                <div class="metric"><span class="metric-label">Chain Length</span><span class="metric-value">{status_data['blockchain']['chain_length']} blocks</span></div>
+                <div class="metric"><span class="metric-label">Status</span><span class="metric-value">{status_data['blockchain']['status_message']}</span></div>
+                <div class="metric"><span class="metric-label">Pending Transactions</span><span class="metric-value">{status_data['blockchain']['pending_transactions']}</span></div>
+                <div class="metric"><span class="metric-label">Mining Difficulty</span><span class="metric-value">{status_data['blockchain']['mining_difficulty']} ({status_data['blockchain']['difficulty_status']})</span></div>
+                <div class="metric"><span class="metric-label">Genesis Block</span><span class="metric-value">{'✅ Yes' if status_data['blockchain']['genesis_initialized'] else '❌ No'}</span></div>
+            </div>
+            
+            <div class="status-card">
+                <h3>🌐 Network Status</h3>
+                <div class="metric"><span class="metric-label">Network Health</span><span class="metric-value">{status_data['network']['status_message']}</span></div>
+                <div class="metric"><span class="metric-label">Active Peers</span><span class="metric-value">{status_data['network']['active_peers']}</span></div>
+                <div class="metric"><span class="metric-label">Is Main Node</span><span class="metric-value">{'🏆 Yes' if status_data['network']['is_main_node'] else '👥 No'}</span></div>
+                <div class="metric"><span class="metric-label">Peer Discovery</span><span class="metric-value">{'✅ Enabled' if status_data['network']['discovery']['enabled'] else '❌ Disabled'}</span></div>
+                <div class="metric"><span class="metric-label">Scan Range</span><span class="metric-value">{status_data['network']['discovery']['scan_range']}</span></div>
+            </div>
+            
+            <div class="status-card">
+                <h3>⚡ Performance</h3>
+                <div class="metric"><span class="metric-label">API Calls Handled</span><span class="metric-value">{status_data['node_info']['api_calls_handled']}</span></div>
+                <div class="metric"><span class="metric-label">Blocks Processed</span><span class="metric-value">{status_data['performance']['blocks_processed']}</span></div>
+                <div class="metric"><span class="metric-label">Transactions Processed</span><span class="metric-value">{status_data['performance']['transactions_processed']}</span></div>
+                <div class="metric"><span class="metric-label">Response Time</span><span class="metric-value">{status_data['performance']['average_response_time']}</span></div>
+                <div class="metric"><span class="metric-label">Thread Safety</span><span class="metric-value">{'✅ Safe' if status_data['node_info']['thread_safe'] else '⚠️ Issues'}</span></div>
+            </div>
+        </div>
+        
+        <div style="margin-top: 20px; text-align: center; color: #666; font-size: 14px;">
+            <p>🕒 Last Updated: <span id="timestamp"></span> • 
+               <a href="/status" style="color: #667eea;">View JSON API</a> • 
+               <a href="/blockchain" style="color: #667eea;">View Blockchain</a></p>
+        </div>
+    </div>
+    
+    <script>
+        document.getElementById('timestamp').textContent = new Date().toLocaleString();
+        
+        // Auto-refresh every 30 seconds
+        setTimeout(() => location.reload(), 30000);
+    </script>
+</body>
+</html>"""
+            return html
         
         @self.app.route('/blockchain', methods=['GET'])
         @synchronized("api_blockchain", LockOrder.NETWORK, mode='read')
@@ -643,14 +848,25 @@ class ThreadSafeNetworkNode:
         # Configure network statistics synchronization
         self.peer_manager.configure_network_stats_sync(enabled=True, interval=60.0)
         
-        # Configure self-awareness for peer discovery  
-        self.peer_manager._self_url = f"http://localhost:{self.api_port}"
+        # Configure self-awareness for enhanced peer discovery  
+        self_url = f"http://localhost:{self.api_port}"
+        self.peer_manager.set_self_url(self_url)
         
-        # Discover peers if requested
+        # Enhanced peer discovery with main node detection
         if discover_peers:
-            logger.info("Discovering peers...")
+            logger.info("🔍 Starting Enhanced Peer Discovery...")
+            logger.info(f"   🆔 This node: {self_url}")
+            logger.info("   🌐 Scanning for existing nodes...")
+            
             discovered = self.peer_manager.discover_peers()
-            logger.info(f"Discovered {discovered} peers")
+            
+            if discovered > 0:
+                logger.info(f"🎉 Successfully connected to {discovered} existing nodes!")
+                main_status = "MAIN NODE" if self.peer_manager.get_main_node_status() else "PEER NODE"
+                logger.info(f"   🏆 Node role: {main_status}")
+            else:
+                logger.info("📡 No existing nodes found - this is the first node in the network!")
+                logger.info("   🏆 Node role: MAIN NODE (bootstrap)")
         
         # Start API server
         logger.info("🚀 Starting ChainCore Network Node...")
