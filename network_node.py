@@ -22,7 +22,6 @@ import time
 import threading
 import argparse
 import logging
-from datetime import datetime
 from typing import Dict, List, Set, Optional
 from flask import Flask, request, jsonify
 
@@ -53,64 +52,8 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-class Block:
-    """Original Block class - kept for compatibility"""
-    def __init__(self, index: int, transactions: List[Transaction], previous_hash: str, 
-                 timestamp: float = None, nonce: int = 0, target_difficulty: int = BLOCKCHAIN_DIFFICULTY):
-        self.index = index
-        self.transactions = transactions
-        self.previous_hash = previous_hash
-        self.timestamp = timestamp or time.time()
-        self.nonce = nonce
-        self.target_difficulty = target_difficulty
-        self.merkle_root = self._calculate_merkle_root()
-        self.hash = self._calculate_hash()
-    
-    def _calculate_merkle_root(self) -> str:
-        if not self.transactions:
-            return "0" * 64
-        
-        tx_hashes = [tx.tx_id for tx in self.transactions]
-        
-        while len(tx_hashes) > 1:
-            if len(tx_hashes) % 2 == 1:
-                tx_hashes.append(tx_hashes[-1])
-            
-            new_hashes = []
-            for i in range(0, len(tx_hashes), 2):
-                combined = tx_hashes[i] + tx_hashes[i + 1]
-                new_hashes.append(double_sha256(combined))
-            
-            tx_hashes = new_hashes
-        
-        return tx_hashes[0] if tx_hashes else "0" * 64
-    
-    def _calculate_hash(self) -> str:
-        block_data = {
-            'index': self.index,
-            'previous_hash': self.previous_hash,
-            'merkle_root': self.merkle_root,
-            'timestamp': self.timestamp,
-            'nonce': self.nonce,
-            'target_difficulty': self.target_difficulty
-        }
-        return double_sha256(json.dumps(block_data, sort_keys=True))
-    
-    def is_valid_hash(self) -> bool:
-        target = "0" * self.target_difficulty
-        return self.hash.startswith(target)
-    
-    def to_dict(self) -> Dict:
-        return {
-            'index': self.index,
-            'transactions': [tx.to_dict() for tx in self.transactions],
-            'previous_hash': self.previous_hash,
-            'timestamp': self.timestamp,
-            'nonce': self.nonce,
-            'target_difficulty': self.target_difficulty,
-            'merkle_root': self.merkle_root,
-            'hash': self.hash
-        }
+# Block class moved to src/blockchain/block.py to avoid circular imports
+from src.blockchain.block import Block
 
 class ThreadSafeNetworkNode:
     """
@@ -127,7 +70,6 @@ class ThreadSafeNetworkNode:
         
         # Thread-safe peer management
         self.peer_manager = ThreadSafePeerManager()
-        
         
         # Flask app
         self.app = Flask(__name__)
@@ -147,7 +89,11 @@ class ThreadSafeNetworkNode:
         self._stats_lock = threading.Lock()
         
         
-        logger.info(f"Thread-safe network node initialized: {self.node_id}")
+        logger.info("🌟 ChainCore Network Node Successfully Initialized!")
+        logger.info(f"   🆔 Node ID: {self.node_id}")
+        logger.info(f"   🌐 API Server: http://localhost:{self.api_port}")
+        logger.info(f"   📡 P2P Port: {self.p2p_port}")
+        logger.info("   ✨ All systems ready!")
     
     def _setup_api_routes(self):
         """Setup all API routes with thread safety"""
@@ -185,6 +131,16 @@ class ThreadSafeNetworkNode:
                     'successful_syncs': self._stats.get('successful_syncs', 0),
                     'failed_syncs': self._stats.get('failed_syncs', 0),
                     'last_sync_time': self._stats.get('last_sync_time', 0)
+                },
+                'mempool_sync': {
+                    'enabled': self.peer_manager._mempool_sync_enabled,
+                    'interval': self.peer_manager._mempool_sync_interval,
+                    'syncs_completed': self.peer_manager._stats['mempool_syncs'].value
+                },
+                'network_stats_sync': {
+                    'enabled': self.peer_manager._network_stats_sync_enabled,
+                    'interval': self.peer_manager._network_stats_sync_interval,
+                    'syncs_completed': self.peer_manager._stats['network_stats_syncs'].value
                 }
             })
         
@@ -381,10 +337,8 @@ class ThreadSafeNetworkNode:
                     if block.transactions and block.transactions[0].outputs:
                         miner_address = block.transactions[0].outputs[0].recipient_address
                     
-                    # Log block if locally mined
+                    # Check if locally mined for broadcasting
                     is_locally_mined = request.headers.get('X-Local-Mining') == 'true'
-                    if is_locally_mined:
-                        self._log_block_mined(block, miner_address)
                     
                     # Broadcast to peers (except sender)
                     if is_locally_mined:
@@ -557,44 +511,92 @@ class ThreadSafeNetworkNode:
                     'chain_length': self.blockchain.get_chain_length()
                 },
                 'peer_stats': peer_stats,
-                'lock_stats': lock_manager.get_all_stats()
+                'lock_stats': lock_manager.get_all_stats(),
+                'network_wide_stats': self.peer_manager.get_network_wide_stats()
             })
+        
+        @self.app.route('/orphaned_blocks', methods=['GET'])
+        @synchronized("api_orphaned_blocks", LockOrder.NETWORK, mode='read')
+        def get_orphaned_blocks():
+            """Get orphaned blocks from blockchain"""
+            self._increment_api_calls()
+            
+            orphaned_blocks = self.blockchain.get_orphaned_blocks()
+            return jsonify({
+                'orphaned_blocks': [block.to_dict() for block in orphaned_blocks],
+                'count': len(orphaned_blocks)
+            })
+        
+        @self.app.route('/network_config', methods=['GET'])
+        @synchronized("api_network_config", LockOrder.NETWORK, mode='read')
+        def get_network_config():
+            """Get current network configuration"""
+            self._increment_api_calls()
+            
+            from src.config import get_all_config
+            config = get_all_config()
+            config.update({
+                'current_difficulty': self.blockchain.target_difficulty,
+                'difficulty_adjustment_enabled': self.blockchain.difficulty_adjustment_enabled,
+                'target_block_time': self.blockchain.target_block_time
+            })
+            
+            return jsonify(config)
+        
+        @self.app.route('/sync_mempool', methods=['POST'])
+        @synchronized("api_sync_mempool", LockOrder.NETWORK, mode='write')
+        def sync_mempool_now():
+            """Trigger immediate mempool synchronization"""
+            self._increment_api_calls()
+            
+            try:
+                # Force mempool sync
+                self.peer_manager._last_mempool_sync = 0
+                self.peer_manager._check_and_trigger_mempool_sync(len(self.peer_manager.get_active_peers()))
+                
+                return jsonify({
+                    'status': 'sync_triggered',
+                    'message': 'Mempool synchronization initiated'
+                })
+                
+            except Exception as e:
+                return jsonify({
+                    'status': 'error',
+                    'error': str(e)
+                }), 500
+        
+        @self.app.route('/sync_network_stats', methods=['POST'])
+        @synchronized("api_sync_network_stats", LockOrder.NETWORK, mode='write')
+        def sync_network_stats_now():
+            """Trigger immediate network statistics synchronization"""
+            self._increment_api_calls()
+            
+            try:
+                # Force network stats sync
+                self.peer_manager._last_network_stats_sync = 0
+                self.peer_manager._check_and_trigger_network_stats_sync(len(self.peer_manager.get_active_peers()))
+                
+                return jsonify({
+                    'status': 'sync_triggered',
+                    'message': 'Network statistics synchronization initiated'
+                })
+                
+            except Exception as e:
+                return jsonify({
+                    'status': 'error',
+                    'error': str(e)
+                }), 500
     
     def _increment_api_calls(self):
         """Thread-safe API call counter"""
         with self._stats_lock:
             self._stats['api_calls'] += 1
     
-    def _log_block_mined(self, block: Block, miner_address: str):
-        """Log mined block with thread safety"""
-        try:
-            block_data = {
-                'block_index': block.index,
-                'block_hash': block.hash,
-                'previous_hash': block.previous_hash,
-                'miner_address': miner_address,
-                'timestamp': datetime.fromtimestamp(block.timestamp).isoformat(),
-                'nonce': block.nonce,
-                'difficulty': block.target_difficulty,
-                'transaction_count': len(block.transactions),
-                'has_transactions': len(block.transactions) > 1,
-                'transactions': [
-                    {
-                        'tx_id': tx.tx_id,
-                        'is_coinbase': tx.is_coinbase(),
-                        'amount': sum(output.amount for output in tx.outputs) if tx.outputs else 0
-                    } for tx in block.transactions
-                ]
-            }
-            
-            
-                
-        except Exception as e:
-            logger.error(f"Error logging mined block: {e}")
     
     def start_api_server(self, debug: bool = False):
-        """Start Flask API server"""
+        """Start Flask API server with enhanced error handling"""
         try:
+            logger.info(f"🌐 Starting Flask API server on port {self.api_port}...")
             self.app.run(
                 host='0.0.0.0',
                 port=self.api_port,
@@ -602,8 +604,21 @@ class ThreadSafeNetworkNode:
                 threaded=True,
                 use_reloader=False
             )
+        except OSError as e:
+            if "Address already in use" in str(e):
+                logger.error(f"❌ Port {self.api_port} is already in use!")
+                logger.error("💡 Solutions:")
+                logger.error(f"   1. Use a different port: --api-port {self.api_port + 1}")
+                logger.error("   2. On macOS: Disable AirPlay Receiver in System Preferences")
+                logger.error("   3. Find and stop the process using this port:")
+                logger.error(f"      lsof -ti:{self.api_port} | xargs kill -9")
+            else:
+                logger.error(f"❌ Network error starting server: {e}")
+            raise  # Re-raise so main() can handle it
         except Exception as e:
-            logger.error(f"API server error: {e}")
+            logger.error(f"❌ Failed to start API server: {e}")
+            logger.error("🔍 Check your network configuration and try again")
+            raise  # Re-raise so main() can handle it
     
     def start(self, discover_peers: bool = True):
         """Start the thread-safe network node"""
@@ -621,6 +636,13 @@ class ThreadSafeNetworkNode:
         self.peer_manager.set_blockchain_reference(self.blockchain)
         self.peer_manager.set_sync_callback(self._perform_automatic_sync)
         
+        # Configure mempool synchronization
+        self.peer_manager.configure_mempool_sync(enabled=True, interval=15.0)
+        self.peer_manager.set_mempool_callback(self._add_synced_transaction)
+        
+        # Configure network statistics synchronization
+        self.peer_manager.configure_network_stats_sync(enabled=True, interval=60.0)
+        
         # Configure self-awareness for peer discovery  
         self.peer_manager._self_url = f"http://localhost:{self.api_port}"
         
@@ -631,14 +653,19 @@ class ThreadSafeNetworkNode:
             logger.info(f"Discovered {discovered} peers")
         
         # Start API server
-        logger.info(f"Starting API server on port {self.api_port}")
+        logger.info("🚀 Starting ChainCore Network Node...")
+        logger.info(f"   🌐 API Server starting on port {self.api_port}")
+        logger.info("   🔄 All sync mechanisms activated")
+        logger.info("   🎯 Ready to accept connections!")
         self.start_api_server()
     
     def _perform_automatic_sync(self, peer_url: str, current_length: int, peer_length: int):
         """Callback for automatic blockchain synchronization"""
         try:
-            logger.info(f"Performing automatic blockchain sync with {peer_url}")
-            logger.info(f"Chain lengths: local={current_length}, peer={peer_length}")
+            logger.info(f"🔄 Automatic Blockchain Sync Triggered!")
+            logger.info(f"   🌐 Syncing with peer: {peer_url}")
+            logger.info(f"   📊 Chain comparison: Local={current_length}, Peer={peer_length}")
+            logger.info("   🔍 Downloading longer chain...")
             
             # Use existing sync logic from sync_now endpoint
             sync_result = self.peer_manager.sync_with_best_peer()
@@ -682,28 +709,59 @@ class ThreadSafeNetworkNode:
                 # Replace chain if the new one is longer and valid
                 if len(new_chain) > current_length:
                     if self.blockchain.replace_chain(new_chain):
-                        logger.info(f"✅ Automatic sync successful: {current_length} -> {len(new_chain)} blocks")
+                        logger.info(f"🎉 Automatic Blockchain Sync Successful!")
+                        logger.info(f"   📊 Chain updated: {current_length} -> {len(new_chain)} blocks")
+                        logger.info(f"   🌐 Source: {peer_url_result}")
                         
                         # Update stats
                         self._stats['successful_syncs'] = self._stats.get('successful_syncs', 0) + 1
                         self._stats['last_sync_time'] = time.time()
+                        logger.info(f"   📈 Total successful syncs: {self._stats['successful_syncs']}")
                     else:
-                        logger.error("❌ Automatic sync failed: chain validation failed")
+                        logger.error("❌ Automatic Sync Failed!")
+                        logger.error("   🔍 Chain validation failed - rejected invalid chain")
                         self._stats['failed_syncs'] = self._stats.get('failed_syncs', 0) + 1
                 else:
-                    logger.debug("Automatic sync: no longer chain found")
+                    logger.info("ℹ️  Automatic Sync: Our chain is already up-to-date")
             else:
-                logger.debug("Automatic sync: no suitable peers found")
+                logger.info("⚠️  Automatic Sync: No suitable peers available for sync")
                 
         except Exception as e:
             logger.error(f"Error in automatic blockchain sync: {e}")
             self._stats['failed_syncs'] = self._stats.get('failed_syncs', 0) + 1
+    
+    def _add_synced_transaction(self, tx_data: dict, peer_url: str):
+        """Callback for adding synced transactions from peers"""
+        try:
+            from src.blockchain.bitcoin_transaction import Transaction
+            
+            # Convert transaction data to Transaction object
+            transaction = Transaction.from_dict(tx_data)
+            
+            # Add to our blockchain's transaction pool
+            if self.blockchain.add_transaction(transaction):
+                logger.info(f"✅ Added Synced Transaction from {peer_url}")
+                logger.info(f"   📝 Transaction ID: {transaction.tx_id[:16]}...")
+                logger.info(f"   💰 Value: {sum(output.amount for output in transaction.outputs):.2f} CC")
+            else:
+                logger.info(f"❌ Rejected Synced Transaction from {peer_url}")
+                logger.info(f"   📝 Transaction ID: {transaction.tx_id[:16]}...")
+                logger.info("   🔍 Reason: Invalid or duplicate transaction")
+                
+        except Exception as e:
+            logger.error(f"Error adding synced transaction from {peer_url}: {e}")
 
     def cleanup(self):
         """Cleanup node resources"""
-        logger.info(f"Cleaning up node: {self.node_id}")
+        logger.info(f"🔄 Shutting Down ChainCore Node: {self.node_id}")
+        logger.info("   📊 Final Statistics:")
+        logger.info(f"      API Calls: {self._stats.get('api_calls', 0)}")
+        logger.info(f"      Blockchain Syncs: {self._stats.get('successful_syncs', 0)}")
+        logger.info(f"      Blocks Processed: {self._stats.get('blocks_processed', 0)}")
+        logger.info("   🧹 Cleaning up network connections...")
         
         self.peer_manager.cleanup()
+        logger.info("✅ ChainCore Node Shutdown Complete")
         
         logger.info("Node cleanup complete")
 
@@ -711,16 +769,28 @@ def main():
     """Main entry point with argument parsing"""
     parser = argparse.ArgumentParser(description='Thread-Safe ChainCore Network Node')
     parser.add_argument('--node-id', default='core0', help='Node identifier')
-    parser.add_argument('--api-port', type=int, default=5000, help='API server port')
+    parser.add_argument('--api-port', type=int, default=5001, help='API server port (default: 5001, avoid 5000 on macOS due to AirPlay)')
     parser.add_argument('--p2p-port', type=int, default=8000, help='P2P communication port')
     parser.add_argument('--no-discover', action='store_true', help='Skip peer discovery')
     parser.add_argument('--debug', action='store_true', help='Enable debug logging')
+    parser.add_argument('--quiet', action='store_true', help='Skip startup banner')
     
     args = parser.parse_args()
     
     # Configure logging level
     if args.debug:
         logging.getLogger().setLevel(logging.DEBUG)
+    
+    # Show startup banner unless quiet mode
+    if not args.quiet:
+        try:
+            from startup_banner import startup_network_node
+            startup_network_node(args.node_id, args.api_port, args.p2p_port)
+        except ImportError:
+            print("🌟 ChainCore Network Node Starting...")
+            print(f"   🆔 Node ID: {args.node_id}")
+            print(f"   🌐 API Port: {args.api_port}")
+            print(f"   📡 P2P Port: {args.p2p_port}")
     
     # Create and start node
     node = ThreadSafeNetworkNode(
@@ -732,11 +802,25 @@ def main():
     try:
         node.start(discover_peers=not args.no_discover)
     except KeyboardInterrupt:
+        print("\n" + "=" * 50)
+        print("🛑 ChainCore Node Shutting Down...")  
+        print("=" * 50)
         logger.info("Shutdown requested by user")
+    except OSError as e:
+        if "Address already in use" in str(e):
+            logger.error(f"\n🚨 STARTUP FAILED - Port {args.api_port} is in use")
+            logger.error("Try running with: --api-port 5002")
+        else:
+            logger.error(f"Network error: {e}")
     except Exception as e:
-        logger.error(f"Node error: {e}")
+        logger.error(f"❌ Node startup error: {e}")
+        logger.error("🔍 Check the logs above for more details")
     finally:
-        node.cleanup()
+        try:
+            node.cleanup()
+            print("✅ Shutdown complete. Thank you for using ChainCore!")
+        except:
+            pass
 
 if __name__ == "__main__":
     main()

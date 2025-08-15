@@ -148,9 +148,19 @@ class ThreadSafeBlockchain:
         self.utxo_set = ThreadSafeUTXOSet()
         
         # Blockchain configuration - import from centralized config
-        from ..config import BLOCKCHAIN_DIFFICULTY, BLOCK_REWARD
+        from ..config import (
+            BLOCKCHAIN_DIFFICULTY, BLOCK_REWARD, DIFFICULTY_ADJUSTMENT_ENABLED,
+            TARGET_BLOCK_TIME, DIFFICULTY_ADJUSTMENT_INTERVAL, MAX_DIFFICULTY_CHANGE,
+            MIN_DIFFICULTY, MAX_DIFFICULTY
+        )
         self.target_difficulty = BLOCKCHAIN_DIFFICULTY
         self.block_reward = BLOCK_REWARD
+        self.difficulty_adjustment_enabled = DIFFICULTY_ADJUSTMENT_ENABLED
+        self.target_block_time = TARGET_BLOCK_TIME
+        self.difficulty_adjustment_interval = DIFFICULTY_ADJUSTMENT_INTERVAL
+        self.max_difficulty_change = MAX_DIFFICULTY_CHANGE
+        self.min_difficulty = MIN_DIFFICULTY
+        self.max_difficulty = MAX_DIFFICULTY
         
         # Statistics and monitoring
         self._stats = ChainStats()
@@ -160,10 +170,21 @@ class ThreadSafeBlockchain:
         self._validation_cache: Dict[str, bool] = {}
         self._cache_lock = threading.RLock()
         
+        # Orphaned block management
+        self._orphaned_blocks: List = []
+        self._orphaned_blocks_lock = threading.RLock()
+        self._max_orphaned_blocks = 100  # Limit memory usage
+        
         # Initialize with genesis block
         self._create_genesis_block()
         
-        logger.info("Thread-safe blockchain initialized")
+        logger.info("🔗 ChainCore Blockchain System Initialized")
+        logger.info(f"   💎 Target Difficulty: {self.target_difficulty} leading zeros")
+        logger.info(f"   🎯 Block Reward: {self.block_reward} CC")
+        logger.info(f"   ⚙️  Difficulty Adjustment: {'Enabled' if self.difficulty_adjustment_enabled else 'Disabled'}")
+        if self.difficulty_adjustment_enabled:
+            logger.info(f"   ⏱️  Target Block Time: {self.target_block_time}s")
+            logger.info(f"   🔄 Adjustment Interval: Every {self.difficulty_adjustment_interval} blocks")
     
     @synchronized("blockchain_chain", LockOrder.BLOCKCHAIN, mode='read')
     def get_transaction_history(self, address: str) -> List[Dict]:
@@ -245,22 +266,31 @@ class ThreadSafeBlockchain:
     def _create_genesis_block(self):
         """Create genesis block with proper locking"""
         from ..blockchain.bitcoin_transaction import Transaction
+        from ..blockchain.block import Block
         
         with self._chain_lock.write_lock():
             if len(self._chain) == 0:  # Double-check pattern
                 genesis_tx = Transaction.create_coinbase_transaction("genesis", self.block_reward, 0)
                 
-                # Import Block here to avoid circular imports
-                import sys, os
-                sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
-                from network_node import Block
+                # Use easier difficulty for genesis block to speed up initialization
+                genesis_block = Block(0, [genesis_tx], "0" * 64, target_difficulty=2)
                 
-                genesis_block = Block(0, [genesis_tx], "0" * 64, target_difficulty=self.target_difficulty)
+                logger.info("⛏️  Creating Genesis Block...")
+                logger.info("   🎲 Mining with difficulty 2 (requires '00' prefix)")
                 
-                # Mine genesis block
+                # Mine genesis block with progress reporting
+                start_time = time.time()
                 while not genesis_block.is_valid_hash():
                     genesis_block.nonce += 1
                     genesis_block.hash = genesis_block._calculate_hash()
+                    if genesis_block.nonce % 10000 == 0:
+                        logger.info(f"   🔍 Mining Progress... Nonce: {genesis_block.nonce:,}")
+                
+                mining_time = time.time() - start_time
+                logger.info(f"🎉 Genesis Block Successfully Mined!")
+                logger.info(f"   📋 Hash: {genesis_block.hash}")
+                logger.info(f"   🎲 Nonce: {genesis_block.nonce:,}")
+                logger.info(f"   ⏱️  Mining Time: {mining_time:.2f} seconds")
                 
                 self._chain.append(genesis_block)
                 
@@ -281,7 +311,10 @@ class ThreadSafeBlockchain:
                     self._stats.blocks_processed += 1
                     self._stats.transactions_processed += 1
                 
-                logger.info("Genesis block created and UTXO set initialized")
+                logger.info("💎 Genesis Block Successfully Added to Chain")
+                logger.info(f"   💰 Initial UTXO: {self.block_reward} CC awarded to genesis address")
+                logger.info(f"   📊 Blockchain Length: {len(self._chain)} block(s)")
+                logger.info("🚀 Blockchain Ready for Transactions!")
     
     @synchronized("transaction_pool", LockOrder.MEMPOOL, mode='write')
     def add_transaction(self, transaction) -> bool:
@@ -317,7 +350,7 @@ class ThreadSafeBlockchain:
             return True  # Coinbase transactions are always valid
         
         # Create UTXO snapshot for consistent validation
-        version, utxo_snapshot = self.utxo_set.create_snapshot()
+        _, utxo_snapshot = self.utxo_set.create_snapshot()
         
         try:
             # Validate all inputs exist and are unspent
@@ -339,12 +372,165 @@ class ThreadSafeBlockchain:
             logger.error(f"Transaction validation error: {e}")
             return False
     
+    def _calculate_new_difficulty(self) -> int:
+        """Calculate new difficulty based on recent block times"""
+        if not self.difficulty_adjustment_enabled:
+            return self.target_difficulty
+        
+        chain_length = len(self._chain)
+        if chain_length < self.difficulty_adjustment_interval:
+            return self.target_difficulty
+        
+        # Only adjust every N blocks
+        if chain_length % self.difficulty_adjustment_interval != 0:
+            return self.target_difficulty
+        
+        # Get the last N blocks for timing analysis
+        recent_blocks = self._chain[-self.difficulty_adjustment_interval:]
+        if len(recent_blocks) < 2:
+            return self.target_difficulty
+        
+        # Calculate actual time taken for the interval
+        start_time = recent_blocks[0].timestamp
+        end_time = recent_blocks[-1].timestamp
+        actual_time = end_time - start_time
+        
+        # Calculate expected time
+        expected_time = self.target_block_time * (len(recent_blocks) - 1)
+        
+        if expected_time <= 0:
+            return self.target_difficulty
+        
+        # Calculate adjustment ratio
+        ratio = actual_time / expected_time
+        
+        # Determine new difficulty
+        current_difficulty = self.target_difficulty
+        
+        if ratio < 0.5:  # Blocks coming too fast - increase difficulty
+            new_difficulty = min(current_difficulty + self.max_difficulty_change, self.max_difficulty)
+        elif ratio > 2.0:  # Blocks coming too slow - decrease difficulty  
+            new_difficulty = max(current_difficulty - self.max_difficulty_change, self.min_difficulty)
+        elif ratio < 0.75:  # Moderately too fast
+            new_difficulty = min(current_difficulty + 1, self.max_difficulty)
+        elif ratio > 1.5:  # Moderately too slow
+            new_difficulty = max(current_difficulty - 1, self.min_difficulty)
+        else:
+            new_difficulty = current_difficulty  # No change needed
+        
+        if new_difficulty != current_difficulty:
+            logger.info(f"⚙️  Dynamic Difficulty Adjustment Triggered!")
+            logger.info(f"   📊 Old Difficulty: {current_difficulty} -> New Difficulty: {new_difficulty}")
+            logger.info(f"   ⏱️  Block Time Ratio: {ratio:.2f} (Actual: {actual_time:.1f}s, Expected: {expected_time:.1f}s)")
+            logger.info(f"   🎯 Target: {'Faster' if ratio < 1.0 else 'Slower'} block times detected")
+            logger.info(f"   🔧 Mining difficulty {'increased' if new_difficulty > current_difficulty else 'decreased'} to maintain {self.target_block_time}s target")
+            
+            # Update our target difficulty
+            self.target_difficulty = new_difficulty
+        
+        return new_difficulty
+    
+    def _handle_orphaned_block(self, block):
+        """Handle blocks that can't be added to main chain (orphaned blocks)"""
+        with self._orphaned_blocks_lock:
+            # Check if we already have this orphaned block
+            for orphaned in self._orphaned_blocks:
+                if orphaned.hash == block.hash:
+                    return
+            
+            # Add to orphaned blocks list
+            self._orphaned_blocks.append(block)
+            
+            # Limit memory usage by removing oldest orphaned blocks
+            while len(self._orphaned_blocks) > self._max_orphaned_blocks:
+                self._orphaned_blocks.pop(0)
+            
+            with self._stats_lock:
+                self._stats.orphaned_blocks += 1
+            
+            logger.info(f"🔀 Block {block.index} Orphaned (Fork Detected)")
+            logger.info(f"   📋 Block Hash: {block.hash[:16]}...{block.hash[-8:]}")
+            logger.info(f"   🔄 Previous Hash: {block.previous_hash[:16]}...")
+            logger.info(f"   📦 Orphaned blocks stored: {len(self._orphaned_blocks)}/{self._max_orphaned_blocks}")
+    
+    def get_orphaned_blocks(self) -> List:
+        """Get list of orphaned blocks"""
+        with self._orphaned_blocks_lock:
+            return copy.deepcopy(self._orphaned_blocks)
+    
+    def _attempt_orphan_recovery(self):
+        """Try to recover orphaned blocks when new chain segments arrive"""
+        with self._orphaned_blocks_lock:
+            if not self._orphaned_blocks:
+                return
+            
+            recovered_blocks = []
+            remaining_orphans = []
+            
+            for orphaned_block in self._orphaned_blocks:
+                # Check if this orphaned block can now connect to our chain
+                if self._can_connect_orphaned_block(orphaned_block):
+                    try:
+                        if self._validate_block(orphaned_block):
+                            recovered_blocks.append(orphaned_block)
+                            logger.info(f"🔄 Orphaned Block {orphaned_block.index} Successfully Recovered!")
+                            logger.info(f"   📋 Hash: {orphaned_block.hash[:16]}...{orphaned_block.hash[-8:]}")
+                            logger.info(f"   🔗 Now connects to main chain")
+                        else:
+                            remaining_orphans.append(orphaned_block)
+                    except Exception as e:
+                        logger.error(f"Error recovering orphaned block: {e}")
+                        remaining_orphans.append(orphaned_block)
+                else:
+                    remaining_orphans.append(orphaned_block)
+            
+            self._orphaned_blocks = remaining_orphans
+            
+            # Try to add recovered blocks
+            for block in recovered_blocks:
+                try:
+                    self.add_block(block)
+                except Exception as e:
+                    logger.error(f"Failed to add recovered block: {e}")
+    
+    def _can_connect_orphaned_block(self, block) -> bool:
+        """Check if an orphaned block can now connect to the main chain"""
+        # Check if the block's previous_hash matches any block in our chain
+        for chain_block in self._chain:
+            if chain_block.hash == block.previous_hash:
+                return True
+        return False
+    
+    def _could_be_orphaned_block(self, block) -> bool:
+        """Check if a block could be orphaned rather than just invalid"""
+        try:
+            # Basic structure validation (without chain connection check)
+            if not hasattr(block, 'hash') or not hasattr(block, 'previous_hash'):
+                return False
+            
+            if not hasattr(block, 'index') or not hasattr(block, 'transactions'):
+                return False
+            
+            # Check if block has valid proof of work
+            if not block.is_valid_hash():
+                return False
+            
+            # If we get here, the block is structurally valid but couldn't connect
+            # to our current chain - it's likely an orphaned block
+            return True
+            
+        except Exception:
+            return False
+
     @synchronized("blockchain_chain", LockOrder.BLOCKCHAIN, mode='write')
     def add_block(self, block) -> bool:
         """
         Thread-safe block addition with atomic UTXO updates
         """
         if not self._validate_block(block):
+            # Check if this could be an orphaned block (valid but can't connect)
+            if self._could_be_orphaned_block(block):
+                self._handle_orphaned_block(block)
             return False
         
         # Use transaction context for atomic operations
@@ -411,7 +597,19 @@ class ThreadSafeBlockchain:
             with self._cache_lock:
                 self._validation_cache.clear()
             
-            logger.info(f"Block {block.index} successfully added and committed")
+            # Perform difficulty adjustment after successful block addition
+            self._calculate_new_difficulty()
+            
+            logger.info(f"✅ Block {block.index} Successfully Added to Blockchain!")
+            logger.info(f"   📋 Block Hash: {block.hash[:16]}...{block.hash[-8:]}")
+            logger.info(f"   💎 Transactions: {len(block.transactions)} ({len([tx for tx in block.transactions if not tx.is_coinbase()])} user + 1 coinbase)")
+            logger.info(f"   📊 Chain Length: {len(self._chain)} blocks")
+            logger.info(f"   💰 Total UTXO Count: {len(self.utxo_set._utxos)}")
+            
+            # Show transaction pool update
+            with self._pool_lock.read_lock():
+                remaining_txs = len(self._transaction_pool)
+            logger.info(f"   📝 Transaction Pool: {remaining_txs} pending transactions")
         
         return success
     
@@ -547,7 +745,22 @@ class ThreadSafeBlockchain:
                 self._stats.blocks_processed = len(new_chain)
                 self._stats.utxo_count = len(self.utxo_set._utxos)
             
-            logger.info(f"Chain replacement successful: {len(new_chain)} blocks")
+            logger.info(f"🔄 Blockchain Replacement Successful!")
+            logger.info(f"   📊 New Chain Length: {len(new_chain)} blocks")
+            logger.info(f"   🔗 Latest Block: {new_chain[-1].hash[:16]}...{new_chain[-1].hash[-8:]}")
+            logger.info(f"   💰 Total UTXOs: {len(self.utxo_set._utxos)}")
+            logger.info("   🔍 Checking for orphaned block recovery...")
+            
+            # Attempt to recover orphaned blocks after chain replacement
+            orphan_count_before = len(self._orphaned_blocks) if hasattr(self, '_orphaned_blocks') else 0
+            self._attempt_orphan_recovery()
+            orphan_count_after = len(self._orphaned_blocks) if hasattr(self, '_orphaned_blocks') else 0
+            recovered = orphan_count_before - orphan_count_after
+            
+            if recovered > 0:
+                logger.info(f"   ✨ Recovered {recovered} orphaned block(s) into main chain!")
+            else:
+                logger.info("   📦 No orphaned blocks could be recovered")
         else:
             logger.error("Chain replacement failed - rolled back")
         
@@ -600,7 +813,7 @@ class ThreadSafeBlockchain:
             transactions = self._transaction_pool[:1000].copy()
         
         # Calculate fees with UTXO snapshot
-        version, utxo_snapshot = self.utxo_set.create_snapshot()
+        _, utxo_snapshot = self.utxo_set.create_snapshot()
         total_fees = 0.0
         
         for tx in transactions:
@@ -622,10 +835,8 @@ class ThreadSafeBlockchain:
         with self._chain_lock.read_lock():
             all_transactions = [coinbase_tx] + transactions
             
-            # Import Block to avoid circular dependency
-            import sys, os
-            sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
-            from network_node import Block
+            # Import Block from proper module
+            from ..blockchain.block import Block
             
             new_block = Block(
                 len(self._chain),

@@ -22,7 +22,7 @@ pip install -r requirements.txt
 ```bash
 cd /Users/ayush/Desktop/ChainCore
 source venv/bin/activate
-python3 network_node.py --node-id core0 --api-port 5000 --p2p-port 8000
+python3 network_node.py --node-id core0 --api-port 5001 --p2p-port 8000
 ```
 
 ### Terminal 2: Start Second Network Node
@@ -30,7 +30,7 @@ python3 network_node.py --node-id core0 --api-port 5000 --p2p-port 8000
 ```bash
 cd /Users/ayush/Desktop/ChainCore
 source venv/bin/activate
-python3 network_node.py --node-id core1 --api-port 5001 --p2p-port 8001
+python3 network_node.py --node-id core1 --api-port 5002 --p2p-port 8001
 ```
 
 ### Terminal 3: Start Third Network Node
@@ -38,7 +38,7 @@ python3 network_node.py --node-id core1 --api-port 5001 --p2p-port 8001
 ```bash
 cd /Users/ayush/Desktop/ChainCore
 source venv/bin/activate
-python3 network_node.py --node-id core2 --api-port 5002 --p2p-port 8002
+python3 network_node.py --node-id core2 --api-port 5003 --p2p-port 8002
 ```
 
 ### Terminal 4: Additional Nodes (Optional)
@@ -101,36 +101,119 @@ python3 wallet_client.py history --wallet alice.json --node http://localhost:500
 
 ## ⛏️ Mining Operations
 
-### Terminal 6: Start Miners
+### ✅ Correct Mining Workflow
+
+**Important**: Wait 2-3 seconds after starting network node before starting mining client.
+
+### Terminal 6: Start First Miner
 
 ```bash
 cd /Users/ayush/Desktop/ChainCore
 source venv/bin/activate
 
-# Start miner with wallet address
-python3 mining_client.py --wallet MINER_ADDRESS --node http://localhost:5000
+# Wait for network node to start, then start mining client
+python3 mining_client.py --wallet 1CcUyVAiHT2dGP4ESxWqsDKFzazkQ2UW3n --node http://localhost:5001
+```
 
-# Example with real addresses (replace with your wallet addresses)
-python3 mining_client.py --wallet 1CcUyVAiHT2dGP4ESxWqsDKFzazkQ2UW3n --node http://localhost:5000
-python3 mining_client.py --wallet 1GukayKD1hRAXnQaJYKVwQcwCvVzsUbcJj --node http://localhost:5001
+### Create Wallet Addresses (If Needed)
+
+```bash
+# Create wallet and get address
+python3 wallet_client.py create --wallet miner1.json
+python3 wallet_client.py info --wallet miner1.json
+
+# Use the address shown in the output for mining
 ```
 
 ### Multiple Competitive Miners
 
 ```bash
-# Terminal 7-12: Additional miners for competition
-python3 mining_client.py --wallet 18NDhHYAa3bx3jAZkc7HZf3vKr1JrwVXG3 --node http://localhost:5000
-python3 mining_client.py --wallet 1GukayKD1hRAXnQaJYKVwQcwCvVzsUbcJj --node http://localhost:5001
-python3 mining_client.py --wallet 1CcUyVAiHT2dGP4ESxWqsDKFzazkQ2UW3n --node http://localhost:5002
+# Terminal 7-12: Additional miners connecting to different nodes
+python3 mining_client.py --wallet 1CcUyVAiHT2dGP4ESxWqsDKFzazkQ2UW3n --node http://localhost:5001
+python3 mining_client.py --wallet 1GukayKD1hRAXnQaJYKVwQcwCvVzsUbcJj --node http://localhost:5002
 python3 mining_client.py --wallet 18NDhHYAa3bx3jAZkc7HZf3vKr1JrwVXG3 --node http://localhost:5003
-python3 mining_client.py --wallet 1GukayKD1hRAXnQaJYKVwQcwCvVzsUbcJj --node http://localhost:5004
-python3 mining_client.py --wallet 1CcUyVAiHT2dGP4ESxWqsDKFzazkQ2UW3n --node http://localhost:5005
-python3 mining_client.py --wallet 18NDhHYAa3bx3jAZkc7HZf3vKr1JrwVXG3 --node http://localhost:5006
-python3 mining_client.py --wallet 1GukayKD1hRAXnQaJYKVwQcwCvVzsUbcJj --node http://localhost:5007
-python3 mining_client.py --wallet 1CcUyVAiHT2dGP4ESxWqsDKFzazkQ2UW3n --node http://localhost:5007
-python3 mining_client.py --wallet 18NDhHYAa3bx3jAZkc7HZf3vKr1JrwVXG3 --node http://localhost:5008
-python3 mining_client.py --wallet 1GukayKD1hRAXnQaJYKVwQcwCvVzsUbcJj --node http://localhost:5009
-python3 mining_client.py --wallet 1CcUyVAiHT2dGP4ESxWqsDKFzazkQ2UW3n --node http://localhost:5010
+python3 mining_client.py --wallet 1CcUyVAiHT2dGP4ESxWqsDKFzazkQ2UW3n --node http://localhost:5001
+python3 mining_client.py --wallet 1GukayKD1hRAXnQaJYKVwQcwCvVzsUbcJj --node http://localhost:5002
+python3 mining_client.py --wallet 18NDhHYAa3bx3jAZkc7HZf3vKr1JrwVXG3 --node http://localhost:5003
+```
+
+### 🔍 Mining Command Options
+
+```bash
+# Basic mining
+python3 mining_client.py --wallet ADDRESS --node http://localhost:5001
+
+# Quiet mode (less output)
+python3 mining_client.py --wallet ADDRESS --node http://localhost:5001 --quiet
+
+# Show mining statistics
+python3 mining_client.py --wallet ADDRESS --node http://localhost:5001 --stats
+```
+
+### ✅ Verify Mining is Working
+
+```bash
+# Check blockchain length is increasing
+curl -s http://localhost:5001/status | jq '.blockchain_length'
+
+# Wait 30 seconds and check again
+sleep 30 && curl -s http://localhost:5001/status | jq '.blockchain_length'
+
+# If length increases from 1 → 2 → 3, mining is working correctly!
+```
+
+### 🚨 Common Mining Issues & Solutions
+
+#### Issue: "Mining keeps running but no blocks get mined"
+
+**Symptoms**: Mining client runs but blockchain length stays at 1
+
+**Solutions**:
+```bash
+# 1. Use port 5001 instead of 5000 (avoids macOS AirPlay conflict)
+python3 network_node.py --node-id core1 --api-port 5001
+python3 mining_client.py --wallet ADDRESS --node http://localhost:5001
+
+# 2. Wait for node startup before mining
+python3 network_node.py --node-id core1 --api-port 5001 &
+sleep 3  # Important: Wait for node to initialize
+python3 mining_client.py --wallet ADDRESS --node http://localhost:5001
+
+# 3. Check blockchain is initialized
+curl -s http://localhost:5001/status | jq '.blockchain_length'
+# Should show 1 (genesis block), not 0
+
+# 4. Test mining endpoint manually
+curl -X POST http://localhost:5001/mine_block -H "Content-Type: application/json" -d '{"miner_address": "test"}'
+# Should return block template, not error
+
+# 5. Monitor real-time to see blocks being mined
+watch -n 5 'curl -s http://localhost:5001/status | jq ".blockchain_length"'
+```
+
+#### Issue: Network node not responding
+
+```bash
+# Check if port is available
+lsof -i :5001
+
+# Kill any existing processes
+pkill -f network_node.py
+pkill -f mining_client.py
+
+# Restart with different port
+python3 network_node.py --node-id core1 --api-port 5002
+```
+
+#### Issue: Invalid wallet address
+
+```bash
+# Create valid wallet and get address
+python3 wallet_client.py create --wallet test_miner.json
+python3 wallet_client.py info --wallet test_miner.json
+
+# Use the address shown for mining
+python3 mining_client.py --wallet YOUR_WALLET_ADDRESS --node http://localhost:5001
 ```
 
 ## 🌐 Network Monitoring & API Commands
@@ -375,14 +458,27 @@ curl http://localhost:5000/stats | python3 -c "import sys,json; data=json.load(s
 ### Mining Not Working
 
 ```bash
-# Check node is running and responsive
-curl http://localhost:5000/status
+# 1. Check node is running and responsive
+curl http://localhost:5001/status
 
-# Verify wallet address format
+# 2. Verify blockchain is initialized (should show length > 0)
+curl -s http://localhost:5001/status | jq '.blockchain_length'
+
+# 3. Test mining endpoint works
+curl -X POST http://localhost:5001/mine_block -H "Content-Type: application/json" -d '{"miner_address": "1CcUyVAiHT2dGP4ESxWqsDKFzazkQ2UW3n"}'
+
+# 4. Check if port 5000 conflicts with AirPlay (macOS)
+# Use port 5001 instead: --api-port 5001
+
+# 5. Verify wallet address format
 python3 wallet_client.py info --wallet miner1.json
 
-# Check mining template generation
-curl -X POST http://localhost:5000/mine_block -H "Content-Type: application/json" -d '{"miner_address": "test"}'
+# 6. Test mining workflow manually
+python3 network_node.py --node-id test --api-port 5001 --quiet &
+sleep 3
+python3 mining_client.py --wallet 1CcUyVAiHT2dGP4ESxWqsDKFzazkQ2UW3n --node http://localhost:5001 --quiet &
+sleep 15
+curl -s http://localhost:5001/status | jq '.blockchain_length'
 ```
 
 ### Transaction Issues

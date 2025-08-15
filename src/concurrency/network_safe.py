@@ -170,6 +170,16 @@ class ThreadSafePeerManager:
         self._last_blockchain_sync = 0
         self._blockchain_sync_interval = 30.0  # Check blockchain sync every 30 seconds
         
+        # Mempool synchronization settings
+        self._mempool_sync_enabled = True
+        self._last_mempool_sync = 0
+        self._mempool_sync_interval = 15.0  # Sync mempool every 15 seconds
+        
+        # Network statistics synchronization
+        self._network_stats_sync_enabled = True
+        self._last_network_stats_sync = 0
+        self._network_stats_sync_interval = 60.0  # Sync network stats every 60 seconds
+        
         # Peer count management
         from ..config import MIN_PEERS, TARGET_PEERS, MAX_PEERS
         self._min_peers = MIN_PEERS
@@ -181,10 +191,29 @@ class ThreadSafePeerManager:
             'discovery_attempts': AtomicCounter(),
             'successful_connections': AtomicCounter(),
             'failed_connections': AtomicCounter(),
-            'peer_timeouts': AtomicCounter()
+            'peer_timeouts': AtomicCounter(),
+            'mempool_syncs': AtomicCounter(),
+            'network_stats_syncs': AtomicCounter(),
+            'orphaned_blocks_found': AtomicCounter()
         }
         
-        logger.info("Thread-safe peer manager initialized")
+        # Network-wide statistics aggregation
+        self._network_wide_stats = {
+            'total_nodes': 0,
+            'total_hash_rate': 0.0,
+            'average_block_time': 0.0,
+            'network_difficulty': 0,
+            'last_aggregation': 0
+        }
+        self._network_stats_lock = threading.RLock()
+        
+        logger.info("🌐 ChainCore Peer Network Manager Initialized")
+        logger.info(f"   🎯 Target Peers: {self._target_peers} (Min: {self._min_peers}, Max: {self._max_peers})")
+        logger.info(f"   🔍 Peer Discovery: Every {self._peer_discovery_interval}s")
+        logger.info(f"   🔄 Blockchain Sync: Every {self._blockchain_sync_interval}s")
+        logger.info(f"   📝 Mempool Sync: Every {self._mempool_sync_interval}s")
+        logger.info(f"   📊 Network Stats: Every {self._network_stats_sync_interval}s")
+        logger.info("🚀 Ready for peer connections!")
     
     @synchronized("peer_registry", LockOrder.PEERS, mode='write')
     def add_peer(self, peer_url: str, peer_info: Optional[PeerInfo] = None) -> bool:
@@ -207,7 +236,15 @@ class ThreadSafePeerManager:
         except queue.Full:
             logger.warning("Discovery queue full, peer health check delayed")
         
-        logger.info(f"Peer added: {peer_url}")
+        logger.info(f"🔗 New Peer Added: {peer_url}")
+        logger.info(f"   📊 Total Peers: {len(self._peers)}")
+        logger.info(f"   ✅ Active Peers: {len(self._active_peers)}")
+        
+        # Show network status
+        if len(self._active_peers) < self._min_peers:
+            logger.info("   ⚠️  Network Status: Under-connected (seeking more peers)")
+        elif len(self._active_peers) >= self._target_peers:
+            logger.info("   🎯 Network Status: Well-connected")
         return True
     
     @synchronized("peer_registry", LockOrder.PEERS, mode='read')
@@ -252,6 +289,12 @@ class ThreadSafePeerManager:
             
             # Check if we need to trigger blockchain synchronization
             self._check_and_trigger_blockchain_sync(active_count)
+            
+            # Check if we need to trigger mempool synchronization
+            self._check_and_trigger_mempool_sync(active_count)
+            
+            # Check if we need to trigger network stats synchronization
+            self._check_and_trigger_network_stats_sync(active_count)
         
         except Exception as e:
             logger.error(f"Health check error: {e}")
@@ -314,13 +357,18 @@ class ThreadSafePeerManager:
     def _background_peer_discovery(self):
         """Background peer discovery when node is isolated"""
         try:
-            logger.info("Starting background peer discovery...")
+            logger.info("🔍 Starting Automated Peer Discovery...")
+            logger.info(f"   🎯 Looking for peers in range {self._discovery_range}")
+            
             discovered_count = self.discover_peers()
             
             if discovered_count > 0:
-                logger.info(f"Background discovery successful: found {discovered_count} new peers")
+                logger.info(f"🎉 Peer Discovery Successful!")
+                logger.info(f"   ➕ Found {discovered_count} new peer(s)")
+                logger.info(f"   📊 Total Network: {len(self._active_peers)} active peers")
             else:
-                logger.debug("Background discovery: no new peers found")
+                logger.info("🔍 Peer Discovery Complete - No new peers found")
+                logger.info(f"   📊 Current Network: {len(self._active_peers)} active peers")
                 
         except Exception as e:
             logger.error(f"Background peer discovery error: {e}")
@@ -334,7 +382,9 @@ class ThreadSafePeerManager:
             self._blockchain_sync_enabled and
             current_time - self._last_blockchain_sync > self._blockchain_sync_interval):
             
-            logger.debug(f"Triggering blockchain sync check (have {active_peer_count} active peers)")
+            logger.info(f"🔄 Blockchain Synchronization Check Started")
+            logger.info(f"   🌐 Active Peers: {active_peer_count}")
+            logger.info("   🔍 Checking for longer chains...")
             self._last_blockchain_sync = current_time
             
             # Run sync check in background
@@ -430,7 +480,220 @@ class ThreadSafePeerManager:
         """Configure automatic blockchain synchronization"""
         self._blockchain_sync_enabled = enabled
         self._blockchain_sync_interval = interval
-        logger.info(f"Blockchain sync: {'enabled' if enabled else 'disabled'}, interval: {interval}s")
+        logger.info(f"🔄 Blockchain Sync Configuration Updated:")
+        logger.info(f"   Status: {'✅ Enabled' if enabled else '❌ Disabled'}")
+        logger.info(f"   Interval: {interval} seconds")
+    
+    def _check_and_trigger_mempool_sync(self, active_peer_count: int):
+        """Trigger mempool synchronization with peers when needed"""
+        current_time = time.time()
+        
+        # Only sync if we have peers and sync is enabled
+        if (active_peer_count > 0 and 
+            self._mempool_sync_enabled and
+            current_time - self._last_mempool_sync > self._mempool_sync_interval):
+            
+            logger.info(f"📝 Mempool Synchronization Started")
+            logger.info(f"   🌐 Syncing with {active_peer_count} peer(s)")
+            logger.info("   🔍 Checking for new transactions...")
+            self._last_mempool_sync = current_time
+            
+            # Run mempool sync in background
+            sync_thread = threading.Thread(
+                target=self._background_mempool_sync,
+                daemon=True
+            )
+            sync_thread.start()
+    
+    def _background_mempool_sync(self):
+        """Background mempool synchronization with peers"""
+        try:
+            active_peers = self.get_active_peers()
+            if not active_peers:
+                return
+            
+            # Get local mempool if blockchain reference is set
+            local_mempool = set()
+            if hasattr(self, '_blockchain_ref') and self._blockchain_ref:
+                local_pool = self._blockchain_ref.get_transaction_pool_copy()
+                local_mempool = {tx.tx_id for tx in local_pool}
+            
+            # Sync with each peer
+            for peer_url in list(active_peers)[:3]:  # Limit to 3 peers for efficiency
+                try:
+                    self._sync_mempool_with_peer(peer_url, local_mempool)
+                except Exception as e:
+                    logger.error(f"Mempool sync error with {peer_url}: {e}")
+            
+            self._stats['mempool_syncs'].increment()
+            logger.info(f"✅ Mempool Synchronization Complete")
+            logger.info(f"   🌐 Synced with {len(active_peers)} peer(s)")
+            logger.info(f"   📊 Sync Count: {self._stats['mempool_syncs'].value}")
+            
+        except Exception as e:
+            logger.error(f"Background mempool sync error: {e}")
+    
+    def _sync_mempool_with_peer(self, peer_url: str, local_mempool: set):
+        """Sync mempool with a specific peer"""
+        try:
+            # Get peer's transaction pool
+            response = requests.get(f"{peer_url}/transaction_pool", timeout=5)
+            if response.status_code != 200:
+                return
+            
+            peer_data = response.json()
+            peer_transactions = peer_data.get('transactions', [])
+            
+            # Find transactions we don't have
+            new_transactions = []
+            for tx_data in peer_transactions:
+                tx_id = tx_data.get('tx_id')
+                if tx_id and tx_id not in local_mempool:
+                    new_transactions.append(tx_data)
+            
+            # Add new transactions to our local pool via callback
+            if new_transactions and hasattr(self, '_mempool_callback') and self._mempool_callback:
+                for tx_data in new_transactions:
+                    try:
+                        self._mempool_callback(tx_data, peer_url)
+                    except Exception as e:
+                        logger.error(f"Error adding transaction from {peer_url}: {e}")
+                        
+                logger.info(f"➕ Added {len(new_transactions)} new transaction(s) from {peer_url}")
+                for tx in new_transactions[:3]:  # Show first 3
+                    logger.info(f"   📝 Transaction: {tx.get('tx_id', 'Unknown')[:16]}...")
+            
+        except Exception as e:
+            logger.error(f"Error syncing mempool with {peer_url}: {e}")
+    
+    def _check_and_trigger_network_stats_sync(self, active_peer_count: int):
+        """Trigger network statistics synchronization when needed"""
+        current_time = time.time()
+        
+        # Only sync if we have peers and sync is enabled
+        if (active_peer_count > 0 and 
+            self._network_stats_sync_enabled and
+            current_time - self._last_network_stats_sync > self._network_stats_sync_interval):
+            
+            logger.info(f"📊 Network Statistics Synchronization Started")
+            logger.info(f"   🌐 Collecting stats from {active_peer_count} peer(s)")
+            logger.info("   📈 Aggregating network performance data...")
+            self._last_network_stats_sync = current_time
+            
+            # Run network stats sync in background
+            sync_thread = threading.Thread(
+                target=self._background_network_stats_sync,
+                daemon=True
+            )
+            sync_thread.start()
+    
+    def _background_network_stats_sync(self):
+        """Background network statistics aggregation"""
+        try:
+            active_peers = self.get_active_peers()
+            if not active_peers:
+                return
+            
+            # Collect stats from all peers
+            network_stats = {
+                'total_nodes': 1,  # Include ourselves
+                'total_hash_rate': 0.0,
+                'block_times': [],
+                'difficulties': [],
+                'peer_counts': [],
+                'chain_lengths': []
+            }
+            
+            # Add our own stats if blockchain reference is available
+            if hasattr(self, '_blockchain_ref') and self._blockchain_ref:
+                chain_length = self._blockchain_ref.get_chain_length()
+                network_stats['chain_lengths'].append(chain_length)
+            
+            # Collect from peers
+            for peer_url in active_peers:
+                try:
+                    self._collect_peer_stats(peer_url, network_stats)
+                except Exception as e:
+                    logger.error(f"Error collecting stats from {peer_url}: {e}")
+            
+            # Update aggregated network stats
+            self._update_network_wide_stats(network_stats)
+            self._stats['network_stats_syncs'].increment()
+            
+            logger.info(f"✅ Network Statistics Synchronization Complete")
+            logger.info(f"   🌐 Collected from {len(active_peers)} peer(s)")
+            logger.info(f"   📊 Total Network Nodes: {network_stats['total_nodes']}")
+            logger.info(f"   📈 Chain Lengths: {min(network_stats['chain_lengths'])} - {max(network_stats['chain_lengths'])}" if network_stats['chain_lengths'] else "   📈 No chain data")
+            logger.info(f"   🔄 Sync Count: {self._stats['network_stats_syncs'].value}")
+            
+        except Exception as e:
+            logger.error(f"Background network stats sync error: {e}")
+    
+    def _collect_peer_stats(self, peer_url: str, network_stats: dict):
+        """Collect statistics from a specific peer"""
+        try:
+            # Get general status
+            response = requests.get(f"{peer_url}/status", timeout=5)
+            if response.status_code == 200:
+                status_data = response.json()
+                network_stats['total_nodes'] += 1
+                network_stats['chain_lengths'].append(status_data.get('blockchain_length', 0))
+                network_stats['peer_counts'].append(status_data.get('peers', 0))
+            
+            # Get detailed stats if available
+            try:
+                stats_response = requests.get(f"{peer_url}/stats", timeout=5)
+                if stats_response.status_code == 200:
+                    stats_data = stats_response.json()
+                    # Extract relevant stats for network aggregation
+                    node_stats = stats_data.get('node_stats', {})
+                    blockchain_stats = stats_data.get('blockchain_stats', {})
+                    
+                    # Note: Hash rate would need to be reported by mining clients
+                    # This is a placeholder for future mining stats integration
+                    
+            except Exception:
+                pass  # Stats endpoint might not exist on all peers
+                
+        except Exception as e:
+            logger.error(f"Error collecting stats from {peer_url}: {e}")
+    
+    def _update_network_wide_stats(self, collected_stats: dict):
+        """Update the aggregated network-wide statistics"""
+        with self._network_stats_lock:
+            self._network_wide_stats.update({
+                'total_nodes': collected_stats['total_nodes'],
+                'max_chain_length': max(collected_stats['chain_lengths']) if collected_stats['chain_lengths'] else 0,
+                'min_chain_length': min(collected_stats['chain_lengths']) if collected_stats['chain_lengths'] else 0,
+                'avg_peers_per_node': sum(collected_stats['peer_counts']) / len(collected_stats['peer_counts']) if collected_stats['peer_counts'] else 0,
+                'last_aggregation': time.time()
+            })
+    
+    def configure_mempool_sync(self, enabled: bool = True, interval: float = 15.0):
+        """Configure automatic mempool synchronization"""
+        self._mempool_sync_enabled = enabled
+        self._mempool_sync_interval = interval
+        logger.info(f"📝 Mempool Sync Configuration Updated:")
+        logger.info(f"   Status: {'✅ Enabled' if enabled else '❌ Disabled'}")
+        logger.info(f"   Interval: {interval} seconds")
+    
+    def configure_network_stats_sync(self, enabled: bool = True, interval: float = 60.0):
+        """Configure automatic network statistics synchronization"""
+        self._network_stats_sync_enabled = enabled
+        self._network_stats_sync_interval = interval
+        logger.info(f"📊 Network Stats Sync Configuration Updated:")
+        logger.info(f"   Status: {'✅ Enabled' if enabled else '❌ Disabled'}")
+        logger.info(f"   Interval: {interval} seconds")
+    
+    def set_mempool_callback(self, callback):
+        """Set callback function for adding synced transactions to local mempool"""
+        self._mempool_callback = callback
+        logger.debug("Mempool callback set for automatic sync")
+    
+    def get_network_wide_stats(self) -> dict:
+        """Get aggregated network-wide statistics"""
+        with self._network_stats_lock:
+            return self._network_wide_stats.copy()
     
     def _check_peer_health(self, peer_url: str) -> bool:
         """Check individual peer health"""

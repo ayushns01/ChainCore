@@ -106,41 +106,76 @@ class MiningClient:
         self.is_mining = True
         self.start_time = time.time()
         
-        print(f"🚀 Starting mining for address: {self.wallet_address}")
-        print(f"🔗 Connected to node: {self.node_url}")
+        print("=" * 60)
+        print("⛏️  ChainCore Mining Client Started")
+        print("=" * 60)
+        print(f"💰 Mining Address: {self.wallet_address}")
+        print(f"🌐 Network Node: {self.node_url}")
+        print(f"📊 Session Start: {time.strftime('%Y-%m-%d %H:%M:%S')}")
+        print("🎯 Mining Strategy: Automatic retry with fresh templates")
+        print("⚡ Performance: Progress updates every 100,000 hashes")
+        print("-" * 60)
         
         try:
             while self.is_mining:
                 # Check network health before mining
                 if not self.check_network_health():
-                    print("⏳ Waiting for network to stabilize...")
+                    print("⚠️  Network Health Check Failed")
+                    print("   🔍 Issues detected:")
+                    print("      • Node not responding")
+                    print("      • Blockchain not initialized")
+                    print("   ⏳ Waiting 10 seconds for network to stabilize...")
                     time.sleep(10)
                     continue
                 
                 success = self.mine_with_retry()
                 if success:
                     self.blocks_mined += 1
-                    print(f"🎉 Total blocks mined: {self.blocks_mined}")
+                    session_time = time.time() - self.start_time
+                    avg_time = session_time / self.blocks_mined
+                    print("🎉 BLOCK SUCCESSFULLY MINED!")
+                    print(f"   📊 Session Stats:")
+                    print(f"      Total Blocks: {self.blocks_mined}")
+                    print(f"      Session Time: {session_time:.1f}s")
+                    print(f"      Average per Block: {avg_time:.1f}s")
+                    print(f"      Hash Rate: {self.current_hash_rate:.0f} H/s")
+                    print("   ⚡ Getting next block template...")
                     # Brief pause after successful mining
                     time.sleep(1)
                 else:
                     # Longer pause after failures to let network stabilize
-                    print("⏳ Network issues detected, waiting...")
+                    print("❌ Mining Attempt Failed")
+                    print("   🔍 Possible causes:")
+                    print("      • Stale block template")
+                    print("      • Network connectivity issues") 
+                    print("      • Another miner found block first")
+                    print("   ⏳ Waiting 5 seconds before retry...")
                     time.sleep(5)
                 
         except KeyboardInterrupt:
-            print("\n🛑 Mining interrupted by user")
+            print("\n" + "=" * 60)
+            print("🛑 Mining Session Stopped by User")
+            print("=" * 60)
         except Exception as e:
-            print(f"❌ Mining error: {e}")
+            print(f"\n❌ Critical Mining Error: {e}")
+            print("   🔍 Please check network connectivity and try again")
         finally:
             self.is_mining = False
             
             # Print final stats
             stats = self.get_mining_stats()
-            print(f"\n📊 Final Mining Stats:")
-            print(f"   Blocks mined: {stats['blocks_mined']}")
-            print(f"   Total time: {stats['total_time']:.2f}s")
-            print(f"   Average block time: {stats['average_block_time']:.2f}s")
+            end_time = time.strftime('%Y-%m-%d %H:%M:%S')
+            print(f"\n📊 Mining Session Summary")
+            print("=" * 40)
+            print(f"   Session End: {end_time}")
+            print(f"   💎 Blocks Mined: {stats['blocks_mined']}")
+            print(f"   ⏱️  Total Time: {stats['total_time']:.1f} seconds")
+            print(f"   ⚡ Average Block Time: {stats['average_block_time']:.1f}s")
+            print(f"   🔥 Hash Rate: {stats['estimated_hash_rate']:.0f} H/s")
+            if stats['blocks_mined'] > 0:
+                earnings = stats['blocks_mined'] * 50.0  # Assuming 50 CC per block
+                print(f"   💰 Estimated Earnings: {earnings:.1f} CC")
+            print("=" * 40)
     
     def mine_with_retry(self, max_retries=3):
         """Mine with intelligent retry logic to handle stale templates"""
@@ -156,7 +191,11 @@ class MiningClient:
                 block_template = template_response['block_template']
                 target_difficulty = template_response['target_difficulty']
                 
-                print(f"⛏️  Mining block {block_template['index']} (attempt {attempt + 1}/{max_retries})")
+                print(f"⛏️  Mining Block #{block_template['index']}")
+                print(f"   🎯 Attempt: {attempt + 1}/{max_retries}")
+                print(f"   💎 Difficulty: {target_difficulty} leading zeros")
+                print(f"   📝 Transactions: {len(block_template['transactions'])}")
+                print(f"   ⏱️  Timeout: 60 seconds")
                 
                 # Mine the block with timeout
                 mined_block = self.mine_block_with_timeout(block_template, target_difficulty, timeout=60)
@@ -166,12 +205,15 @@ class MiningClient:
                 
                 # Submit mined block
                 if self.submit_block_with_validation(mined_block):
-                    print(f"✅ Block {mined_block['index']} successfully submitted!")
+                    print(f"🎉 Block #{mined_block['index']} Successfully Submitted!")
+                    print(f"   📋 Hash: {mined_block['hash'][:16]}...{mined_block['hash'][-8:]}")
+                    print(f"   🎲 Nonce: {mined_block['nonce']:,}")
                     return True
                 else:
-                    print(f"❌ Attempt {attempt + 1} failed - block possibly stale")
+                    print(f"❌ Attempt {attempt + 1} Failed")
+                    print("   🔍 Block rejected by network (possibly stale or duplicate)")
                     if attempt < max_retries - 1:
-                        print("🔄 Getting fresh template for retry...")
+                        print("   🔄 Getting fresh block template for retry...")
                         time.sleep(2)  # Brief pause before retry
                     
             except Exception as e:
@@ -184,12 +226,12 @@ class MiningClient:
     
     def mine_block_with_timeout(self, block_template: Dict, target_difficulty: int, timeout: int = 60) -> Optional[Dict]:
         """Mine a block with timeout to prevent infinite loops"""
-        print(f"⛏️  Mining block {block_template['index']}...")
-        print(f"   Target difficulty: {target_difficulty} leading zeros")
-        print(f"   Transactions: {len(block_template['transactions'])}")
-        print(f"   Timeout: {timeout} seconds")
-        
         target = "0" * target_difficulty
+        
+        print(f"🔥 Starting Proof-of-Work Mining...")
+        print(f"   🎯 Target: {target} (difficulty {target_difficulty})")
+        print(f"   📦 Block Size: {len(block_template['transactions'])} transactions")
+        print("   ⚡ Mining in progress...")
         nonce = 0
         start_time = time.time()
         hash_count = 0
@@ -226,11 +268,12 @@ class MiningClient:
                 # Update total hash rate tracking
                 self._update_hash_rate(hash_count, mining_time)
                 
-                print(f"✅ Block mined!")
-                print(f"   Hash: {block_hash}")
-                print(f"   Nonce: {nonce}")
-                print(f"   Time: {mining_time:.2f}s")
-                print(f"   Hash rate: {hash_rate:.2f} H/s")
+                print(f"💎 PROOF-OF-WORK FOUND!")
+                print(f"   🏆 Valid Hash: {block_hash}")
+                print(f"   🎲 Winning Nonce: {nonce:,}")
+                print(f"   ⏱️  Mining Time: {mining_time:.2f} seconds")
+                print(f"   🔥 Hash Rate: {hash_rate:.0f} H/s")
+                print("   📤 Submitting to network...")
                 
                 block_template['hash'] = block_hash
                 return block_template
@@ -246,7 +289,7 @@ class MiningClient:
                 # Update current hash rate periodically
                 self._update_hash_rate(hash_count, elapsed)
                 
-                print(f"   Mining... Nonce: {nonce:,}, Rate: {rate:.0f} H/s, Remaining: {remaining:.0f}s")
+                print(f"   ⚡ Progress: Nonce {nonce:,} | Rate: {rate:.0f} H/s | Time Left: {remaining:.0f}s")
         
         # Update hash rate for timeout case
         mining_time = time.time() - start_time
@@ -350,15 +393,23 @@ class MiningClient:
         }
 
 def main():
-    parser = argparse.ArgumentParser(description='Bitcoin-style Mining Client')
+    parser = argparse.ArgumentParser(description='ChainCore Mining Client')
     parser.add_argument('--wallet', '-w', required=True, help='Miner wallet address')
     parser.add_argument('--node', '-n', default='http://localhost:5000', help='Node URL')
     parser.add_argument('--stats', action='store_true', help='Show mining stats and exit')
+    parser.add_argument('--quiet', action='store_true', help='Skip startup banner')
     
     args = parser.parse_args()
     
-    print("⛏️  Bitcoin-style Mining Client")
-    print("=" * 40)
+    # Show startup banner unless quiet mode
+    if not args.quiet and not args.stats:
+        try:
+            from startup_banner import startup_mining_client
+            startup_mining_client(args.wallet, args.node)
+        except ImportError:
+            print("⛏️  ChainCore Mining Client Starting...")
+            print(f"   💰 Wallet: {args.wallet}")
+            print(f"   🌐 Node: {args.node}")
     
     miner = MiningClient(args.wallet, args.node)
     
