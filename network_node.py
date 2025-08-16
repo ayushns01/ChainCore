@@ -151,7 +151,36 @@ class ThreadSafeNetworkNode:
                               "🟢 Moderate" if self.blockchain.target_difficulty > 2 else \
                               "🟡 Easy"
             
+            # Create status summary at top
+            status_summary = f"""
+╔══════════════════════════════════════════════════════════════════════╗
+║                    🚀 CHAINCORE NODE STATUS                          ║
+╠══════════════════════════════════════════════════════════════════════╣
+║ 🆔 Node: {self.node_id:<20} 🌐 Port: {self.api_port:<20}        ║
+║ 🟢 Status: ONLINE & OPERATIONAL      ⏱️  Uptime: {uptime_readable:<15} ║
+║ ⛓️  Chain: {blockchain_length:,} blocks{' + ' + str(pending_txs) + ' pending' if pending_txs > 0 else '':20} ║
+║ 🌐 Peers: {len(active_peers)} connected {'(Main Node)' if is_main_node else '(Peer Node)':25} ║
+║ 🎯 Difficulty: {self.blockchain.target_difficulty} {difficulty_status:<30} ║
+║ 🔄 Sync: {blockchain_health:<45} ║
+╚══════════════════════════════════════════════════════════════════════╝
+            """.strip()
+
             return jsonify({
+                # === 🚀 QUICK STATUS DISPLAY ===
+                'STATUS_DISPLAY': status_summary,
+                '📊 QUICK_OVERVIEW': {
+                    'NODE_ID': self.node_id,
+                    'PORT': self.api_port,
+                    'STATUS': 'ONLINE',
+                    'BLOCKCHAIN_LENGTH': f"{blockchain_length:,} blocks",
+                    'PENDING_TXS': pending_txs,
+                    'CONNECTED_PEERS': len(active_peers),
+                    'NODE_ROLE': 'MAIN' if is_main_node else 'PEER',
+                    'UPTIME': uptime_readable,
+                    'DIFFICULTY': f"{self.blockchain.target_difficulty} {difficulty_status}",
+                    'SYNC_STATUS': blockchain_health
+                },
+                
                 # === OVERVIEW SECTION ===
                 'status': 'online',
                 'summary': {
@@ -649,27 +678,22 @@ class ThreadSafeNetworkNode:
                         )
                         new_chain.append(block)
                     
-                    # Replace chain if valid and longer
+                    # Use industry-standard smart sync instead of destructive replace_chain
                     current_length = self.blockchain.get_chain_length()
-                    if len(new_chain) > current_length:
-                        if self.blockchain.replace_chain(new_chain):
-                            return jsonify({
-                                'status': 'synced',
-                                'peer': peer_url,
-                                'old_length': current_length,
-                                'new_length': len(new_chain)
-                            })
-                        else:
-                            return jsonify({
-                                'status': 'sync_failed',
-                                'error': 'Chain validation failed'
-                            }), 400
+                    if self.blockchain.smart_sync_with_peer_chain(chain_data, peer_url):
+                        new_length = self.blockchain.get_chain_length()
+                        return jsonify({
+                            'status': 'synced',
+                            'peer': peer_url,
+                            'old_length': current_length,
+                            'new_length': new_length,
+                            'mining_history': 'preserved'
+                        })
                     else:
                         return jsonify({
-                            'status': 'no_sync_needed',
-                            'current_length': current_length,
-                            'peer_length': len(new_chain)
-                        })
+                            'status': 'sync_failed',
+                            'error': 'Smart sync validation failed'
+                        }), 400
                 else:
                     return jsonify({
                         'status': 'no_peers',
@@ -798,8 +822,114 @@ class ThreadSafeNetworkNode:
             self._stats['api_calls'] += 1
     
     
+    def _check_port_available(self, port: int) -> bool:
+        """Check if a port is available for binding"""
+        import socket
+        try:
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+                s.bind(('localhost', port))
+                return True
+        except OSError:
+            return False
+    
+    def _find_available_port(self, start_port: int, max_attempts: int = 10) -> Optional[int]:
+        """Find an available port starting from start_port"""
+        for i in range(max_attempts):
+            test_port = start_port + i
+            if self._check_port_available(test_port):
+                return test_port
+        return None
+    
+    def _start_api_server_background(self, debug: bool = False):
+        """Start Flask API server in background thread with port conflict resolution"""
+        import threading
+        import socket
+        
+        # Check for port conflicts and resolve them
+        if not self._check_port_available(self.api_port):
+            logger.warning(f"⚠️  Port {self.api_port} is not available")
+            
+            # Try to find an alternative port
+            alternative_port = self._find_available_port(self.api_port + 1)
+            if alternative_port:
+                logger.info(f"🔄 Auto-resolving to port {alternative_port}")
+                old_port = self.api_port
+                self.api_port = alternative_port
+                
+                # Update self-URL in peer manager
+                self_url = f"http://localhost:{self.api_port}"
+                if hasattr(self, 'peer_manager'):
+                    self.peer_manager._self_url = self_url
+                    logger.info(f"🆔 Updated node self-URL: {self_url}")
+            else:
+                logger.error(f"❌ Cannot find available port near {self.api_port}")
+                raise OSError(f"Port {self.api_port} and nearby ports are in use")
+        
+        # Start server in background thread
+        self._server_ready = threading.Event()
+        self._server_error = None
+        
+        def run_server():
+            try:
+                logger.info(f"🌐 Starting Flask API server on port {self.api_port}...")
+                
+                # Signal that we're about to start
+                self._server_ready.set()
+                
+                self.app.run(
+                    host='0.0.0.0',
+                    port=self.api_port,
+                    debug=debug,
+                    threaded=True,
+                    use_reloader=False
+                )
+            except Exception as e:
+                self._server_error = e
+                self._server_ready.set()  # Signal even on error
+                logger.error(f"❌ Server startup failed: {e}")
+        
+        server_thread = threading.Thread(target=run_server, daemon=True, name=f"APIServer-{self.api_port}")
+        server_thread.start()
+        
+        return server_thread
+    
+    def _wait_for_api_ready(self, timeout: float = 10.0) -> bool:
+        """Wait for API server to be ready to accept connections"""
+        import socket
+        import time
+        
+        logger.info(f"⏳ Waiting for API server to be ready (timeout: {timeout}s)...")
+        
+        # Wait for server thread to start
+        if not self._server_ready.wait(timeout=5.0):
+            logger.error("❌ Server thread failed to start")
+            return False
+        
+        # Check if there was a startup error
+        if self._server_error:
+            logger.error(f"❌ Server startup error: {self._server_error}")
+            return False
+        
+        # Wait for actual port to be listening
+        start_time = time.time()
+        while time.time() - start_time < timeout:
+            try:
+                with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                    s.settimeout(1.0)
+                    result = s.connect_ex(('localhost', self.api_port))
+                    if result == 0:
+                        logger.info(f"✅ API server ready on port {self.api_port}")
+                        return True
+            except Exception:
+                pass
+            time.sleep(0.1)
+        
+        logger.error(f"❌ API server not ready after {timeout}s")
+        return False
+    
     def start_api_server(self, debug: bool = False):
-        """Start Flask API server with enhanced error handling"""
+        """Start Flask API server with enhanced error handling (blocking version)"""
         try:
             logger.info(f"🌐 Starting Flask API server on port {self.api_port}...")
             self.app.run(
@@ -848,9 +978,16 @@ class ThreadSafeNetworkNode:
         # Configure network statistics synchronization
         self.peer_manager.configure_network_stats_sync(enabled=True, interval=60.0)
         
+        # Start API server in background first (fix race condition)
+        import threading
+        self._start_api_server_background()
+        
+        # Wait briefly for API server to initialize
+        import time
+        time.sleep(1.0)
+        
         # Configure self-awareness for enhanced peer discovery  
         self_url = f"http://localhost:{self.api_port}"
-        self.peer_manager.set_self_url(self_url)
         
         # Enhanced peer discovery with main node detection
         if discover_peers:
@@ -858,6 +995,11 @@ class ThreadSafeNetworkNode:
             logger.info(f"   🆔 This node: {self_url}")
             logger.info("   🌐 Scanning for existing nodes...")
             
+            # Add small delay before discovery to prevent thundering herd
+            startup_delay = __import__('random').uniform(1.0, 4.0)
+            time.sleep(startup_delay)
+            
+            self.peer_manager.set_self_url(self_url)
             discovered = self.peer_manager.discover_peers()
             
             if discovered > 0:
@@ -867,8 +1009,10 @@ class ThreadSafeNetworkNode:
             else:
                 logger.info("📡 No existing nodes found - this is the first node in the network!")
                 logger.info("   🏆 Node role: MAIN NODE (bootstrap)")
+        else:
+            self.peer_manager.set_self_url(self_url)
         
-        # Start API server
+        # Start API server (this will block)
         logger.info("🚀 Starting ChainCore Network Node...")
         logger.info(f"   🌐 API Server starting on port {self.api_port}")
         logger.info("   🔄 All sync mechanisms activated")
@@ -922,23 +1066,22 @@ class ThreadSafeNetworkNode:
                         logger.error(f"Error creating block from sync data: {e}")
                         return
                 
-                # Replace chain if the new one is longer and valid
-                if len(new_chain) > current_length:
-                    if self.blockchain.replace_chain(new_chain):
-                        logger.info(f"🎉 Automatic Blockchain Sync Successful!")
-                        logger.info(f"   📊 Chain updated: {current_length} -> {len(new_chain)} blocks")
-                        logger.info(f"   🌐 Source: {peer_url_result}")
-                        
-                        # Update stats
-                        self._stats['successful_syncs'] = self._stats.get('successful_syncs', 0) + 1
-                        self._stats['last_sync_time'] = time.time()
-                        logger.info(f"   📈 Total successful syncs: {self._stats['successful_syncs']}")
-                    else:
-                        logger.error("❌ Automatic Sync Failed!")
-                        logger.error("   🔍 Chain validation failed - rejected invalid chain")
-                        self._stats['failed_syncs'] = self._stats.get('failed_syncs', 0) + 1
+                # Use industry-standard smart sync instead of destructive replace_chain
+                if self.blockchain.smart_sync_with_peer_chain(chain_data, peer_url_result):
+                    new_length = self.blockchain.get_chain_length()
+                    logger.info(f"🎉 Smart Blockchain Sync Successful!")
+                    logger.info(f"   📊 Chain updated: {current_length} -> {new_length} blocks")
+                    logger.info(f"   🌐 Source: {peer_url_result}")
+                    logger.info(f"   💾 Mining history: PRESERVED")
+                    
+                    # Update stats
+                    self._stats['successful_syncs'] = self._stats.get('successful_syncs', 0) + 1
+                    self._stats['last_sync_time'] = time.time()
+                    logger.info(f"   📈 Total successful syncs: {self._stats['successful_syncs']}")
                 else:
-                    logger.info("ℹ️  Automatic Sync: Our chain is already up-to-date")
+                    logger.error("❌ Smart Sync Failed!")
+                    logger.error("   🔍 Chain validation failed or sync error occurred")
+                    self._stats['failed_syncs'] = self._stats.get('failed_syncs', 0) + 1
             else:
                 logger.info("⚠️  Automatic Sync: No suitable peers available for sync")
                 

@@ -222,15 +222,24 @@ python3 mining_client.py --wallet YOUR_WALLET_ADDRESS --node http://localhost:50
 ### Check Network Status
 
 ```bash
-# Basic status
-curl http://localhost:5000/status
-curl http://localhost:5001/status
-curl http://localhost:5002/status
-curl http://localhost:5003/status
-curl http://localhost:5004/status
-curl http://localhost:5005/status
-curl http://localhost:5006/status
+# Node status (clean JSON output)
+curl.exe http://localhost:5000/status | python -m json.tool
+curl.exe http://localhost:5001/status | python -m json.tool
+curl.exe http://localhost:5002/status | python -m json.tool
 
+# OR use PowerShell (Windows)
+(Invoke-WebRequest http://localhost:5000/status).Content | ConvertFrom-Json | ConvertTo-Json
+(Invoke-WebRequest http://localhost:5001/status).Content | ConvertFrom-Json | ConvertTo-Json
+
+# OR simple PowerShell
+Invoke-RestMethod http://localhost:5000/status
+Invoke-RestMethod http://localhost:5001/status
+Invoke-RestMethod http://localhost:5002/status
+Invoke-RestMethod http://localhost:5003/status
+Invoke-RestMethod http://localhost:5004/status
+Invoke-RestMethod http://localhost:5005/status
+Invoke-RestMethod http://localhost:5006/status
+Invoke-RestMethod http://localhost:5007/status
 
 # Detailed statistics (NEW - Thread Safety Stats)
 curl http://localhost:5000/stats | python3 -m json.tool
@@ -563,3 +572,7 @@ For more advanced operations, see:
 - `src/concurrency/THREAD_SAFETY_GUIDE.md` - Complete thread safety documentation
 - `MINING_COMMANDS.md` - Mining operations guide
 - `PEER_MANAGEMENT_NETWORKING.md` - Network operations guide
+
+python mining_summary_framework.py
+python mining_summary_framework.py
+python mining_summary_framework.py --interval 1

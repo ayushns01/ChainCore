@@ -716,11 +716,14 @@ class ThreadSafePeerManager:
             return self._network_wide_stats.copy()
     
     def _check_peer_health(self, peer_url: str) -> bool:
-        """Check individual peer health"""
+        """Check individual peer health with adaptive timeouts"""
         try:
+            # Get peer info to determine appropriate timeout
+            timeout = self._get_adaptive_timeout(peer_url)
+            
             with self._connection_pool.request(f"{peer_url}/status") as session:
                 start_time = time.time()
-                response = session.get(f"{peer_url}/status", timeout=5)
+                response = session.get(f"{peer_url}/status", timeout=timeout)
                 response_time = time.time() - start_time
                 
                 if response.status_code == 200:
@@ -896,8 +899,11 @@ class ThreadSafePeerManager:
     def _try_discover_peer_enhanced(self, peer_url: str) -> Optional[PeerInfo]:
         """Enhanced peer discovery with better error handling and info gathering"""
         try:
+            # Use adaptive timeout for discovery too
+            timeout = self._get_adaptive_timeout(peer_url)
+            
             with self._connection_pool.request(f"{peer_url}/status") as session:
-                response = session.get(f"{peer_url}/status", timeout=self._discovery_timeout)
+                response = session.get(f"{peer_url}/status", timeout=timeout)
                 
                 if response.status_code == 200:
                     peer_data = response.json()
@@ -1005,29 +1011,99 @@ class ThreadSafePeerManager:
         if self._continuous_discovery_enabled:
             discovery_thread = threading.Thread(
                 target=self._immediate_peer_discovery,
-                daemon=True
+                daemon=True,
+                name=f"PeerDiscovery-{self._extract_port(self_url)}"
             )
             discovery_thread.start()
     
     def _immediate_peer_discovery(self):
-        """Immediate peer discovery when node starts with smart delay"""
+        """Immediate peer discovery when node starts with enhanced coordination"""
         try:
-            # Add small randomized delay to prevent thundering herd when starting multiple nodes
+            # Enhanced thundering herd prevention with exponential backoff
             import random
-            delay = random.uniform(1.0, 3.0)  # 1-3 second delay
-            logger.info(f"🚀 Starting peer discovery in {delay:.1f} seconds...")
-            time.sleep(delay)
+            import time
             
-            logger.info("🔍 Discovering existing nodes in network...")
-            discovered = self.discover_peers()
+            # Base delay with jitter to spread out discovery attempts
+            base_delay = random.uniform(3.0, 10.0)  # 3-10 second base delay
             
-            if discovered > 0:
-                logger.info(f"🎉 Successfully connected to {discovered} existing nodes")
+            # Additional delay based on port number to further spread nodes
+            if hasattr(self, '_self_url') and self._self_url:
+                try:
+                    port = self._extract_port(self._self_url)
+                    port_offset = (port % 20) * 0.5  # 0-10 second additional delay based on port
+                    total_delay = base_delay + port_offset
+                except:
+                    total_delay = base_delay
             else:
-                logger.info("📡 No existing nodes found - this may be the first node in the network")
+                total_delay = base_delay
+            
+            logger.info(f"🚀 Starting peer discovery in {total_delay:.1f} seconds (thundering herd prevention)...")
+            time.sleep(total_delay)
+            
+            # Retry logic with exponential backoff
+            max_retries = 3
+            retry_delay = 5.0
+            
+            for attempt in range(max_retries):
+                try:
+                    logger.info(f"🔍 Peer discovery attempt {attempt + 1}/{max_retries}...")
+                    discovered = self.discover_peers()
+                    
+                    if discovered > 0:
+                        logger.info(f"🎉 Successfully connected to {discovered} existing nodes")
+                        return  # Success, exit retry loop
+                    else:
+                        logger.info("📡 No existing nodes found")
+                        if attempt < max_retries - 1:
+                            logger.info(f"   ⏳ Retrying in {retry_delay:.1f} seconds...")
+                            time.sleep(retry_delay)
+                            retry_delay *= 2  # Exponential backoff
+                        else:
+                            logger.info("   🏁 This appears to be the first node in the network")
+                    
+                except Exception as e:
+                    logger.error(f"Discovery attempt {attempt + 1} failed: {e}")
+                    if attempt < max_retries - 1:
+                        logger.info(f"   ⏳ Retrying in {retry_delay:.1f} seconds...")
+                        time.sleep(retry_delay)
+                        retry_delay *= 2
+                    else:
+                        logger.error("   ❌ All discovery attempts failed")
+                        raise
                 
         except Exception as e:
             logger.error(f"Error in immediate peer discovery: {e}")
+    
+    def _extract_port(self, url: str) -> int:
+        """Extract port number from URL"""
+        try:
+            import re
+            match = re.search(r':(\d+)', url)
+            return int(match.group(1)) if match else 5000
+        except:
+            return 5000
+    
+    def _get_adaptive_timeout(self, peer_url: str) -> float:
+        """Get adaptive timeout based on peer history and network conditions"""
+        base_timeout = 8.0  # Increased from 5.0 to be more forgiving
+        
+        with self._peers_lock.read_lock():
+            if peer_url in self._peers:
+                peer_info = self._peers[peer_url]
+                
+                # Adjust based on historical response time
+                if hasattr(peer_info, 'response_time') and peer_info.response_time:
+                    # Use 3x the average response time, with min/max bounds
+                    adaptive_timeout = max(base_timeout, peer_info.response_time * 3.0)
+                    adaptive_timeout = min(adaptive_timeout, 20.0)  # Cap at 20 seconds
+                    return adaptive_timeout
+                
+                # Increase timeout for peers with previous failures
+                if hasattr(peer_info, 'failures') and peer_info.failures > 0:
+                    failure_multiplier = 1.0 + (peer_info.failures * 0.5)  # +50% per failure
+                    return min(base_timeout * failure_multiplier, 15.0)  # Cap at 15 seconds
+        
+        return base_timeout
     
     def get_main_node_status(self) -> bool:
         """Check if this node is the main coordinator node"""

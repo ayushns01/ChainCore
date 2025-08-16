@@ -766,6 +766,139 @@ class ThreadSafeBlockchain:
         
         return success
     
+    def smart_sync_with_peer_chain(self, peer_chain_data: List[Dict], peer_url: str) -> bool:
+        """
+        Industry-standard blockchain sync that preserves mining history
+        Uses proper fork resolution and doesn't destroy local mining attribution
+        """
+        try:
+            # Import the new sync module
+            from ..blockchain.blockchain_sync import BlockchainSync, SyncResult
+            
+            logger.info(f"🔄 Starting smart sync with {peer_url}")
+            
+            # Create sync engine
+            sync_engine = BlockchainSync(self)
+            
+            # Perform industry-standard sync
+            result, stats = sync_engine.sync_with_peer_chain(peer_chain_data, peer_url)
+            
+            if result == SyncResult.SUCCESS or result == SyncResult.FORK_RESOLVED:
+                # Update blockchain statistics
+                with self._stats_lock:
+                    self._stats.blocks_processed = len(self._chain)
+                    self._stats.utxo_count = len(self.utxo_set._utxos)
+                    if stats.blocks_orphaned > 0:
+                        self._stats.orphaned_blocks += stats.blocks_orphaned
+                
+                # Clear caches after successful sync
+                with self._cache_lock:
+                    self._validation_cache.clear()
+                
+                logger.info(f"✅ Smart sync completed successfully!")
+                logger.info(f"   📊 Result: {result.value}")
+                logger.info(f"   ➕ Blocks Added: {stats.blocks_added}")
+                logger.info(f"   💾 Mining History: PRESERVED")
+                
+                return True
+                
+            elif result == SyncResult.NO_CHANGES:
+                logger.info("ℹ️  Smart sync: No changes needed")
+                return True
+                
+            else:
+                logger.error(f"❌ Smart sync failed: {result.value}")
+                return False
+                
+        except Exception as e:
+            logger.error(f"❌ Smart sync error: {e}")
+            return False
+    
+    def merge_peer_blocks(self, peer_blocks: List, validate: bool = True) -> int:
+        """
+        Merge new blocks from peer while preserving existing mining history
+        Returns number of blocks successfully added
+        """
+        blocks_added = 0
+        
+        try:
+            with self._chain_lock.write_lock():
+                current_length = len(self._chain)
+                
+                for block in peer_blocks:
+                    # Skip blocks we already have
+                    if block.index < current_length:
+                        continue
+                    
+                    # Validate block if requested
+                    if validate and not self._validate_single_block(block, self._chain):
+                        logger.warning(f"⚠️  Skipping invalid block #{block.index}")
+                        continue
+                    
+                    # Add block to chain
+                    self._chain.append(block)
+                    blocks_added += 1
+                    
+                    logger.info(f"✅ Merged block #{block.index} (mining history preserved)")
+                
+                # Update statistics
+                if blocks_added > 0:
+                    with self._stats_lock:
+                        self._stats.blocks_processed = len(self._chain)
+                    
+                    logger.info(f"🎉 Merged {blocks_added} new blocks successfully")
+                
+        except Exception as e:
+            logger.error(f"❌ Block merge error: {e}")
+            
+        return blocks_added
+    
+    def _validate_single_block(self, block, chain: List) -> bool:
+        """Validate a single block against the given chain"""
+        try:
+            # Check index sequence
+            expected_index = len(chain)
+            if block.index != expected_index:
+                return False
+            
+            # Check previous hash linkage
+            if len(chain) > 0:
+                last_block = chain[-1]
+                if block.previous_hash != last_block.hash:
+                    return False
+            
+            # Check proof of work
+            target = "0" * getattr(block, 'target_difficulty', 1)
+            if not block.hash.startswith(target):
+                return False
+            
+            return True
+            
+        except Exception:
+            return False
+    
+    def get_fork_info(self) -> Dict:
+        """Get information about any orphaned blocks (preserved mining history)"""
+        try:
+            from ..blockchain.blockchain_sync import BlockchainSync
+            sync_engine = BlockchainSync(self)
+            orphaned_blocks = sync_engine.get_orphaned_blocks()
+            
+            return {
+                'has_orphaned_blocks': len(orphaned_blocks) > 0,
+                'orphaned_count': len(orphaned_blocks),
+                'orphaned_mining_history': [
+                    {
+                        'block_index': block.index,
+                        'miner_preserved': True,
+                        'timestamp': getattr(block, 'timestamp', 0)
+                    } for block in orphaned_blocks
+                ]
+            }
+        except Exception as e:
+            logger.error(f"Error getting fork info: {e}")
+            return {'has_orphaned_blocks': False, 'orphaned_count': 0}
+    
     def _validate_chain(self, chain: List) -> bool:
         """Validate entire blockchain"""
         if not chain:
