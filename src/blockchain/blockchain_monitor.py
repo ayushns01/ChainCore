@@ -28,26 +28,45 @@ class BlockchainMonitor:
             if response.status_code == 200:
                 return response.json()
             else:
-                print(f"❌ API Error: {response.status_code}")
+                print(f"API Error: {response.status_code}")
                 return None
         except requests.RequestException as e:
-            print(f"❌ Connection Error: {e}")
+            print(f"Connection Error: {e}")
             return None
     
     def extract_miner_from_block(self, block: Dict) -> tuple:
-        """Extract miner address and identify the mining source from block's coinbase transaction"""
+        """Extract miner address and mining node from block data with attribution preservation"""
         try:
             # First transaction should be coinbase
             coinbase_tx = block['transactions'][0]
+            miner_address = "unknown"
             if coinbase_tx['outputs']:
                 miner_address = coinbase_tx['outputs'][0]['recipient_address']
-                
-                # Try to identify which node/client mined this block
-                mining_source = self.identify_mining_source(miner_address, block)
-                
-                return miner_address, mining_source
-            return "unknown", "unknown"
-        except (KeyError, IndexError):
+            
+            # CRITICAL: Read actual mining node from block metadata (industry standard)
+            mining_node = "unknown"
+            
+            # Priority 1: Check mining_metadata (complete attribution info)
+            if 'mining_metadata' in block and isinstance(block['mining_metadata'], dict):
+                metadata = block['mining_metadata']
+                if 'mining_node' in metadata and metadata['mining_node']:
+                    mining_node = metadata['mining_node']
+                elif 'mining_provenance' in metadata and isinstance(metadata['mining_provenance'], dict):
+                    provenance = metadata['mining_provenance']
+                    if 'mining_node' in provenance and provenance['mining_node']:
+                        mining_node = provenance['mining_node']
+            
+            # Priority 2: Check direct mining_node field
+            elif 'mining_node' in block and block['mining_node']:
+                mining_node = block['mining_node']
+            
+            # Priority 3: Fallback to legacy correlation method
+            else:
+                mining_node = self.identify_mining_source(miner_address, block)
+            
+            return miner_address, mining_node
+            
+        except (KeyError, IndexError) as e:
             return "unknown", "unknown"
     
     def identify_mining_source(self, miner_address: str, block: Dict) -> str:
@@ -353,33 +372,32 @@ class BlockchainMonitor:
         return miner_stats
     
     def display_block_details(self, block: Dict, is_new: bool = False):
-        """Display detailed block information"""
-        miner_address, mining_source = self.extract_miner_from_block(block)
-        mining_node = mining_source if mining_source != "unknown" else self.identify_mining_node(miner_address)
+        """Display detailed block information with proper mining attribution"""
+        miner_address, mining_node = self.extract_miner_from_block(block)
         timestamp = datetime.fromtimestamp(block['timestamp']).strftime("%H:%M:%S")
         
         # Determine if hash meets difficulty requirement
         required_zeros = "0" * block['target_difficulty']
-        hash_valid = "✅" if block['hash'].startswith(required_zeros) else "❌"
+        hash_valid = "VALID" if block['hash'].startswith(required_zeros) else "INVALID"
         
-        status = "🆕 NEW" if is_new else "📦"
+        status = "NEW" if is_new else "BLOCK"
         
         print(f"{status} Block #{block['index']}")
-        print(f"   ⛏️  Mined by: {mining_node}")
-        print(f"   📍 Address: {miner_address[:20]}..." if len(miner_address) > 20 else f"   📍 Address: {miner_address}")
-        print(f"   🕐 Time: {timestamp}")
-        print(f"   🎯 Difficulty: {block['target_difficulty']} ({required_zeros})")
-        print(f"   🔗 Hash: {block['hash'][:32]}... {hash_valid}")
-        print(f"   ⬅️  Prev: {block['previous_hash'][:32]}...")
-        print(f"   💰 Transactions: {len(block['transactions'])}")
-        print(f"   🔢 Nonce: {block['nonce']}")
+        print(f"   Mined by: {mining_node}")
+        print(f"   Address: {miner_address[:20]}..." if len(miner_address) > 20 else f"   Address: {miner_address}")
+        print(f"   Time: {timestamp}")
+        print(f"   Difficulty: {block['target_difficulty']} ({required_zeros})")
+        print(f"   Hash: {block['hash'][:32]}... {hash_valid}")
+        print(f"   Prev: {block['previous_hash'][:32]}...")
+        print(f"   Transactions: {len(block['transactions'])}")
+        print(f"   Nonce: {block['nonce']}")
         
         # Show coinbase reward
         try:
             coinbase_tx = block['transactions'][0]
             if coinbase_tx['outputs']:
                 reward = coinbase_tx['outputs'][0]['amount']
-                print(f"   💵 Reward: {reward}")
+                print(f"   Reward: {reward}")
         except (KeyError, IndexError):
             pass
         
@@ -387,7 +405,7 @@ class BlockchainMonitor:
     
     def display_mining_summary(self, miner_stats: Dict):
         """Display mining distribution summary"""
-        print("⛏️  MINING DISTRIBUTION SUMMARY")
+        print("MINING DISTRIBUTION SUMMARY")
         print("=" * 50)
         
         total_blocks = sum(stats['blocks_mined'] for stats in miner_stats.values())
@@ -398,28 +416,28 @@ class BlockchainMonitor:
             mining_source = stats.get('mining_source', 'unknown')
             
             print(f"Mining Source: {mining_source}")
-            print(f"  📍 Address: {miner_address[:30]}..." if len(miner_address) > 30 else f"  📍 Address: {miner_address}")
+            print(f"  Address: {miner_address[:30]}..." if len(miner_address) > 30 else f"  Address: {miner_address}")
             print(f"  📦 Blocks: {stats['blocks_mined']} ({percentage:.1f}%)")
-            print(f"  💰 Rewards: {stats['total_rewards']}")
+            print(f"  Rewards: {stats['total_rewards']}")
             print(f"  📊 Range: #{stats['first_block']} → #{stats['last_block']}")
             print(f"  🏷️  Blocks: {stats['block_indices']}")
             print()
     
     def display_hash_chain_status(self, issues: List[Dict]):
         """Display hash chain integrity status"""
-        print("🔗 HASH CHAIN INTEGRITY")
+        print("HASH CHAIN INTEGRITY")
         print("=" * 30)
         
         if not issues:
-            print("✅ Perfect hash chain - no issues detected!")
+            print("Perfect hash chain - no issues detected!")
             print("   • All previous_hash values match")
             print("   • All block indices are sequential")
             print("   • All hashes meet difficulty requirements")
         else:
-            print(f"❌ {len(issues)} issues detected:")
+            print(f"{len(issues)} issues detected:")
             for issue in issues:
                 if issue['type'] == 'hash_mismatch':
-                    print(f"   🔗 Block #{issue['block_index']}: Hash mismatch")
+                    print(f"   Block #{issue['block_index']}: Hash mismatch")
                     print(f"      Expected: {issue['expected_prev_hash'][:32]}...")
                     print(f"      Actual:   {issue['actual_prev_hash'][:32]}...")
                 elif issue['type'] == 'index_gap':
@@ -427,7 +445,7 @@ class BlockchainMonitor:
                     print(f"      Expected: #{issue['expected_index']}")
                     print(f"      Actual:   #{issue['actual_index']}")
                 elif issue['type'] == 'invalid_difficulty':
-                    print(f"   🎯 Block #{issue['block_index']}: Invalid difficulty")
+                    print(f"   Block #{issue['block_index']}: Invalid difficulty")
                     print(f"      Required: starts with '{issue['required_prefix']}'")
                     print(f"      Actual:   {issue['actual_hash']}")
         print()
@@ -454,7 +472,7 @@ class BlockchainMonitor:
                                       key=lambda x: x.get('blockchain_length', 0))
                         self.node_url = best_node['url']
                         active_node_found = True
-                        print(f"✅ Connected to: {best_node['node_id']} ({self.node_url})")
+                        print(f"Connected to: {best_node['node_id']} ({self.node_url})")
                         print(f"📊 Blockchain length: {best_node.get('blockchain_length', 'unknown')}")
                         print(f"🌐 Found {len(discovered)} total active nodes")
                         print()
@@ -465,7 +483,7 @@ class BlockchainMonitor:
                 
                 data = self.get_blockchain_data()
                 if not data:
-                    print(f"❌ Lost connection to {self.node_url}")
+                    print(f"Lost connection to {self.node_url}")
                     active_node_found = False  # Try to rediscover
                     time.sleep(interval)
                     continue
@@ -509,14 +527,14 @@ class BlockchainMonitor:
         
         data = self.get_blockchain_data()
         if not data:
-            print("❌ Cannot connect to node")
+            print("Cannot connect to node")
             return
         
         blocks = data['chain']
         
         print(f"📦 Total blocks: {len(blocks)}")
-        print(f"🔗 Node: {self.node_url}")
-        print(f"🕐 Analysis time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+        print(f"Node: {self.node_url}")
+        print(f"Analysis time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
         print()
         
         # Show all blocks
@@ -555,7 +573,7 @@ def main():
         
         if node_url:
             monitor = BlockchainMonitor(node_url)
-            print(f"🎯 Monitoring specific node: {node_url}")
+            print(f"Monitoring specific node: {node_url}")
         else:
             monitor = BlockchainMonitor()  # Will auto-discover
             print("🌐 Auto-discovery mode: will find and connect to active nodes")
@@ -596,19 +614,19 @@ def main():
             for i in range(min_length):
                 if blocks1[i]['hash'] != blocks2[i]['hash']:
                     differences += 1
-                    print(f"❌ Block #{i} differs:")
+                    print(f"Block #{i} differs:")
                     print(f"   Node 1: {blocks1[i]['hash'][:32]}...")
                     print(f"   Node 2: {blocks2[i]['hash'][:32]}...")
             
             if differences == 0 and len(blocks1) == len(blocks2):
-                print("✅ Nodes are perfectly synchronized!")
+                print("Nodes are perfectly synchronized!")
             elif differences == 0:
-                print(f"✅ Synchronized up to block #{min_length-1}")
+                print(f"Synchronized up to block #{min_length-1}")
                 print(f"📊 Length difference: {abs(len(blocks1) - len(blocks2))} blocks")
             else:
-                print(f"❌ {differences} block differences detected!")
+                print(f"{differences} block differences detected!")
         else:
-            print("❌ Could not connect to one or both nodes")
+            print("Could not connect to one or both nodes")
 
 if __name__ == "__main__":
     main()

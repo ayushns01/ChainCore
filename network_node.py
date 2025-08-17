@@ -390,6 +390,39 @@ class ThreadSafeNetworkNode:
                 'chain': [block.to_dict() for block in chain_copy]
             })
         
+        @self.app.route('/blockchain/headers', methods=['GET'])
+        @synchronized("api_blockchain_headers", LockOrder.NETWORK, mode='read')
+        def get_blockchain_headers():
+            """Get blockchain headers for header-first sync (industry standard)"""
+            self._increment_api_calls()
+            
+            try:
+                chain_copy = self.blockchain.get_chain_copy()
+                headers = []
+                
+                for block in chain_copy:
+                    headers.append({
+                        'index': block.index,
+                        'hash': block.hash,
+                        'previous_hash': block.previous_hash,
+                        'timestamp': block.timestamp,
+                        'target_difficulty': block.target_difficulty,
+                        'nonce': block.nonce,
+                        'merkle_root': block.merkle_root
+                    })
+                
+                return jsonify({
+                    'headers': headers,
+                    'count': len(headers)
+                })
+                
+            except Exception as e:
+                logger.error(f"Error getting blockchain headers: {e}")
+                return jsonify({
+                    'error': 'Failed to get blockchain headers',
+                    'details': str(e)
+                }), 500
+        
         @self.app.route('/balance/<address>', methods=['GET'])
         @synchronized("api_balance", LockOrder.NETWORK, mode='read')
         def get_balance(address: str):
@@ -527,8 +560,9 @@ class ThreadSafeNetworkNode:
                 data = request.get_json() or {}
                 miner_address = data.get('miner_address', 'unknown')
                 
-                # Create block template
-                block_template = self.blockchain.create_block_template(miner_address)
+                # Create block template with node identification
+                mining_node = f"Node-{self.api_port}"
+                block_template = self.blockchain.create_block_template(miner_address, mining_node)
                 
                 return jsonify({
                     'status': 'template_created',
@@ -553,16 +587,14 @@ class ThreadSafeNetworkNode:
                 data = request.get_json()
                 block_data = data.get('block', data)  # Handle both formats
                 
-                # Reconstruct block
-                transactions = [Transaction.from_dict(tx) for tx in block_data['transactions']]
-                block = Block(
-                    block_data['index'],
-                    transactions,
-                    block_data['previous_hash'],
-                    block_data.get('timestamp'),
-                    block_data.get('nonce', 0),
-                    block_data.get('target_difficulty', BLOCKCHAIN_DIFFICULTY)
-                )
+                # Use Block.from_dict for proper mining attribution preservation
+                block = Block.from_dict(block_data)
+                
+                # If no mining node was preserved, use current node as fallback
+                if not hasattr(block, '_mining_metadata') or not block._mining_metadata.get('mining_node'):
+                    if not hasattr(block, '_mining_metadata'):
+                        block._mining_metadata = {}
+                    block._mining_metadata['mining_node'] = f"Node-{self.api_port}"
                 
                 # Validate and add block
                 if self.blockchain.add_block(block):
@@ -966,10 +998,13 @@ class ThreadSafeNetworkNode:
             interval=CONTINUOUS_DISCOVERY_INTERVAL
         )
         
-        # Configure automatic blockchain synchronization
-        self.peer_manager.configure_blockchain_sync(enabled=True, interval=30.0)
+        # Configure enhanced automatic blockchain synchronization for late-joining nodes
+        self.peer_manager.configure_blockchain_sync(enabled=True, interval=15.0)  # More frequent sync
         self.peer_manager.set_blockchain_reference(self.blockchain)
-        self.peer_manager.set_sync_callback(self._perform_automatic_sync)
+        self.peer_manager.set_sync_callback(self._perform_enhanced_automatic_sync)
+        
+        # Configure aggressive initial sync for late-joining nodes
+        self._configure_late_joiner_support()
         
         # Configure mempool synchronization
         self.peer_manager.configure_mempool_sync(enabled=True, interval=15.0)
@@ -1087,6 +1122,155 @@ class ThreadSafeNetworkNode:
                 
         except Exception as e:
             logger.error(f"Error in automatic blockchain sync: {e}")
+            self._stats['failed_syncs'] = self._stats.get('failed_syncs', 0) + 1
+    
+    def _configure_late_joiner_support(self):
+        """Configure aggressive sync for nodes joining the network late"""
+        # Start background thread for late-joiner detection and sync
+        import threading
+        sync_thread = threading.Thread(target=self._late_joiner_sync_loop, daemon=True)
+        sync_thread.start()
+        logger.info("🚀 Late-joiner support configured")
+    
+    def _late_joiner_sync_loop(self):
+        """Background loop to detect if this node is a late joiner and sync aggressively"""
+        import time
+        
+        # Wait for initial startup
+        time.sleep(5)
+        
+        while True:
+            try:
+                current_length = self.blockchain.get_chain_length()
+                
+                # Check if we're significantly behind the network
+                if self._detect_late_joiner_status(current_length):
+                    logger.info("🔄 Late-joiner detected - starting aggressive sync")
+                    self._perform_aggressive_sync()
+                
+                # Check every 30 seconds
+                time.sleep(30)
+                
+            except Exception as e:
+                logger.error(f"Error in late-joiner sync loop: {e}")
+                time.sleep(60)  # Wait longer on error
+    
+    def _detect_late_joiner_status(self, current_length: int) -> bool:
+        """Detect if this node is significantly behind the network"""
+        try:
+            # Get peer info to check network chain length
+            peers = self.peer_manager.get_active_peers()
+            if not peers:
+                return False
+            
+            # Sample a few peers to get network chain length
+            max_peer_length = 0
+            for peer_url in list(peers)[:3]:  # Check up to 3 peers
+                try:
+                    peer_info = self.peer_manager.get_peer_blockchain_info(peer_url)
+                    if peer_info and 'chain' in peer_info:
+                        peer_length = len(peer_info['chain'])
+                        max_peer_length = max(max_peer_length, peer_length)
+                except:
+                    continue
+            
+            # If we're more than 5 blocks behind, we're a late joiner
+            if max_peer_length > current_length + 5:
+                logger.info(f"📊 Chain length comparison: Local={current_length}, Network={max_peer_length}")
+                return True
+            
+            return False
+            
+        except Exception as e:
+            logger.error(f"Error detecting late-joiner status: {e}")
+            return False
+    
+    def _perform_aggressive_sync(self):
+        """Perform aggressive sync for late-joining nodes"""
+        try:
+            peers = self.peer_manager.get_active_peers()
+            if not peers:
+                logger.warning("⚠️  No peers available for aggressive sync")
+                return
+            
+            logger.info(f"🔄 Starting aggressive sync with {len(peers)} peers")
+            
+            # Try multiple peers to get the best chain
+            best_chain = None
+            best_length = 0
+            best_peer = None
+            
+            for peer_url in peers:
+                try:
+                    peer_info = self.peer_manager.get_peer_blockchain_info(peer_url)
+                    if peer_info and 'chain' in peer_info:
+                        peer_length = len(peer_info['chain'])
+                        if peer_length > best_length:
+                            best_chain = peer_info['chain']
+                            best_length = peer_length
+                            best_peer = peer_url
+                            
+                except Exception as e:
+                    logger.warning(f"Failed to get chain from {peer_url}: {e}")
+                    continue
+            
+            if best_chain and best_peer:
+                current_length = self.blockchain.get_chain_length()
+                logger.info(f"🎯 Found best chain: {best_length} blocks from {best_peer}")
+                
+                # Use enhanced smart sync
+                if self.blockchain.smart_sync_with_peer_chain(best_chain, best_peer):
+                    new_length = self.blockchain.get_chain_length()
+                    logger.info(f"✅ Aggressive sync successful: {current_length} → {new_length} blocks")
+                    logger.info(f"💾 Mining attribution preserved during aggressive sync")
+                else:
+                    logger.error("❌ Aggressive sync failed")
+            else:
+                logger.warning("⚠️  No suitable chain found for aggressive sync")
+                
+        except Exception as e:
+            logger.error(f"Error in aggressive sync: {e}")
+    
+    def _perform_enhanced_automatic_sync(self):
+        """Enhanced automatic sync that preserves mining attribution and updates balances"""
+        try:
+            logger.debug("🔄 Starting enhanced automatic blockchain sync")
+            
+            # Get current chain length
+            current_length = self.blockchain.get_chain_length()
+            
+            # Get peer blockchain info with mining attribution preservation
+            peer_sync_result = self.peer_manager.sync_with_best_peer_enhanced()
+            
+            if peer_sync_result:
+                peer_url_result, chain_data = peer_sync_result
+                
+                logger.info(f"📡 Enhanced sync with peer: {peer_url_result}")
+                logger.info(f"📊 Current chain length: {current_length}")
+                logger.info(f"📊 Peer chain length: {len(chain_data)}")
+                
+                # Use industry-standard smart sync with enhanced features
+                if self.blockchain.smart_sync_with_peer_chain(chain_data, peer_url_result):
+                    new_length = self.blockchain.get_chain_length()
+                    logger.info(f"🎉 Enhanced Blockchain Sync Successful!")
+                    logger.info(f"   📊 Chain updated: {current_length} -> {new_length} blocks")
+                    logger.info(f"   🌐 Source: {peer_url_result}")
+                    logger.info(f"   💾 Mining history: PRESERVED")
+                    logger.info(f"   💰 Wallet balances: UPDATED")
+                    
+                    # Update stats
+                    self._stats['successful_syncs'] = self._stats.get('successful_syncs', 0) + 1
+                    self._stats['last_sync_time'] = time.time()
+                    logger.info(f"   📈 Total successful syncs: {self._stats['successful_syncs']}")
+                else:
+                    logger.error("❌ Enhanced Smart Sync Failed!")
+                    logger.error("   🔍 Chain validation failed or sync error occurred")
+                    self._stats['failed_syncs'] = self._stats.get('failed_syncs', 0) + 1
+            else:
+                logger.info("⚠️  Enhanced Automatic Sync: No suitable peers available for sync")
+                
+        except Exception as e:
+            logger.error(f"Error in enhanced automatic blockchain sync: {e}")
             self._stats['failed_syncs'] = self._stats.get('failed_syncs', 0) + 1
     
     def _add_synced_transaction(self, tx_data: dict, peer_url: str):

@@ -937,7 +937,7 @@ class ThreadSafeBlockchain:
         with self._stats_lock:
             return copy.deepcopy(self._stats)
     
-    def create_block_template(self, miner_address: str):
+    def create_block_template(self, miner_address: str, mining_node: str = None):
         """
         Create mining block template with thread safety
         """
@@ -975,7 +975,8 @@ class ThreadSafeBlockchain:
                 len(self._chain),
                 all_transactions,
                 self._chain[-1].hash if self._chain else "0" * 64,
-                target_difficulty=self.target_difficulty
+                target_difficulty=self.target_difficulty,
+                mining_node=mining_node
             )
         
         logger.info(f"Block template created: index={new_block.index}, txs={len(all_transactions)}, fees={total_fees}")

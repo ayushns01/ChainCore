@@ -39,7 +39,7 @@ class NetworkBlockchainMonitor:
         """Automatically discover all active peers in the network"""
         discovered_peers = set()
         
-        print(f"🔍 Discovering active peers on ports {self.discovery_start_port}-{self.discovery_end_port}...")
+        print(f"Discovering active peers on ports {self.discovery_start_port}-{self.discovery_end_port}...")
         
         def check_peer(port: int) -> Optional[str]:
             """Check if a peer is active on the given port"""
@@ -169,16 +169,40 @@ class NetworkBlockchainMonitor:
                 return False
         return True
     
-    def extract_miner_from_block(self, block: Dict) -> str:
-        """Extract miner address from block's coinbase transaction"""
+    def extract_miner_from_block(self, block: Dict) -> tuple:
+        """Extract miner address and mining node from block data with attribution preservation"""
         try:
             # First transaction should be coinbase
             coinbase_tx = block['transactions'][0]
+            miner_address = "unknown"
             if coinbase_tx['outputs']:
-                return coinbase_tx['outputs'][0]['recipient_address']
-            return "unknown"
-        except (KeyError, IndexError):
-            return "unknown"
+                miner_address = coinbase_tx['outputs'][0]['recipient_address']
+            
+            # CRITICAL: Read actual mining node from block metadata (industry standard)
+            mining_node = "unknown"
+            
+            # Priority 1: Check mining_metadata (complete attribution info)
+            if 'mining_metadata' in block and isinstance(block['mining_metadata'], dict):
+                metadata = block['mining_metadata']
+                if 'mining_node' in metadata and metadata['mining_node']:
+                    mining_node = metadata['mining_node']
+                elif 'mining_provenance' in metadata and isinstance(metadata['mining_provenance'], dict):
+                    provenance = metadata['mining_provenance']
+                    if 'mining_node' in provenance and provenance['mining_node']:
+                        mining_node = provenance['mining_node']
+            
+            # Priority 2: Check direct mining_node field
+            elif 'mining_node' in block and block['mining_node']:
+                mining_node = block['mining_node']
+            
+            # Priority 3: Default to unknown if no mining attribution found
+            else:
+                mining_node = "unknown"
+            
+            return miner_address, mining_node
+            
+        except (KeyError, IndexError) as e:
+            return "unknown", "unknown"
     
     def verify_hash_chain(self, blocks: List[Dict]) -> List[Dict]:
         """Verify the hash chain integrity and return issues"""
@@ -223,9 +247,13 @@ class NetworkBlockchainMonitor:
         miner_stats = {}
         
         for block in blocks:
-            miner = self.extract_miner_from_block(block)
-            if miner not in miner_stats:
-                miner_stats[miner] = {
+            miner_address, mining_node = self.extract_miner_from_block(block)
+            # Use mining node as the key for proper attribution
+            miner_key = f"{mining_node} ({miner_address[:10]}...)" if len(miner_address) > 10 else f"{mining_node} ({miner_address})"
+            if miner_key not in miner_stats:
+                miner_stats[miner_key] = {
+                    'miner_address': miner_address,
+                    'mining_node': mining_node,
                     'blocks_mined': 0,
                     'block_indices': [],
                     'total_rewards': 0.0,
@@ -233,7 +261,7 @@ class NetworkBlockchainMonitor:
                     'last_block': block['index']
                 }
             
-            stats = miner_stats[miner]
+            stats = miner_stats[miner_key]
             stats['blocks_mined'] += 1
             stats['block_indices'].append(block['index'])
             stats['last_block'] = block['index']
@@ -277,7 +305,7 @@ class NetworkBlockchainMonitor:
         
         # Basic network stats
         print(f"📊 Active Peers: {len(self.active_peers)}")
-        print(f"📦 Longest Chain: {self.network_stats['longest_chain_length']} blocks")
+        print(f"Longest Chain: {self.network_stats['longest_chain_length']} blocks")
         print(f"🎯 Consensus: {self.network_stats['consensus_status'].upper()}")
         print()
         
@@ -291,7 +319,7 @@ class NetworkBlockchainMonitor:
                 status_icon = "🟢" if analysis['thread_safe'] else "🟡"
                 print(f"{status_icon} {peer_url}")
                 print(f"   🆔 Node ID: {analysis['node_id']}")
-                print(f"   📦 Chain Length: {analysis['blockchain_length']}")
+                print(f"   Chain Length: {analysis['blockchain_length']}")
                 print(f"   📝 Pending TXs: {analysis['pending_transactions']}")
                 print(f"   🌐 Connected Peers: {analysis['peers_connected']}")
                 print(f"   🎯 Difficulty: {analysis['target_difficulty']}")
@@ -312,19 +340,19 @@ class NetworkBlockchainMonitor:
             print("-" * 25)
             print("🔀 Different chain lengths detected:")
             for length, peer_count in sorted(chains_by_length.items(), reverse=True):
-                print(f"   📦 {length} blocks: {peer_count} peer(s)")
+                print(f"   {length} blocks: {peer_count} peer(s)")
             print("   💡 Network may be experiencing forks or sync issues")
             print()
     
     def display_peer_mining_comparison(self, miner_stats: Dict):
         """Display mining distribution with peer information"""
-        print("⛏️  NETWORK-WIDE MINING DISTRIBUTION")
+        print("NETWORK-WIDE MINING DISTRIBUTION")
         print("=" * 50)
         
         total_blocks = sum(stats['blocks_mined'] for stats in miner_stats.values())
         
         if total_blocks == 0:
-            print("📦 No blocks mined yet in the network")
+            print("No blocks mined yet in the network")
             return
         
         # Try to correlate miners with peer nodes
@@ -333,8 +361,8 @@ class NetworkBlockchainMonitor:
         for miner, stats in sorted(miner_stats.items(), key=lambda x: x[1]['blocks_mined'], reverse=True):
             percentage = (stats['blocks_mined'] / total_blocks * 100) if total_blocks > 0 else 0
             
-            print(f"⛏️  Miner: {miner[:40]}...")
-            print(f"   📦 Blocks: {stats['blocks_mined']} ({percentage:.1f}%)")
+            print(f"Miner: {miner[:40]}...")
+            print(f"   Blocks: {stats['blocks_mined']} ({percentage:.1f}%)")
             print(f"   💰 Rewards: {stats['total_rewards']:.2f} CC")
             print(f"   📊 Range: #{stats['first_block']} → #{stats['last_block']}")
             print(f"   🏷️  Recent Blocks: {stats['block_indices'][-5:]}")  # Show last 5 blocks
@@ -354,28 +382,19 @@ class NetworkBlockchainMonitor:
         return None
     
     def display_block_details(self, block: Dict, is_new: bool = False, source_peer: str = None):
-        """Display simple block information focused on mining attribution"""
-        miner = self.extract_miner_from_block(block)
+        """Display simple block information with proper mining attribution"""
+        miner_address, mining_node = self.extract_miner_from_block(block)
         timestamp = datetime.fromtimestamp(block['timestamp']).strftime("%H:%M:%S")
         
-        # Extract node information from source peer
-        node_info = "unknown"
-        if source_peer:
-            try:
-                port = source_peer.split(':')[-1]
-                node_info = f"Node-{port}"
-            except:
-                node_info = source_peer
-        
-        status = "🆕 NEW" if is_new else "📦"
+        status = "NEW" if is_new else "BLOCK"
         
         print(f"{status} Block #{block['index']}")
-        print(f"   ⛏️  Mined by: {node_info}")
-        print(f"   📍 Address: {miner[:40]}...")
-        print(f"   🕐 Time: {timestamp}")
-        print(f"   🔗 Hash: {block['hash'][:32]}...")
-        print(f"   ⬅️  Prev: {block['previous_hash'][:32]}...")
-        print(f"   🔢 Nonce: {block['nonce']}")
+        print(f"   Mined by: {mining_node}")
+        print(f"   Address: {miner_address[:40]}..." if len(miner_address) > 40 else f"   Address: {miner_address}")
+        print(f"   Time: {timestamp}")
+        print(f"   Hash: {block['hash'][:32]}...")
+        print(f"   Prev: {block['previous_hash'][:32]}...")
+        print(f"   Nonce: {block['nonce']}")
         print()
         
         # Show coinbase reward
@@ -383,7 +402,7 @@ class NetworkBlockchainMonitor:
             coinbase_tx = block['transactions'][0]
             if coinbase_tx['outputs']:
                 reward = coinbase_tx['outputs'][0]['amount']
-                print(f"   💵 Reward: {reward}")
+                print(f"   Reward: {reward}")
         except (KeyError, IndexError):
             pass
         
@@ -391,7 +410,7 @@ class NetworkBlockchainMonitor:
     
     def display_mining_summary(self, miner_stats: Dict):
         """Display mining distribution summary"""
-        print("⛏️  MINING DISTRIBUTION SUMMARY")
+        print("MINING DISTRIBUTION SUMMARY")
         print("=" * 50)
         
         total_blocks = sum(stats['blocks_mined'] for stats in miner_stats.values())
@@ -400,7 +419,7 @@ class NetworkBlockchainMonitor:
             percentage = (stats['blocks_mined'] / total_blocks * 100) if total_blocks > 0 else 0
             
             print(f"Miner: {miner[:30]}...")
-            print(f"  📦 Blocks: {stats['blocks_mined']} ({percentage:.1f}%)")
+            print(f"  Blocks: {stats['blocks_mined']} ({percentage:.1f}%)")
             print(f"  💰 Rewards: {stats['total_rewards']}")
             print(f"  📊 Range: #{stats['first_block']} → #{stats['last_block']}")
             print(f"  🏷️  Blocks: {stats['block_indices']}")
@@ -408,7 +427,7 @@ class NetworkBlockchainMonitor:
     
     def display_hash_chain_status(self, issues: List[Dict]):
         """Display hash chain integrity status"""
-        print("🔗 HASH CHAIN INTEGRITY")
+        print("HASH CHAIN INTEGRITY")
         print("=" * 30)
         
         if not issues:
@@ -420,7 +439,7 @@ class NetworkBlockchainMonitor:
             print(f"❌ {len(issues)} issues detected:")
             for issue in issues:
                 if issue['type'] == 'hash_mismatch':
-                    print(f"   🔗 Block #{issue['block_index']}: Hash mismatch")
+                    print(f"   Block #{issue['block_index']}: Hash mismatch")
                     print(f"      Expected: {issue['expected_prev_hash'][:32]}...")
                     print(f"      Actual:   {issue['actual_prev_hash'][:32]}...")
                 elif issue['type'] == 'index_gap':
@@ -437,7 +456,7 @@ class NetworkBlockchainMonitor:
         """Monitor blockchain across all network peers in real-time"""
         print("🚀 ChainCore Network-Wide Blockchain Monitor")
         print("=" * 60)
-        print(f"🔍 Auto-discovery range: ports {self.discovery_start_port}-{self.discovery_end_port}")
+        print(f"Auto-discovery range: ports {self.discovery_start_port}-{self.discovery_end_port}")
         print(f"📊 Update interval: {interval} seconds")
         print(f"🔄 Peer rediscovery: every {rediscover_interval} seconds")
         print("Press Ctrl+C to stop\n")
@@ -493,7 +512,7 @@ class NetworkBlockchainMonitor:
                     # Show new blocks from this peer
                     if current_peer_length > last_peer_length:
                         port = peer_url.split(':')[-1]
-                        print(f"🆕 New blocks from Node-{port} ({peer_url}):")
+                        print(f"New blocks from Node-{port} ({peer_url}):")
                         
                         for i in range(last_peer_length, current_peer_length):
                             if i < len(chain):
@@ -537,7 +556,7 @@ class NetworkBlockchainMonitor:
         consensus_percentage = (consensus_peers / total_peers * 100) if total_peers > 0 else 0
         
         print(f"📊 Consensus: {consensus_peers}/{total_peers} peers ({consensus_percentage:.1f}%)")
-        print(f"📦 Canonical Chain: {len(longest_chain)} blocks")
+        print(f"Canonical Chain: {len(longest_chain)} blocks")
         
         if consensus_percentage >= 80:
             print("✅ Strong consensus - network is stable")
@@ -559,7 +578,7 @@ class NetworkBlockchainMonitor:
                 if len(chain_lengths) > 1:
                     print("\n🔀 Chain length conflicts:")
                     for length, peers in sorted(chain_lengths.items(), reverse=True):
-                        print(f"   📦 {length} blocks: {len(peers)} peer(s)")
+                        print(f"   {length} blocks: {len(peers)} peer(s)")
                         for peer in peers:
                             print(f"      • {peer}")
         
@@ -585,10 +604,10 @@ class NetworkBlockchainMonitor:
         
         blocks = data['chain']
         
-        print(f"📦 Total blocks: {len(blocks)}")
+        print(f"Total blocks: {len(blocks)}")
         print(f"🌐 Active peers: {len(self.active_peers)}")
         print(f"🎯 Consensus: {data.get('consensus_peers', 0)}/{data.get('peer_count', 0)} peers")
-        print(f"🕐 Analysis time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+        print(f"Analysis time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
         print()
         
         # Network status overview
@@ -651,7 +670,7 @@ def main():
         url1 = sys.argv[2] if len(sys.argv) > 2 else "http://localhost:5000"
         url2 = sys.argv[3] if len(sys.argv) > 3 else "http://localhost:5001"
         
-        print("🔍 Comparing two blockchain nodes")
+        print("Comparing two blockchain nodes")
         print("=" * 40)
         
         # Use the new network monitor for better comparison
@@ -694,7 +713,7 @@ def main():
         interval = int(sys.argv[3]) if len(sys.argv) > 3 else 3
         
         print("🔄 Legacy single-node monitoring mode")
-        print(f"📍 Monitoring: {node_url}")
+        print(f"Monitoring: {node_url}")
         print("💡 Use 'monitor' command for network-wide monitoring")
         print()
         
