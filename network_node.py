@@ -1047,12 +1047,18 @@ class ThreadSafeNetworkNode:
         else:
             self.peer_manager.set_self_url(self_url)
         
-        # Start API server (this will block)
+        # API server already started in background - just keep main thread alive
         logger.info("🚀 Starting ChainCore Network Node...")
-        logger.info(f"   🌐 API Server starting on port {self.api_port}")
+        logger.info(f"   🌐 API Server running on port {self.api_port}")
         logger.info("   🔄 All sync mechanisms activated")
         logger.info("   🎯 Ready to accept connections!")
-        self.start_api_server()
+        
+        # Keep main thread alive to prevent daemon threads from exiting
+        try:
+            while True:
+                time.sleep(1)
+        except KeyboardInterrupt:
+            logger.info("🛑 Shutdown requested by user")
     
     def _perform_automatic_sync(self, peer_url: str, current_length: int, peer_length: int):
         """Callback for automatic blockchain synchronization"""

@@ -1,8 +1,14 @@
 {
   "permissions": {
-    "defaultMode": "acceptEdits",
     "allow": [
-      "Bash(find:*)"
-    ]
+      "Bash(find:*)",
+      "Bash(python3 -m pip install:*)",
+      "Bash(./venv/bin/python -m pip install:*)",
+      "Bash(pkill:*)",
+      "Bash(curl:*)",
+      "Bash(lsof:*)",
+      "Bash(./venv/bin/python:*)"
+    ],
+    "defaultMode": "acceptEdits"
   }
 }

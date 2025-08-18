@@ -17,7 +17,7 @@ python3 mining_client.py --wallet test_miner --node http://localhost:5000 &
 ### **Real-Time Monitoring:**
 ```bash
 # Live blockchain monitor (shows new blocks as they're mined)
-python3 src/blockchain/blockchain_monitor.py monitor
+python3 blockchain_monitor.py monitor
 
 # Quick block summary with miners
 python3 src/blockchain/quick_blockchain_check.py summary
@@ -47,7 +47,7 @@ python3 network_node.py --node-id core1 --api-port 5001 --p2p-port 8001 &
 python3 src/blockchain/quick_blockchain_check.py compare http://localhost:5000 http://localhost:5001
 
 # Detailed comparison
-python3 src/blockchain/blockchain_monitor.py compare http://localhost:5000 http://localhost:5001
+python3 blockchain_monitor.py compare http://localhost:5000 http://localhost:5001
 ```
 
 ### **Manual Verification Commands:**
@@ -196,7 +196,7 @@ for block in data['chain']:
 curl -s http://localhost:5000/status
 
 # Restart tracking with different node
-python3 src/blockchain/blockchain_monitor.py monitor http://localhost:5001
+python3 blockchain_monitor.py monitor http://localhost:5001
 ```
 
 ### **If hash chain shows issues:**

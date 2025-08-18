@@ -260,6 +260,10 @@ class MiningClient:
         # Reset hash count tracking for new mining attempt
         self._last_hash_count = 0
         
+        # Preserve mining metadata from block template
+        mining_metadata = block_template.get('mining_metadata', {})
+        mining_node = block_template.get('mining_node', 'unknown')
+        
         while time.time() - start_time < timeout:
             if not self.is_mining:  # Check if mining was stopped
                 print("🛑 Mining stopped")
@@ -296,7 +300,15 @@ class MiningClient:
                 print(f"   🔥 Hash Rate: {hash_rate:.0f} H/s")
                 print("   📤 Submitting to network...")
                 
+                # Preserve all original block template data including mining metadata
                 block_template['hash'] = block_hash
+                
+                # Ensure mining metadata is preserved in the final block
+                if mining_metadata:
+                    block_template['mining_metadata'] = mining_metadata
+                if mining_node != 'unknown':
+                    block_template['mining_node'] = mining_node
+                
                 return block_template
             
             nonce += 1
