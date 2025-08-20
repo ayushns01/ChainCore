@@ -7,7 +7,9 @@
       "Bash(pkill:*)",
       "Bash(curl:*)",
       "Bash(lsof:*)",
-      "Bash(./venv/bin/python:*)"
+      "Bash(./venv/bin/python:*)",
+      "Bash(rm:*)",
+      "Bash(powershell:*)"
     ],
     "defaultMode": "acceptEdits"
   }

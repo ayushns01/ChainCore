@@ -346,25 +346,51 @@ class MiningClient:
             
             if response.status_code == 200:
                 result = response.json()
-                print(f"✅ Block submitted successfully!")
-                print(f"   Status: {result['status']}")
-                print(f"   Block hash: {result['block_hash']}")
-                return True
+                status = result.get('status', 'unknown')
+                
+                if status == 'accepted':
+                    block_hash = result.get('block_hash', 'unknown')
+                    chain_length = result.get('chain_length', 'unknown')
+                    mining_source = result.get('mining_source', 'unknown')
+                    
+                    print(f"✅ BLOCK ACCEPTED by network!")
+                    print(f"   📋 Block Hash: {block_hash[:32]}...")
+                    print(f"   📊 Block Index: {mined_block['index']}")
+                    print(f"   📈 Chain Length: {chain_length}")
+                    print(f"   🏭 Source: {mining_source}")
+                    return True
+                else:
+                    error_msg = result.get('error', 'Unknown error')
+                    print(f"❌ BLOCK REJECTED: {error_msg}")
+                    return False
+                    
+            elif response.status_code == 409:
+                # Conflict - block already exists (race condition)
+                result = response.json()
+                error_msg = result.get('error', 'Block conflict')
+                reason = result.get('reason', 'conflict')
+                
+                print(f"🏁 MINING RACE LOST: {error_msg}")
+                print(f"   ⚡ Another miner submitted this block first")
+                print(f"   🎯 Reason: {reason}")
+                return False
+                
             elif response.status_code == 400:
                 error_info = response.json()
-                print(f"❌ Block submission rejected: {error_info.get('error', 'Unknown error')}")
+                error_msg = error_info.get('error', 'Unknown error')
+                reason = error_info.get('reason', 'validation_failed')
                 
-                # Check if it's a stale block error
-                error_str = str(error_info).lower()
-                if 'previous hash' in error_str or 'index' in error_str:
-                    print("📄 Block is stale (blockchain moved forward during mining)")
-                elif 'fork detected' in error_str or 'already exists' in error_str:
-                    print("🍴 Fork detected or duplicate block (another miner won)")
-                elif 'invalid transaction' in error_str:
-                    print("💸 Transaction validation failed (possibly spent UTXOs)")
-                else:
-                    print(f"❌ Validation failed: {error_info}")
-                    
+                print(f"❌ BLOCK VALIDATION FAILED: {error_msg}")
+                print(f"   🔍 Reason: {reason}")
+                
+                # Enhanced error handling for specific cases
+                if reason == 'invalid_block_data':
+                    print("   💾 Block data structure is invalid")
+                elif 'previous hash' in error_msg.lower():
+                    print("   📄 Block is stale (blockchain moved forward during mining)")
+                elif 'transaction' in error_msg.lower():
+                    print("   💸 Transaction validation failed (possibly spent UTXOs)")
+                
                 return False
             else:
                 print(f"❌ Block submission failed with status {response.status_code}: {response.text}")

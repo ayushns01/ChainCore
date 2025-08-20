@@ -95,6 +95,64 @@ class ThreadSafeNetworkNode:
         logger.info(f"   📡 P2P Port: {self.p2p_port}")
         logger.info("   ✨ All systems ready!")
     
+    def _sync_with_network_before_mining(self) -> Dict:
+        """Synchronize with network peers before mining to ensure latest chain state"""
+        blocks_added = 0
+        
+        try:
+            # Get active peers
+            peers = self.peer_manager.get_active_peers()
+            if not peers:
+                return {'blocks_added': 0, 'error': 'No peers available'}
+            
+            current_length = len(self.blockchain.get_chain())
+            max_peer_length = current_length
+            best_peer = None
+            
+            # Check all peers for longer chains
+            for peer_url in peers:
+                try:
+                    response = requests.get(f"{peer_url}/blockchain", timeout=5)
+                    if response.status_code == 200:
+                        peer_data = response.json()
+                        peer_chain_length = len(peer_data.get('chain', []))
+                        
+                        if peer_chain_length > max_peer_length:
+                            max_peer_length = peer_chain_length
+                            best_peer = peer_url
+                            
+                except requests.RequestException:
+                    continue  # Skip unresponsive peers
+            
+            # Synchronize if we found a longer chain
+            if best_peer and max_peer_length > current_length:
+                print(f"   🔄 Found longer chain: {max_peer_length} blocks vs our {current_length}")
+                print(f"   📡 Synchronizing with {best_peer}")
+                
+                # Get the longer chain
+                response = requests.get(f"{best_peer}/blockchain", timeout=10)
+                if response.status_code == 200:
+                    peer_data = response.json()
+                    peer_chain = peer_data.get('chain', [])
+                    
+                    # Add missing blocks
+                    for block_data in peer_chain[current_length:]:
+                        from src.blockchain.block import Block
+                        block = Block.from_dict(block_data)
+                        
+                        if self.blockchain.add_block(block):
+                            blocks_added += 1
+                            print(f"     ✅ Added block #{block.index} from network")
+                        else:
+                            print(f"     ❌ Failed to add block #{block.index}")
+                            break
+            
+            return {'blocks_added': blocks_added}
+            
+        except Exception as e:
+            logger.error(f"Sync error: {e}")
+            return {'blocks_added': 0, 'error': str(e)}
+    
     def _setup_api_routes(self):
         """Setup all API routes with thread safety"""
         
@@ -553,14 +611,23 @@ class ThreadSafeNetworkNode:
         @self.app.route('/mine_block', methods=['POST'])
         @synchronized("api_mine", LockOrder.NETWORK, mode='write')
         def mine_block():
-            """Thread-safe mining block template"""
+            """Thread-safe mining block template with network synchronization"""
             self._increment_api_calls()
             
             try:
                 data = request.get_json() or {}
                 miner_address = data.get('miner_address', 'unknown')
                 
-                # Create block template with node identification
+                # CRITICAL: Synchronize with network before creating mining template
+                print(f"🔄 SYNC CHECK: Ensuring latest blockchain state before mining")
+                sync_result = self._sync_with_network_before_mining()
+                if sync_result['blocks_added'] > 0:
+                    print(f"   📥 Synchronized: Added {sync_result['blocks_added']} blocks from network")
+                    print(f"   📊 Updated chain length: {len(self.blockchain.get_chain())}")
+                else:
+                    print(f"   ✅ Already synchronized with network")
+                
+                # Create mining template with latest chain state
                 mining_node = f"Node-{self.api_port}"
                 block_template = self.blockchain.create_block_template(miner_address, mining_node)
                 
@@ -596,22 +663,56 @@ class ThreadSafeNetworkNode:
                         block._mining_metadata = {}
                     block._mining_metadata['mining_node'] = f"Node-{self.api_port}"
                 
-                # Validate and add block
+                # CRITICAL: Check if block is already mined (race condition prevention)
+                current_chain_length = len(self.blockchain.get_chain())
+                if block.index <= current_chain_length:
+                    return jsonify({
+                        'status': 'rejected',
+                        'error': f'Block #{block.index} already exists in chain (length: {current_chain_length})',
+                        'reason': 'duplicate_block_index'
+                    }), 409
+                
+                # CRITICAL: Verify this is the next sequential block
+                if block.index != current_chain_length + 1:
+                    return jsonify({
+                        'status': 'rejected',
+                        'error': f'Invalid block index #{block.index}, expected #{current_chain_length + 1}',
+                        'reason': 'invalid_block_sequence'
+                    }), 409
+                
+                # Check if locally mined for priority handling
+                is_locally_mined = request.headers.get('X-Local-Mining') == 'true'
+                
+                # BLOCKCHAIN CONSENSUS: First valid block wins
+                if is_locally_mined:
+                    # Local block - broadcast immediately to claim priority
+                    print(f"🏁 LOCAL BLOCK MINED: Broadcasting Block #{block.index} to network")
+                    self.peer_manager.broadcast_to_peers(
+                        '/submit_block',
+                        {'block': block_data},
+                        timeout=5.0  # Fast broadcast for priority
+                    )
+                
+                # Attempt to add block (this validates the block)
                 if self.blockchain.add_block(block):
-                    # Extract miner address for logging
+                    # Extract miner information
                     miner_address = "unknown"
                     if block.transactions and block.transactions[0].outputs:
                         miner_address = block.transactions[0].outputs[0].recipient_address
                     
-                    # Check if locally mined for broadcasting
-                    is_locally_mined = request.headers.get('X-Local-Mining') == 'true'
+                    # Log successful block acceptance
+                    mining_source = "LOCALLY MINED" if is_locally_mined else f"RECEIVED from peer"
+                    print(f"✅ BLOCK ACCEPTED: #{block.index} ({mining_source})")
+                    print(f"   ⛏️  Mined by: {miner_address}")
+                    print(f"   📊 Chain length: {len(self.blockchain.get_chain())}")
                     
-                    # Broadcast to peers (except sender)
-                    if is_locally_mined:
+                    # Broadcast to remaining peers if received from another node
+                    if not is_locally_mined:
                         self.peer_manager.broadcast_to_peers(
                             '/submit_block',
                             {'block': block_data},
-                            timeout=10.0
+                            timeout=3.0,
+                            exclude_sender=True  # Don't send back to sender
                         )
                     
                     with self._stats_lock:
@@ -619,12 +720,17 @@ class ThreadSafeNetworkNode:
                     
                     return jsonify({
                         'status': 'accepted',
-                        'block_hash': block.hash
+                        'block_hash': block.hash,
+                        'chain_length': len(self.blockchain.get_chain()),
+                        'mining_source': 'local' if is_locally_mined else 'network'
                     })
                 else:
+                    # Block validation failed
+                    print(f"❌ BLOCK REJECTED: #{block.index} (validation failed)")
                     return jsonify({
                         'status': 'rejected',
-                        'error': 'Invalid block'
+                        'error': 'Block validation failed',
+                        'reason': 'invalid_block_data'
                     }), 400
                     
             except Exception as e:

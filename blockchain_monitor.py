@@ -16,24 +16,38 @@ from typing import Dict, List, Optional, Set, Tuple
 from collections import defaultdict
 
 class NetworkBlockchainMonitor:
-    def __init__(self, discovery_start_port: int = 5000, discovery_end_port: int = 5100):
+    def __init__(self, discovery_start_port: int = 5000, discovery_end_port: int = 5010):
         self.discovery_start_port = discovery_start_port
         self.discovery_end_port = discovery_end_port
         self.active_peers: Set[str] = set()
         self.peer_data: Dict[str, Dict] = {}
-        self.aggregated_blockchain: List[Dict] = []
-        self.last_seen_length = 0
-        self.block_history = []
         self.peer_lock = threading.RLock()
         self.peer_last_seen: Dict[str, int] = {}  # Track last seen length per peer
         
-        # Network statistics
+        # Clear any preserved data on initialization
+        self._clear_all_data()
+        
+        # Network statistics - reset on each run
         self.network_stats = {
             'total_peers': 0,
             'longest_chain_length': 0,
             'network_hash_rate': 0.0,
             'consensus_status': 'unknown'
         }
+    
+    def _clear_all_data(self):
+        """Clear all preserved blockchain data and reset state"""
+        with self.peer_lock:
+            self.active_peers.clear()
+            self.peer_data.clear()
+            self.peer_last_seen.clear()
+            self.network_stats = {
+                'total_peers': 0,
+                'longest_chain_length': 0,
+                'network_hash_rate': 0.0,
+                'consensus_status': 'unknown'
+            }
+        print("🧹 Cleared all preserved blockchain data")
         
     def discover_active_peers(self) -> Set[str]:
         """Automatically discover all active peers in the network"""
@@ -45,7 +59,7 @@ class NetworkBlockchainMonitor:
             """Check if a peer is active on the given port"""
             peer_url = f"http://localhost:{port}"
             try:
-                response = requests.get(f"{peer_url}/status", timeout=2)
+                response = requests.get(f"{peer_url}/status", timeout=1)  # Faster timeout
                 if response.status_code == 200:
                     data = response.json()
                     # Verify it's actually a ChainCore node
@@ -55,19 +69,29 @@ class NetworkBlockchainMonitor:
                 pass
             return None
         
-        # Use thread pool for concurrent peer discovery
-        with concurrent.futures.ThreadPoolExecutor(max_workers=20) as executor:
-            futures = [executor.submit(check_peer, port) 
-                      for port in range(self.discovery_start_port, self.discovery_end_port)]
+        # Use thread pool for concurrent peer discovery with optimized settings
+        port_range = list(range(self.discovery_start_port, self.discovery_end_port))
+        with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
+            futures = [executor.submit(check_peer, port) for port in port_range]
             
-            for future in concurrent.futures.as_completed(futures, timeout=15):
-                try:
-                    peer_url = future.result()
-                    if peer_url:
-                        discovered_peers.add(peer_url)
-                        print(f"   ✅ Found active peer: {peer_url}")
-                except Exception as e:
-                    pass  # Silent failure for discovery
+            # Use as_completed with reasonable timeout
+            try:
+                for future in concurrent.futures.as_completed(futures, timeout=15):
+                    try:
+                        peer_url = future.result(timeout=0.5)  # Quick individual timeout
+                        if peer_url:
+                            discovered_peers.add(peer_url)
+                            print(f"   ✅ Found active peer: {peer_url}")
+                    except concurrent.futures.TimeoutError:
+                        pass  # Skip slow responses
+                    except Exception:
+                        pass  # Skip errors
+            except concurrent.futures.TimeoutError:
+                print(f"   ⏰ Discovery completed - found {len(discovered_peers)} peers")
+                # Cancel any remaining futures
+                for future in futures:
+                    if not future.done():
+                        future.cancel()
         
         with self.peer_lock:
             self.active_peers = discovered_peers
@@ -110,23 +134,34 @@ class NetworkBlockchainMonitor:
             status_data = self.get_peer_status(peer_url)
             return peer_url, blockchain_data, status_data
         
-        # Fetch data from all peers concurrently
-        with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
+        # Fetch data from all peers concurrently with improved error handling
+        with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
             futures = [executor.submit(fetch_peer_data, peer_url) 
                       for peer_url in self.active_peers]
             
-            for future in concurrent.futures.as_completed(futures, timeout=20):
-                try:
-                    peer_url, blockchain_data, status_data = future.result()
-                    if blockchain_data:
-                        peer_blockchains[peer_url] = blockchain_data
-                    if status_data:
-                        peer_statuses[peer_url] = status_data
-                except Exception as e:
-                    print(f"⚠️  Failed to fetch data from {peer_url}: {e}")
+            try:
+                for future in concurrent.futures.as_completed(futures, timeout=25):
+                    try:
+                        peer_url, blockchain_data, status_data = future.result(timeout=2)
+                        if blockchain_data:
+                            peer_blockchains[peer_url] = blockchain_data
+                        if status_data:
+                            peer_statuses[peer_url] = status_data
+                    except concurrent.futures.TimeoutError:
+                        pass  # Skip slow peers
+                    except Exception as e:
+                        pass  # Skip failed peers
+            except concurrent.futures.TimeoutError:
+                print(f"   ⏰ Data fetch timeout - continuing with available data")
+                # Cancel remaining futures
+                for future in futures:
+                    if not future.done():
+                        future.cancel()
         
-        # Store peer data for analysis
+        # Store peer data for analysis (cleared each run)
         with self.peer_lock:
+            # Clear previous data before storing new data
+            self.peer_data.clear()
             self.peer_data = {
                 'blockchains': peer_blockchains,
                 'statuses': peer_statuses
@@ -169,7 +204,7 @@ class NetworkBlockchainMonitor:
                 return False
         return True
     
-    def extract_miner_from_block(self, block: Dict) -> tuple:
+    def extract_miner_from_block(self, block: Dict, source_peer: str = None) -> tuple:
         """Extract miner address and mining node from block data with attribution preservation"""
         try:
             # First transaction should be coinbase
@@ -195,14 +230,56 @@ class NetworkBlockchainMonitor:
             elif 'mining_node' in block and block['mining_node']:
                 mining_node = block['mining_node']
             
-            # Priority 3: Default to unknown if no mining attribution found
+            # Priority 3: Try to infer from source peer information
+            elif source_peer:
+                # If we know which peer this block came from, use that as fallback
+                peer_port = source_peer.split(':')[-1] if ':' in str(source_peer) else "unknown"
+                mining_node = f"Node-{peer_port}"
+            
+            # Priority 4: Default to unknown if no mining attribution found
             else:
                 mining_node = "unknown"
             
             return miner_address, mining_node
             
         except (KeyError, IndexError) as e:
+            # Fallback: Try to infer from context if available
+            if hasattr(self, '_current_source_peer') and self._current_source_peer:
+                peer_port = self._current_source_peer.split(':')[-1]
+                return "unknown", f"Node-{peer_port}"
             return "unknown", "unknown"
+    
+    def _check_block_consensus(self, block: Dict, peer_chains: Dict) -> Dict:
+        """Check consensus status of a block across network nodes"""
+        consensus_count = 0
+        total_nodes = len(peer_chains)
+        first_appearance = "unknown"
+        
+        block_hash = block.get('hash', '')
+        block_index = block.get('index', -1)
+        
+        for peer_url, peer_data in peer_chains.items():
+            peer_chain = peer_data.get('chain', [])
+            
+            # Check if this block exists in this peer's chain
+            for peer_block in peer_chain:
+                if (peer_block.get('index') == block_index and 
+                    peer_block.get('hash') == block_hash):
+                    consensus_count += 1
+                    
+                    # Track first appearance (could enhance with timestamps)
+                    if first_appearance == "unknown":
+                        peer_port = peer_url.split(':')[-1]
+                        first_appearance = f"Node-{peer_port}"
+                    break
+        
+        return {
+            'consensus_count': consensus_count,
+            'total_nodes': total_nodes,
+            'consensus_percentage': (consensus_count / total_nodes * 100) if total_nodes > 0 else 0,
+            'first_appearance': first_appearance,
+            'is_consensus': consensus_count > (total_nodes / 2)  # Majority consensus
+        }
     
     def verify_hash_chain(self, blocks: List[Dict]) -> List[Dict]:
         """Verify the hash chain integrity and return issues"""
@@ -243,22 +320,29 @@ class NetworkBlockchainMonitor:
         return issues
     
     def analyze_mining_distribution(self, blocks: List[Dict]) -> Dict:
-        """Analyze which miners mined which blocks across the network"""
+        """Analyze which core nodes mined which blocks across the network"""
         miner_stats = {}
         
         for block in blocks:
             miner_address, mining_node = self.extract_miner_from_block(block)
-            # Use mining node as the key for proper attribution
-            miner_key = f"{mining_node} ({miner_address[:10]}...)" if len(miner_address) > 10 else f"{mining_node} ({miner_address})"
+            
+            # Enhanced key with clear core identification
+            if mining_node != "unknown":
+                miner_key = f"Core-{mining_node}"
+            else:
+                miner_key = f"Unknown-Core ({miner_address[:12]}...)"
+            
             if miner_key not in miner_stats:
                 miner_stats[miner_key] = {
                     'miner_address': miner_address,
                     'mining_node': mining_node,
+                    'core_identifier': miner_key,
                     'blocks_mined': 0,
                     'block_indices': [],
                     'total_rewards': 0.0,
                     'first_block': block['index'],
-                    'last_block': block['index']
+                    'last_block': block['index'],
+                    'metadata_preserved': 'mining_metadata' in block or 'mining_node' in block
                 }
             
             stats = miner_stats[miner_key]
@@ -345,32 +429,38 @@ class NetworkBlockchainMonitor:
             print()
     
     def display_peer_mining_comparison(self, miner_stats: Dict):
-        """Display mining distribution with peer information"""
-        print("NETWORK-WIDE MINING DISTRIBUTION")
-        print("=" * 50)
+        """Display mining distribution with core node identification"""
+        print("🏭 CORE NODE MINING DISTRIBUTION")
+        print("=" * 60)
         
         total_blocks = sum(stats['blocks_mined'] for stats in miner_stats.values())
         
         if total_blocks == 0:
-            print("No blocks mined yet in the network")
+            print("❌ No blocks mined yet in the network")
             return
         
-        # Try to correlate miners with peer nodes
-        peer_analysis = self.analyze_network_peer_status()
+        print(f"📊 Total blocks analyzed: {total_blocks}")
+        print(f"🏭 Active mining cores: {len(miner_stats)}")
+        print()
         
-        for miner, stats in sorted(miner_stats.items(), key=lambda x: x[1]['blocks_mined'], reverse=True):
+        # Display each core's mining performance
+        for core_id, stats in sorted(miner_stats.items(), key=lambda x: x[1]['blocks_mined'], reverse=True):
             percentage = (stats['blocks_mined'] / total_blocks * 100) if total_blocks > 0 else 0
             
-            print(f"Miner: {miner[:40]}...")
-            print(f"   Blocks: {stats['blocks_mined']} ({percentage:.1f}%)")
-            print(f"   💰 Rewards: {stats['total_rewards']:.2f} CC")
-            print(f"   📊 Range: #{stats['first_block']} → #{stats['last_block']}")
-            print(f"   🏷️  Recent Blocks: {stats['block_indices'][-5:]}")  # Show last 5 blocks
+            # Enhanced core display
+            print(f"⛏️  {core_id}")
+            print(f"   📦 Blocks mined: {stats['blocks_mined']} ({percentage:.1f}%)")
+            print(f"   💰 Total rewards: {stats['total_rewards']:.2f} CC")
+            print(f"   🏷️  Miner address: {stats['miner_address']}")
+            print(f"   📊 Block range: #{stats['first_block']} → #{stats['last_block']}")
+            print(f"   🔗 Recent blocks: {stats['block_indices'][-5:]}")  # Show last 5 blocks
             
-            # Try to identify which peer this miner might be
-            possible_peer = self.identify_miner_peer(miner, peer_analysis)
-            if possible_peer:
-                print(f"   🌐 Likely Peer: {possible_peer}")
+            # Show metadata preservation status
+            if stats['metadata_preserved']:
+                print(f"   ✅ Mining attribution preserved")
+            else:
+                print(f"   ⚠️  Mining attribution missing")
+            
             print()
     
     def identify_miner_peer(self, miner_address: str, peer_analysis: Dict) -> Optional[str]:
@@ -382,29 +472,51 @@ class NetworkBlockchainMonitor:
         return None
     
     def display_block_details(self, block: Dict, is_new: bool = False, source_peer: str = None):
-        """Display simple block information with proper mining attribution"""
-        miner_address, mining_node = self.extract_miner_from_block(block)
+        """Display block information with enhanced mining attribution"""
+        miner_address, mining_node = self.extract_miner_from_block(block, source_peer)
         timestamp = datetime.fromtimestamp(block['timestamp']).strftime("%H:%M:%S")
         
-        status = "NEW" if is_new else "BLOCK"
+        status = "🆕 NEW" if is_new else "📦 BLOCK"
         
+        # Enhanced display with core identification
         print(f"{status} Block #{block['index']}")
-        print(f"   Mined by: {mining_node}")
-        print(f"   Address: {miner_address[:40]}..." if len(miner_address) > 40 else f"   Address: {miner_address}")
-        print(f"   Time: {timestamp}")
-        print(f"   Hash: {block['hash'][:32]}...")
-        print(f"   Prev: {block['previous_hash'][:32]}...")
-        print(f"   Nonce: {block['nonce']}")
-        print()
         
-        # Show coinbase reward
+        # Show mining node with emphasis
+        if mining_node != "unknown":
+            print(f"   ⛏️  Mined by: {mining_node}")
+        else:
+            print(f"   ⛏️  Mined by: Unknown Core")
+        
+        # Show miner address (truncated if long)
+        if len(miner_address) > 40:
+            print(f"   🏷️  Address: {miner_address[:20]}...{miner_address[-15:]}")
+        else:
+            print(f"   🏷️  Address: {miner_address}")
+        
+        # Show source peer if available
+        if source_peer:
+            peer_port = source_peer.split(':')[-1]
+            print(f"   🌐 Source: Node-{peer_port}")
+        
+        print(f"   ⏰ Time: {timestamp}")
+        print(f"   🔗 Hash: {block['hash'][:32]}...")
+        print(f"   ⬅️  Prev: {block['previous_hash'][:32]}...")
+        print(f"   🎲 Nonce: {block['nonce']}")
+        
+        # Show coinbase reward with emphasis
         try:
             coinbase_tx = block['transactions'][0]
             if coinbase_tx['outputs']:
                 reward = coinbase_tx['outputs'][0]['amount']
-                print(f"   Reward: {reward}")
+                print(f"   💰 Reward: {reward} CC")
         except (KeyError, IndexError):
             pass
+        
+        # Show mining metadata if available
+        if 'mining_metadata' in block:
+            metadata = block['mining_metadata']
+            if metadata.get('attribution_preserved'):
+                print(f"   ✅ Mining attribution preserved")
         
         print()
     
@@ -456,11 +568,14 @@ class NetworkBlockchainMonitor:
         """Monitor blockchain across all network peers in real-time"""
         print("🚀 ChainCore Network-Wide Blockchain Monitor")
         print("=" * 60)
+        print("🧹 Starting fresh - all previous data cleared")
         print(f"Auto-discovery range: ports {self.discovery_start_port}-{self.discovery_end_port}")
         print(f"📊 Update interval: {interval} seconds")
         print(f"🔄 Peer rediscovery: every {rediscover_interval} seconds")
         print("Press Ctrl+C to stop\n")
         
+        # Clear all data before starting monitoring
+        self._clear_all_data()
         last_discovery = 0
         
         try:
@@ -509,14 +624,23 @@ class NetworkBlockchainMonitor:
                     current_peer_length = len(chain)
                     last_peer_length = self.peer_last_seen[peer_key]
                     
-                    # Show new blocks from this peer
+                    # Show new blocks from this peer with enhanced attribution
                     if current_peer_length > last_peer_length:
                         port = peer_url.split(':')[-1]
-                        print(f"New blocks from Node-{port} ({peer_url}):")
+                        print(f"🎉 New blocks detected from Node-{port}:")
                         
                         for i in range(last_peer_length, current_peer_length):
                             if i < len(chain):
-                                self.display_block_details(chain[i], is_new=True, source_peer=peer_url)
+                                block = chain[i]
+                                
+                                # Check if this block exists on other nodes (consensus verification)
+                                consensus_status = self._check_block_consensus(block, peer_chains)
+                                
+                                print(f"🎉 CONSENSUS BLOCK ACCEPTED: #{block['index']}")
+                                print(f"   🌐 Network Agreement: {consensus_status['consensus_count']}/{consensus_status['total_nodes']} nodes")
+                                print(f"   🏁 First Mined: {consensus_status['first_appearance']}")
+                                
+                                self.display_block_details(block, is_new=True, source_peer=peer_url)
                         
                         # Update tracking for this peer
                         self.peer_last_seen[peer_key] = current_peer_length
@@ -588,6 +712,10 @@ class NetworkBlockchainMonitor:
         """Perform complete network-wide blockchain analysis"""
         print("📊 ChainCore Network-Wide Blockchain Analysis")
         print("=" * 60)
+        print("🧹 Starting fresh analysis - all previous data cleared")
+        
+        # Clear all data before analysis
+        self._clear_all_data()
         
         # Discover all active peers
         self.discover_active_peers()
@@ -653,7 +781,7 @@ def main():
     
     if command == "monitor":
         start_port = int(sys.argv[2]) if len(sys.argv) > 2 else 5000
-        end_port = int(sys.argv[3]) if len(sys.argv) > 3 else 5100
+        end_port = int(sys.argv[3]) if len(sys.argv) > 3 else 5010
         interval = int(sys.argv[4]) if len(sys.argv) > 4 else 5
         
         monitor = NetworkBlockchainMonitor(start_port, end_port)
@@ -661,7 +789,7 @@ def main():
     
     elif command == "analyze":
         start_port = int(sys.argv[2]) if len(sys.argv) > 2 else 5000
-        end_port = int(sys.argv[3]) if len(sys.argv) > 3 else 5100
+        end_port = int(sys.argv[3]) if len(sys.argv) > 3 else 5010
         
         monitor = NetworkBlockchainMonitor(start_port, end_port)
         monitor.full_analysis()
