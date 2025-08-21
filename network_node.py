@@ -105,7 +105,7 @@ class ThreadSafeNetworkNode:
             if not peers:
                 return {'blocks_added': 0, 'error': 'No peers available'}
             
-            current_length = len(self.blockchain.get_chain())
+            current_length = self.blockchain.get_chain_length()
             max_peer_length = current_length
             best_peer = None
             
@@ -623,7 +623,7 @@ class ThreadSafeNetworkNode:
                 sync_result = self._sync_with_network_before_mining()
                 if sync_result['blocks_added'] > 0:
                     print(f"   📥 Synchronized: Added {sync_result['blocks_added']} blocks from network")
-                    print(f"   📊 Updated chain length: {len(self.blockchain.get_chain())}")
+                    print(f"   📊 Updated chain length: {self.blockchain.get_chain_length()}")
                 else:
                     print(f"   ✅ Already synchronized with network")
                 
@@ -663,20 +663,12 @@ class ThreadSafeNetworkNode:
                         block._mining_metadata = {}
                     block._mining_metadata['mining_node'] = f"Node-{self.api_port}"
                 
-                # CRITICAL: Check if block is already mined (race condition prevention)
-                current_chain_length = len(self.blockchain.get_chain())
-                if block.index <= current_chain_length:
-                    return jsonify({
-                        'status': 'rejected',
-                        'error': f'Block #{block.index} already exists in chain (length: {current_chain_length})',
-                        'reason': 'duplicate_block_index'
-                    }), 409
-                
                 # CRITICAL: Verify this is the next sequential block
-                if block.index != current_chain_length + 1:
+                current_chain_length = self.blockchain.get_chain_length()
+                if block.index != current_chain_length:
                     return jsonify({
-                        'status': 'rejected',
-                        'error': f'Invalid block index #{block.index}, expected #{current_chain_length + 1}',
+                        'status': 'rejected', 
+                        'error': f'Invalid block index #{block.index}, expected #{current_chain_length}',
                         'reason': 'invalid_block_sequence'
                     }), 409
                 
@@ -704,7 +696,7 @@ class ThreadSafeNetworkNode:
                     mining_source = "LOCALLY MINED" if is_locally_mined else f"RECEIVED from peer"
                     print(f"✅ BLOCK ACCEPTED: #{block.index} ({mining_source})")
                     print(f"   ⛏️  Mined by: {miner_address}")
-                    print(f"   📊 Chain length: {len(self.blockchain.get_chain())}")
+                    print(f"   📊 Chain length: {self.blockchain.get_chain_length()}")
                     
                     # Broadcast to remaining peers if received from another node
                     if not is_locally_mined:
@@ -721,7 +713,7 @@ class ThreadSafeNetworkNode:
                     return jsonify({
                         'status': 'accepted',
                         'block_hash': block.hash,
-                        'chain_length': len(self.blockchain.get_chain()),
+                        'chain_length': self.blockchain.get_chain_length(),
                         'mining_source': 'local' if is_locally_mined else 'network'
                     })
                 else:

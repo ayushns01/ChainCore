@@ -9,7 +9,10 @@
       "Bash(lsof:*)",
       "Bash(./venv/bin/python:*)",
       "Bash(rm:*)",
-      "Bash(powershell:*)"
+      "Bash(powershell:*)",
+      "Bash(python:*)",
+      "Bash(timeout:*)",
+      "Bash(del:*)"
     ],
     "defaultMode": "acceptEdits"
   }

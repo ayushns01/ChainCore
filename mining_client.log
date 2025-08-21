@@ -1,0 +1,573 @@
+2025-08-21 23:45:46,728 - MiningClient - INFO - Mining client initialized for address: 1Guk...bcJj
+2025-08-21 23:46:04,129 - MiningClient - INFO - Mining client initialized for address: 1Guk...bcJj
+2025-08-22 01:46:48,369 - MiningClient - INFO - Mining client initialized for address: 1CcU...UW3n
+2025-08-22 01:46:49,443 - MiningClient - INFO - Mining client initialized for address: 1Guk...bcJj
+2025-08-22 01:46:52,570 - MiningClient - INFO - PROOF-OF-WORK FOUND!
+2025-08-22 01:46:52,571 - MiningClient - INFO - Valid Hash: 00001363a62fa858ad1e32c3057b5d8c1963f930c29ea9919c054739ada1d467
+2025-08-22 01:46:52,573 - MiningClient - INFO - Winning Nonce: 3,692,085,646
+2025-08-22 01:46:52,573 - MiningClient - INFO - Mining Time: 0.05 seconds
+2025-08-22 01:46:52,575 - MiningClient - INFO - Hash Rate: 233929 H/s
+2025-08-22 01:46:52,576 - MiningClient - INFO - Submitting to network...
+2025-08-22 01:46:53,758 - MiningClient - INFO - PROOF-OF-WORK FOUND!
+2025-08-22 01:46:53,758 - MiningClient - INFO - Valid Hash: 00009594b518f1ac5c6204e70ad5de5a1fe0a0c53c19f75448f52c27156e0445
+2025-08-22 01:46:53,759 - MiningClient - INFO - Winning Nonce: 4,257,860,837
+2025-08-22 01:46:53,759 - MiningClient - INFO - Mining Time: 0.18 seconds
+2025-08-22 01:46:53,759 - MiningClient - INFO - Hash Rate: 295916 H/s
+2025-08-22 01:46:53,760 - MiningClient - INFO - Submitting to network...
+2025-08-22 01:47:01,697 - MiningClient - INFO - SUCCESS: Block #1 submitted!
+2025-08-22 01:47:01,697 - MiningClient - INFO - Hash: 00001363a62fa858...ada1d467
+2025-08-22 01:47:01,698 - MiningClient - INFO - Nonce: 0
+2025-08-22 01:47:01,757 - MiningClient - INFO - SUCCESS: Block #1 submitted!
+2025-08-22 01:47:01,760 - MiningClient - INFO - Hash: 00009594b518f1ac...156e0445
+2025-08-22 01:47:01,765 - MiningClient - INFO - Nonce: 0
+2025-08-22 03:41:18,557 - MiningClient - INFO - Enhanced mining client initialized for address: 1Guk...bcJj
+2025-08-22 03:41:18,559 - MiningClient - INFO - Node: http://localhost:5000
+2025-08-22 03:41:18,562 - MiningClient - INFO - ============================================================
+2025-08-22 03:41:18,564 - MiningClient - INFO - ENHANCED MINING CLIENT STARTED
+2025-08-22 03:41:18,566 - MiningClient - INFO - ============================================================
+2025-08-22 03:41:18,567 - MiningClient - INFO - Wallet: 1Guk...bcJj
+2025-08-22 03:41:18,569 - MiningClient - INFO - Node: http://localhost:5000
+2025-08-22 03:41:18,569 - MiningClient - INFO - Session: 2025-08-22 03:41:18
+2025-08-22 03:41:18,574 - MiningClient - INFO - ------------------------------------------------------------
+2025-08-22 03:41:19,603 - MiningClient - INFO - Enhanced mining client initialized for address: 1CcU...UW3n
+2025-08-22 03:41:19,604 - MiningClient - INFO - Node: http://localhost:5001
+2025-08-22 03:41:19,611 - MiningClient - INFO - ============================================================
+2025-08-22 03:41:19,612 - MiningClient - INFO - ENHANCED MINING CLIENT STARTED
+2025-08-22 03:41:19,613 - MiningClient - INFO - ============================================================
+2025-08-22 03:41:19,613 - MiningClient - INFO - Wallet: 1CcU...UW3n
+2025-08-22 03:41:19,614 - MiningClient - INFO - Node: http://localhost:5001
+2025-08-22 03:41:19,615 - MiningClient - INFO - Session: 2025-08-22 03:41:19
+2025-08-22 03:41:19,615 - MiningClient - INFO - ------------------------------------------------------------
+2025-08-22 03:41:20,645 - MiningClient - INFO - Node version: unknown, Chain length: 1
+2025-08-22 03:41:21,679 - MiningClient - INFO - Node version: unknown, Chain length: 1
+2025-08-22 03:41:22,691 - MiningClient - INFO - Mining attempt 1/3
+2025-08-22 03:41:22,692 - MiningClient - INFO -   Block: #1
+2025-08-22 03:41:22,693 - MiningClient - INFO -   Difficulty: 4
+2025-08-22 03:41:22,694 - MiningClient - INFO -   Transactions: 1
+2025-08-22 03:41:22,695 - MiningClient - INFO - Starting optimized mining - Block #1, Difficulty: 4
+2025-08-22 03:41:22,696 - MiningClient - INFO - Mining range: 1,199,552,187 to 1,200,552,187
+2025-08-22 03:41:23,152 - MiningClient - INFO - PROOF-OF-WORK FOUND!
+2025-08-22 03:41:23,152 - MiningClient - INFO - Valid Hash: 0000d6d15a383d22c396c7e9bdc2afab6422ca4c26b6cabfd23bcd788233385d
+2025-08-22 03:41:23,152 - MiningClient - INFO - Winning Nonce: 1,199,658,465
+2025-08-22 03:41:23,153 - MiningClient - INFO - Mining Time: 0.46 seconds
+2025-08-22 03:41:23,154 - MiningClient - INFO - Hash Rate: 233081 H/s
+2025-08-22 03:41:23,154 - MiningClient - INFO - Submitting to network...
+2025-08-22 03:41:23,743 - MiningClient - INFO - Mining attempt 1/3
+2025-08-22 03:41:23,744 - MiningClient - INFO -   Block: #1
+2025-08-22 03:41:23,744 - MiningClient - INFO -   Difficulty: 4
+2025-08-22 03:41:23,745 - MiningClient - INFO -   Transactions: 1
+2025-08-22 03:41:23,745 - MiningClient - INFO - Starting optimized mining - Block #1, Difficulty: 4
+2025-08-22 03:41:23,746 - MiningClient - INFO - Mining range: 3,355,859,516 to 3,356,859,516
+2025-08-22 03:41:24,306 - MiningClient - INFO - PROOF-OF-WORK FOUND!
+2025-08-22 03:41:24,307 - MiningClient - INFO - Valid Hash: 00006b0b77437bae3a41f3230847432fa7f84f00864e2b1e81efcbe284f4b4e5
+2025-08-22 03:41:24,307 - MiningClient - INFO - Winning Nonce: 3,355,998,537
+2025-08-22 03:41:24,307 - MiningClient - INFO - Mining Time: 0.56 seconds
+2025-08-22 03:41:24,308 - MiningClient - INFO - Hash Rate: 248189 H/s
+2025-08-22 03:41:24,308 - MiningClient - INFO - Submitting to network...
+2025-08-22 03:41:32,272 - MiningClient - INFO - SUCCESS: Block #1 accepted by network
+2025-08-22 03:41:32,272 - MiningClient - INFO -   Hash: 0000d6d15a383d22...8233385d
+2025-08-22 03:41:32,273 - MiningClient - INFO -   Chain Length: 2
+2025-08-22 03:41:32,274 - MiningClient - INFO - Block #1 successfully mined and submitted!
+2025-08-22 03:41:32,278 - MiningClient - INFO - Block mined successfully! Getting next template...
+2025-08-22 03:41:32,314 - MiningClient - INFO - SUCCESS: Block #1 accepted by network
+2025-08-22 03:41:32,315 - MiningClient - INFO -   Hash: 00006b0b77437bae...84f4b4e5
+2025-08-22 03:41:32,315 - MiningClient - INFO -   Chain Length: 2
+2025-08-22 03:41:32,316 - MiningClient - INFO - Block #1 successfully mined and submitted!
+2025-08-22 03:41:32,320 - MiningClient - INFO - Block mined successfully! Getting next template...
+2025-08-22 03:41:35,369 - MiningClient - INFO - Node version: unknown, Chain length: 2
+2025-08-22 03:41:35,388 - MiningClient - INFO - Node version: unknown, Chain length: 2
+2025-08-22 03:41:37,454 - MiningClient - INFO - Mining attempt 1/3
+2025-08-22 03:41:37,455 - MiningClient - INFO -   Block: #2
+2025-08-22 03:41:37,455 - MiningClient - INFO -   Difficulty: 4
+2025-08-22 03:41:37,455 - MiningClient - INFO -   Transactions: 1
+2025-08-22 03:41:37,456 - MiningClient - INFO - Starting optimized mining - Block #2, Difficulty: 4
+2025-08-22 03:41:37,463 - MiningClient - INFO - Mining attempt 1/3
+2025-08-22 03:41:37,463 - MiningClient - INFO -   Block: #2
+2025-08-22 03:41:37,464 - MiningClient - INFO -   Difficulty: 4
+2025-08-22 03:41:37,465 - MiningClient - INFO - Mining range: 3,355,843,510 to 3,356,843,510
+2025-08-22 03:41:37,465 - MiningClient - INFO -   Transactions: 1
+2025-08-22 03:41:37,465 - MiningClient - INFO - Starting optimized mining - Block #2, Difficulty: 4
+2025-08-22 03:41:37,466 - MiningClient - INFO - Mining range: 1,199,570,291 to 1,200,570,291
+2025-08-22 03:41:37,710 - MiningClient - INFO - PROOF-OF-WORK FOUND!
+2025-08-22 03:41:37,711 - MiningClient - INFO - Valid Hash: 000026ec53f5d6d6a7c9da40130dd16ac3748f0a1659f6f5e2ee23a52f804bc5
+2025-08-22 03:41:37,711 - MiningClient - INFO - Winning Nonce: 1,199,627,275
+2025-08-22 03:41:37,712 - MiningClient - INFO - Mining Time: 0.24 seconds
+2025-08-22 03:41:37,712 - MiningClient - INFO - Hash Rate: 233219 H/s
+2025-08-22 03:41:37,713 - MiningClient - INFO - Submitting to network...
+2025-08-22 03:41:37,976 - MiningClient - INFO - PROOF-OF-WORK FOUND!
+2025-08-22 03:41:37,976 - MiningClient - INFO - Valid Hash: 0000982041959866fe499494a2a26b87cc4f35eebe8103b8b44d29a1d71694a4
+2025-08-22 03:41:37,977 - MiningClient - INFO - Winning Nonce: 3,355,972,400
+2025-08-22 03:41:37,977 - MiningClient - INFO - Mining Time: 0.51 seconds
+2025-08-22 03:41:37,977 - MiningClient - INFO - Hash Rate: 252211 H/s
+2025-08-22 03:41:37,978 - MiningClient - INFO - Submitting to network...
+2025-08-22 03:41:46,855 - MiningClient - INFO - SUCCESS: Block #2 accepted by network
+2025-08-22 03:41:46,856 - MiningClient - INFO -   Hash: 000026ec53f5d6d6...2f804bc5
+2025-08-22 03:41:46,856 - MiningClient - INFO -   Chain Length: 3
+2025-08-22 03:41:46,856 - MiningClient - INFO - Block #2 successfully mined and submitted!
+2025-08-22 03:41:46,859 - MiningClient - INFO - Block mined successfully! Getting next template...
+2025-08-22 03:41:46,877 - MiningClient - INFO - SUCCESS: Block #2 accepted by network
+2025-08-22 03:41:46,878 - MiningClient - INFO -   Hash: 0000982041959866...d71694a4
+2025-08-22 03:41:46,878 - MiningClient - INFO -   Chain Length: 3
+2025-08-22 03:41:46,878 - MiningClient - INFO - Block #2 successfully mined and submitted!
+2025-08-22 03:41:46,879 - MiningClient - INFO - Block mined successfully! Getting next template...
+2025-08-22 03:41:49,900 - MiningClient - INFO - Node version: unknown, Chain length: 3
+2025-08-22 03:41:49,925 - MiningClient - INFO - Node version: unknown, Chain length: 3
+2025-08-22 03:41:51,995 - MiningClient - INFO - Mining attempt 1/3
+2025-08-22 03:41:51,996 - MiningClient - INFO -   Block: #3
+2025-08-22 03:41:51,996 - MiningClient - INFO -   Difficulty: 4
+2025-08-22 03:41:51,997 - MiningClient - INFO -   Transactions: 1
+2025-08-22 03:41:51,997 - MiningClient - INFO - Starting optimized mining - Block #3, Difficulty: 4
+2025-08-22 03:41:51,999 - MiningClient - INFO - Mining range: 3,355,854,707 to 3,356,854,707
+2025-08-22 03:41:52,019 - MiningClient - INFO - Mining attempt 1/3
+2025-08-22 03:41:52,019 - MiningClient - INFO -   Block: #3
+2025-08-22 03:41:52,020 - MiningClient - INFO -   Difficulty: 4
+2025-08-22 03:41:52,020 - MiningClient - INFO -   Transactions: 1
+2025-08-22 03:41:52,020 - MiningClient - INFO - Starting optimized mining - Block #3, Difficulty: 4
+2025-08-22 03:41:52,022 - MiningClient - INFO - Mining range: 1,199,564,583 to 1,200,564,583
+2025-08-22 03:41:52,083 - MiningClient - INFO - PROOF-OF-WORK FOUND!
+2025-08-22 03:41:52,083 - MiningClient - INFO - Valid Hash: 000013247cec40df7031d8e0433f531682a6ebe7fd3f6c0e9665ddceda15ad8d
+2025-08-22 03:41:52,083 - MiningClient - INFO - Winning Nonce: 3,355,869,350
+2025-08-22 03:41:52,084 - MiningClient - INFO - Mining Time: 0.08 seconds
+2025-08-22 03:41:52,084 - MiningClient - INFO - Hash Rate: 174356 H/s
+2025-08-22 03:41:52,084 - MiningClient - INFO - Submitting to network...
+2025-08-22 03:41:52,301 - MiningClient - INFO - PROOF-OF-WORK FOUND!
+2025-08-22 03:41:52,301 - MiningClient - INFO - Valid Hash: 0000437a51478613611c4d51a70dbd9d094acee82bcd49845773805ee9e50469
+2025-08-22 03:41:52,302 - MiningClient - INFO - Winning Nonce: 1,199,620,880
+2025-08-22 03:41:52,302 - MiningClient - INFO - Mining Time: 0.28 seconds
+2025-08-22 03:41:52,303 - MiningClient - INFO - Hash Rate: 202182 H/s
+2025-08-22 03:41:52,303 - MiningClient - INFO - Submitting to network...
+2025-08-22 03:42:01,171 - MiningClient - INFO - SUCCESS: Block #3 accepted by network
+2025-08-22 03:42:01,172 - MiningClient - INFO -   Hash: 000013247cec40df...da15ad8d
+2025-08-22 03:42:01,172 - MiningClient - INFO -   Chain Length: 4
+2025-08-22 03:42:01,172 - MiningClient - INFO - Block #3 successfully mined and submitted!
+2025-08-22 03:42:01,178 - MiningClient - INFO - Block mined successfully! Getting next template...
+2025-08-22 03:42:01,201 - MiningClient - INFO - SUCCESS: Block #3 accepted by network
+2025-08-22 03:42:01,202 - MiningClient - INFO -   Hash: 0000437a51478613...e9e50469
+2025-08-22 03:42:01,203 - MiningClient - INFO -   Chain Length: 4
+2025-08-22 03:42:01,205 - MiningClient - INFO - Block #3 successfully mined and submitted!
+2025-08-22 03:42:01,207 - MiningClient - INFO - Block mined successfully! Getting next template...
+2025-08-22 03:42:04,211 - MiningClient - INFO - Node version: unknown, Chain length: 4
+2025-08-22 03:42:04,272 - MiningClient - INFO - Node version: unknown, Chain length: 4
+2025-08-22 03:42:06,276 - MiningClient - INFO - Mining attempt 1/3
+2025-08-22 03:42:06,277 - MiningClient - INFO -   Block: #4
+2025-08-22 03:42:06,277 - MiningClient - INFO -   Difficulty: 4
+2025-08-22 03:42:06,277 - MiningClient - INFO -   Transactions: 1
+2025-08-22 03:42:06,278 - MiningClient - INFO - Starting optimized mining - Block #4, Difficulty: 4
+2025-08-22 03:42:06,278 - MiningClient - INFO - Mining range: 3,355,846,940 to 3,356,846,940
+2025-08-22 03:42:06,299 - MiningClient - INFO - PROOF-OF-WORK FOUND!
+2025-08-22 03:42:06,300 - MiningClient - INFO - Valid Hash: 00009a62da65330bc46c3317b87d9fb5bf7999178a229316034ad5ef640aea7a
+2025-08-22 03:42:06,301 - MiningClient - INFO - Winning Nonce: 3,355,851,504
+2025-08-22 03:42:06,301 - MiningClient - INFO - Mining Time: 0.02 seconds
+2025-08-22 03:42:06,302 - MiningClient - INFO - Hash Rate: 216148 H/s
+2025-08-22 03:42:06,302 - MiningClient - INFO - Submitting to network...
+2025-08-22 03:42:06,328 - MiningClient - INFO - Mining attempt 1/3
+2025-08-22 03:42:06,328 - MiningClient - INFO -   Block: #4
+2025-08-22 03:42:06,329 - MiningClient - INFO -   Difficulty: 4
+2025-08-22 03:42:06,329 - MiningClient - INFO -   Transactions: 1
+2025-08-22 03:42:06,329 - MiningClient - INFO - Starting optimized mining - Block #4, Difficulty: 4
+2025-08-22 03:42:06,330 - MiningClient - INFO - Mining range: 1,199,534,445 to 1,200,534,445
+2025-08-22 03:42:06,705 - MiningClient - INFO - PROOF-OF-WORK FOUND!
+2025-08-22 03:42:06,705 - MiningClient - INFO - Valid Hash: 000097e802bce20fb211a540d0f63c1b88283b4493fb6338deb0b7f2d4c713df
+2025-08-22 03:42:06,705 - MiningClient - INFO - Winning Nonce: 1,199,617,538
+2025-08-22 03:42:06,706 - MiningClient - INFO - Mining Time: 0.37 seconds
+2025-08-22 03:42:06,706 - MiningClient - INFO - Hash Rate: 221722 H/s
+2025-08-22 03:42:06,706 - MiningClient - INFO - Submitting to network...
+2025-08-22 03:42:15,435 - MiningClient - INFO - SUCCESS: Block #4 accepted by network
+2025-08-22 03:42:15,436 - MiningClient - INFO -   Hash: 00009a62da65330b...640aea7a
+2025-08-22 03:42:15,436 - MiningClient - INFO -   Chain Length: 5
+2025-08-22 03:42:15,436 - MiningClient - INFO - Block #4 successfully mined and submitted!
+2025-08-22 03:42:15,437 - MiningClient - INFO - Block mined successfully! Getting next template...
+2025-08-22 03:42:15,459 - MiningClient - INFO - SUCCESS: Block #4 accepted by network
+2025-08-22 03:42:15,460 - MiningClient - INFO -   Hash: 000097e802bce20f...d4c713df
+2025-08-22 03:42:15,461 - MiningClient - INFO -   Chain Length: 5
+2025-08-22 03:42:15,462 - MiningClient - INFO - Block #4 successfully mined and submitted!
+2025-08-22 03:42:15,464 - MiningClient - INFO - Block mined successfully! Getting next template...
+2025-08-22 03:42:18,511 - MiningClient - INFO - Node version: unknown, Chain length: 5
+2025-08-22 03:42:18,519 - MiningClient - INFO - Node version: unknown, Chain length: 5
+2025-08-22 03:42:20,577 - MiningClient - INFO - Mining attempt 1/3
+2025-08-22 03:42:20,577 - MiningClient - INFO -   Block: #5
+2025-08-22 03:42:20,578 - MiningClient - INFO - Mining attempt 1/3
+2025-08-22 03:42:20,577 - MiningClient - INFO -   Difficulty: 4
+2025-08-22 03:42:20,579 - MiningClient - INFO -   Block: #5
+2025-08-22 03:42:20,579 - MiningClient - INFO -   Transactions: 1
+2025-08-22 03:42:20,579 - MiningClient - INFO -   Difficulty: 4
+2025-08-22 03:42:20,582 - MiningClient - INFO -   Transactions: 1
+2025-08-22 03:42:20,582 - MiningClient - INFO - Starting optimized mining - Block #5, Difficulty: 4
+2025-08-22 03:42:20,584 - MiningClient - INFO - Starting optimized mining - Block #5, Difficulty: 4
+2025-08-22 03:42:20,585 - MiningClient - INFO - Mining range: 3,355,853,975 to 3,356,853,975
+2025-08-22 03:42:20,587 - MiningClient - INFO - Mining range: 1,199,561,556 to 1,200,561,556
+2025-08-22 03:42:20,821 - MiningClient - INFO - PROOF-OF-WORK FOUND!
+2025-08-22 03:42:20,822 - MiningClient - INFO - Valid Hash: 00002df41c2693bb11cd24a1e676da27e228e3d33d748f1ad4d9b6b17242acc9
+2025-08-22 03:42:20,822 - MiningClient - INFO - Winning Nonce: 1,199,604,087
+2025-08-22 03:42:20,823 - MiningClient - INFO - Mining Time: 0.23 seconds
+2025-08-22 03:42:20,826 - MiningClient - INFO - Hash Rate: 181647 H/s
+2025-08-22 03:42:20,826 - MiningClient - INFO - Submitting to network...
+2025-08-22 03:42:20,838 - MiningClient - INFO - PROOF-OF-WORK FOUND!
+2025-08-22 03:42:20,838 - MiningClient - INFO - Valid Hash: 000010ea45f0055875b00d08b2486824a74f9dfb9b00509b97dc3eef165883b6
+2025-08-22 03:42:20,839 - MiningClient - INFO - Winning Nonce: 3,355,898,312
+2025-08-22 03:42:20,839 - MiningClient - INFO - Mining Time: 0.25 seconds
+2025-08-22 03:42:20,839 - MiningClient - INFO - Hash Rate: 175335 H/s
+2025-08-22 03:42:20,839 - MiningClient - INFO - Submitting to network...
+2025-08-22 03:42:29,957 - MiningClient - INFO - SUCCESS: Block #5 accepted by network
+2025-08-22 03:42:29,957 - MiningClient - INFO -   Hash: 00002df41c2693bb...7242acc9
+2025-08-22 03:42:29,960 - MiningClient - INFO -   Chain Length: 6
+2025-08-22 03:42:29,962 - MiningClient - INFO - Block #5 successfully mined and submitted!
+2025-08-22 03:42:29,966 - MiningClient - INFO - Block mined successfully! Getting next template...
+2025-08-22 03:42:29,978 - MiningClient - INFO - SUCCESS: Block #5 accepted by network
+2025-08-22 03:42:29,979 - MiningClient - INFO -   Hash: 000010ea45f00558...165883b6
+2025-08-22 03:42:29,980 - MiningClient - INFO -   Chain Length: 6
+2025-08-22 03:42:29,981 - MiningClient - INFO - Block #5 successfully mined and submitted!
+2025-08-22 03:42:29,986 - MiningClient - INFO - Block mined successfully! Getting next template...
+2025-08-22 03:42:33,008 - MiningClient - INFO - Node version: unknown, Chain length: 6
+2025-08-22 03:42:33,063 - MiningClient - INFO - Node version: unknown, Chain length: 6
+2025-08-22 03:42:35,094 - MiningClient - INFO - Mining attempt 1/3
+2025-08-22 03:42:35,094 - MiningClient - INFO -   Block: #6
+2025-08-22 03:42:35,094 - MiningClient - INFO -   Difficulty: 4
+2025-08-22 03:42:35,095 - MiningClient - INFO -   Transactions: 1
+2025-08-22 03:42:35,095 - MiningClient - INFO - Starting optimized mining - Block #6, Difficulty: 4
+2025-08-22 03:42:35,097 - MiningClient - INFO - Mining range: 1,199,574,175 to 1,200,574,175
+2025-08-22 03:42:35,117 - MiningClient - INFO - Mining attempt 1/3
+2025-08-22 03:42:35,118 - MiningClient - INFO -   Block: #6
+2025-08-22 03:42:35,118 - MiningClient - INFO -   Difficulty: 4
+2025-08-22 03:42:35,118 - MiningClient - INFO -   Transactions: 1
+2025-08-22 03:42:35,118 - MiningClient - INFO - Starting optimized mining - Block #6, Difficulty: 4
+2025-08-22 03:42:35,119 - MiningClient - INFO - Mining range: 3,355,846,940 to 3,356,846,940
+2025-08-22 03:42:35,258 - MiningClient - INFO - PROOF-OF-WORK FOUND!
+2025-08-22 03:42:35,259 - MiningClient - INFO - Valid Hash: 0000c49b3e0e58b5fb649aaeec4cf88cd2f44d65fa0f651ab0941cd872ac5b78
+2025-08-22 03:42:35,259 - MiningClient - INFO - Winning Nonce: 3,355,875,522
+2025-08-22 03:42:35,259 - MiningClient - INFO - Mining Time: 0.14 seconds
+2025-08-22 03:42:35,259 - MiningClient - INFO - Hash Rate: 204656 H/s
+2025-08-22 03:42:35,259 - MiningClient - INFO - Submitting to network...
+2025-08-22 03:42:35,459 - MiningClient - INFO - PROOF-OF-WORK FOUND!
+2025-08-22 03:42:35,459 - MiningClient - INFO - Valid Hash: 0000cb507af14209ceb186cabf4d09f54e35c3cfc74479c8c7d14f5ca408af9c
+2025-08-22 03:42:35,459 - MiningClient - INFO - Winning Nonce: 1,199,661,105
+2025-08-22 03:42:35,460 - MiningClient - INFO - Mining Time: 0.36 seconds
+2025-08-22 03:42:35,460 - MiningClient - INFO - Hash Rate: 240196 H/s
+2025-08-22 03:42:35,460 - MiningClient - INFO - Submitting to network...
+2025-08-22 03:42:44,356 - MiningClient - INFO - SUCCESS: Block #6 accepted by network
+2025-08-22 03:42:44,357 - MiningClient - INFO -   Hash: 0000c49b3e0e58b5...72ac5b78
+2025-08-22 03:42:44,357 - MiningClient - INFO -   Chain Length: 7
+2025-08-22 03:42:44,357 - MiningClient - INFO - Block #6 successfully mined and submitted!
+2025-08-22 03:42:44,360 - MiningClient - INFO - Block mined successfully! Getting next template...
+2025-08-22 03:42:44,378 - MiningClient - INFO - SUCCESS: Block #6 accepted by network
+2025-08-22 03:42:44,378 - MiningClient - INFO -   Hash: 0000cb507af14209...a408af9c
+2025-08-22 03:42:44,379 - MiningClient - INFO -   Chain Length: 7
+2025-08-22 03:42:44,379 - MiningClient - INFO - Block #6 successfully mined and submitted!
+2025-08-22 03:42:44,380 - MiningClient - INFO - Block mined successfully! Getting next template...
+2025-08-22 03:42:47,394 - MiningClient - INFO - Node version: unknown, Chain length: 7
+2025-08-22 03:42:47,429 - MiningClient - INFO - Node version: unknown, Chain length: 7
+2025-08-22 03:42:49,451 - MiningClient - INFO - Mining attempt 1/3
+2025-08-22 03:42:49,452 - MiningClient - INFO -   Block: #7
+2025-08-22 03:42:49,452 - MiningClient - INFO -   Difficulty: 4
+2025-08-22 03:42:49,452 - MiningClient - INFO -   Transactions: 1
+2025-08-22 03:42:49,452 - MiningClient - INFO - Starting optimized mining - Block #7, Difficulty: 4
+2025-08-22 03:42:49,452 - MiningClient - INFO - Mining range: 3,355,899,676 to 3,356,899,676
+2025-08-22 03:42:49,463 - MiningClient - INFO - PROOF-OF-WORK FOUND!
+2025-08-22 03:42:49,464 - MiningClient - INFO - Valid Hash: 000069b5b6037afdbf8c4533f8af0be561efa3216af1b0ad3a02be4aeae59002
+2025-08-22 03:42:49,465 - MiningClient - INFO - Winning Nonce: 3,355,901,314
+2025-08-22 03:42:49,465 - MiningClient - INFO - Mining Time: 0.01 seconds
+2025-08-22 03:42:49,465 - MiningClient - INFO - Hash Rate: 152066 H/s
+2025-08-22 03:42:49,466 - MiningClient - INFO - Submitting to network...
+2025-08-22 03:42:49,498 - MiningClient - INFO - Mining attempt 1/3
+2025-08-22 03:42:49,499 - MiningClient - INFO -   Block: #7
+2025-08-22 03:42:49,499 - MiningClient - INFO -   Difficulty: 4
+2025-08-22 03:42:49,499 - MiningClient - INFO -   Transactions: 1
+2025-08-22 03:42:49,499 - MiningClient - INFO - Starting optimized mining - Block #7, Difficulty: 4
+2025-08-22 03:42:49,500 - MiningClient - INFO - Mining range: 1,199,565,221 to 1,200,565,221
+2025-08-22 03:42:49,755 - MiningClient - INFO - PROOF-OF-WORK FOUND!
+2025-08-22 03:42:49,755 - MiningClient - INFO - Valid Hash: 00001f25e90dd94a99898de24a5cf57a5808dc6888da6cb65c6006cfdb978e24
+2025-08-22 03:42:49,756 - MiningClient - INFO - Winning Nonce: 1,199,615,506
+2025-08-22 03:42:49,756 - MiningClient - INFO - Mining Time: 0.26 seconds
+2025-08-22 03:42:49,756 - MiningClient - INFO - Hash Rate: 197109 H/s
+2025-08-22 03:42:49,756 - MiningClient - INFO - Submitting to network...
+2025-08-22 03:42:58,585 - MiningClient - INFO - SUCCESS: Block #7 accepted by network
+2025-08-22 03:42:58,585 - MiningClient - INFO -   Hash: 000069b5b6037afd...eae59002
+2025-08-22 03:42:58,586 - MiningClient - INFO -   Chain Length: 8
+2025-08-22 03:42:58,586 - MiningClient - INFO - Block #7 successfully mined and submitted!
+2025-08-22 03:42:58,587 - MiningClient - INFO - Block mined successfully! Getting next template...
+2025-08-22 03:42:58,620 - MiningClient - INFO - SUCCESS: Block #7 accepted by network
+2025-08-22 03:42:58,621 - MiningClient - INFO -   Hash: 00001f25e90dd94a...db978e24
+2025-08-22 03:42:58,621 - MiningClient - INFO -   Chain Length: 8
+2025-08-22 03:42:58,621 - MiningClient - INFO - Block #7 successfully mined and submitted!
+2025-08-22 03:42:58,622 - MiningClient - INFO - Block mined successfully! Getting next template...
+2025-08-22 03:43:01,635 - MiningClient - INFO - Node version: unknown, Chain length: 8
+2025-08-22 03:43:01,654 - MiningClient - INFO - Node version: unknown, Chain length: 8
+2025-08-22 03:43:03,700 - MiningClient - INFO - Mining attempt 1/3
+2025-08-22 03:43:03,701 - MiningClient - INFO -   Block: #8
+2025-08-22 03:43:03,701 - MiningClient - INFO -   Difficulty: 4
+2025-08-22 03:43:03,701 - MiningClient - INFO -   Transactions: 1
+2025-08-22 03:43:03,701 - MiningClient - INFO - Starting optimized mining - Block #8, Difficulty: 4
+2025-08-22 03:43:03,702 - MiningClient - INFO - Mining range: 3,355,900,439 to 3,356,900,439
+2025-08-22 03:43:03,714 - MiningClient - INFO - Mining attempt 1/3
+2025-08-22 03:43:03,715 - MiningClient - INFO -   Block: #8
+2025-08-22 03:43:03,715 - MiningClient - INFO -   Difficulty: 4
+2025-08-22 03:43:03,716 - MiningClient - INFO -   Transactions: 1
+2025-08-22 03:43:03,716 - MiningClient - INFO - Starting optimized mining - Block #8, Difficulty: 4
+2025-08-22 03:43:03,717 - MiningClient - INFO - Mining range: 1,199,515,502 to 1,200,515,502
+2025-08-22 03:43:04,285 - MiningClient - INFO - PROOF-OF-WORK FOUND!
+2025-08-22 03:43:04,288 - MiningClient - INFO - Valid Hash: 00001575a37701ab0e87cf2a19c8e1c04b4664ae356ab9211bea3d93c71b8627
+2025-08-22 03:43:04,289 - MiningClient - INFO - Winning Nonce: 3,355,966,903
+2025-08-22 03:43:04,289 - MiningClient - INFO - Mining Time: 0.58 seconds
+2025-08-22 03:43:04,290 - MiningClient - INFO - Hash Rate: 114122 H/s
+2025-08-22 03:43:04,290 - MiningClient - INFO - Submitting to network...
+2025-08-22 03:43:04,961 - MiningClient - INFO - PROOF-OF-WORK FOUND!
+2025-08-22 03:43:04,963 - MiningClient - INFO - Valid Hash: 0000d055793ee80a55591d470c9c85fa00cdbb5333f250e31ce3c5e09ffbb01c
+2025-08-22 03:43:04,964 - MiningClient - INFO - Winning Nonce: 1,199,705,798
+2025-08-22 03:43:04,964 - MiningClient - INFO - Mining Time: 1.24 seconds
+2025-08-22 03:43:04,965 - MiningClient - INFO - Hash Rate: 152991 H/s
+2025-08-22 03:43:04,966 - MiningClient - INFO - Submitting to network...
+2025-08-22 03:43:13,393 - MiningClient - INFO - SUCCESS: Block #8 accepted by network
+2025-08-22 03:43:13,393 - MiningClient - INFO -   Hash: 00001575a37701ab...c71b8627
+2025-08-22 03:43:13,393 - MiningClient - INFO -   Chain Length: 9
+2025-08-22 03:43:13,394 - MiningClient - INFO - Block #8 successfully mined and submitted!
+2025-08-22 03:43:13,395 - MiningClient - INFO - Block mined successfully! Getting next template...
+2025-08-22 03:43:13,420 - MiningClient - INFO - SUCCESS: Block #8 accepted by network
+2025-08-22 03:43:13,420 - MiningClient - INFO -   Hash: 0000d055793ee80a...9ffbb01c
+2025-08-22 03:43:13,421 - MiningClient - INFO -   Chain Length: 9
+2025-08-22 03:43:13,421 - MiningClient - INFO - Block #8 successfully mined and submitted!
+2025-08-22 03:43:13,422 - MiningClient - INFO - Block mined successfully! Getting next template...
+2025-08-22 03:43:16,440 - MiningClient - INFO - Node version: unknown, Chain length: 9
+2025-08-22 03:43:16,466 - MiningClient - INFO - Node version: unknown, Chain length: 9
+2025-08-22 03:43:18,487 - MiningClient - INFO - Mining attempt 1/3
+2025-08-22 03:43:18,487 - MiningClient - INFO -   Block: #9
+2025-08-22 03:43:18,488 - MiningClient - INFO -   Difficulty: 4
+2025-08-22 03:43:18,488 - MiningClient - INFO -   Transactions: 1
+2025-08-22 03:43:18,488 - MiningClient - INFO - Starting optimized mining - Block #9, Difficulty: 4
+2025-08-22 03:43:18,489 - MiningClient - INFO - Mining range: 3,355,902,284 to 3,356,902,284
+2025-08-22 03:43:18,529 - MiningClient - INFO - Mining attempt 1/3
+2025-08-22 03:43:18,530 - MiningClient - INFO -   Block: #9
+2025-08-22 03:43:18,530 - MiningClient - INFO -   Difficulty: 4
+2025-08-22 03:43:18,530 - MiningClient - INFO -   Transactions: 1
+2025-08-22 03:43:18,531 - MiningClient - INFO - Starting optimized mining - Block #9, Difficulty: 4
+2025-08-22 03:43:18,532 - MiningClient - INFO - Mining range: 1,199,517,875 to 1,200,517,875
+2025-08-22 03:43:18,724 - MiningClient - INFO - PROOF-OF-WORK FOUND!
+2025-08-22 03:43:18,724 - MiningClient - INFO - Valid Hash: 00005d8163997dfd20b7a4e028ba6ac771838f03df2f297ec48bcc90a261f7ce
+2025-08-22 03:43:18,725 - MiningClient - INFO - Winning Nonce: 3,355,936,287
+2025-08-22 03:43:18,727 - MiningClient - INFO - Mining Time: 0.24 seconds
+2025-08-22 03:43:18,728 - MiningClient - INFO - Hash Rate: 144610 H/s
+2025-08-22 03:43:18,728 - MiningClient - INFO - Submitting to network...
+2025-08-22 03:43:18,823 - MiningClient - INFO - PROOF-OF-WORK FOUND!
+2025-08-22 03:43:18,823 - MiningClient - INFO - Valid Hash: 000004792f826db5e4fc29d7f074dfb563cc25a1b45707a310343c02829fb4b8
+2025-08-22 03:43:18,824 - MiningClient - INFO - Winning Nonce: 1,199,568,824
+2025-08-22 03:43:18,824 - MiningClient - INFO - Mining Time: 0.29 seconds
+2025-08-22 03:43:18,824 - MiningClient - INFO - Hash Rate: 174822 H/s
+2025-08-22 03:43:18,825 - MiningClient - INFO - Submitting to network...
+2025-08-22 03:43:27,871 - MiningClient - INFO - SUCCESS: Block #9 accepted by network
+2025-08-22 03:43:27,872 - MiningClient - INFO -   Hash: 00005d8163997dfd...a261f7ce
+2025-08-22 03:43:27,872 - MiningClient - INFO -   Chain Length: 10
+2025-08-22 03:43:27,872 - MiningClient - INFO - Block #9 successfully mined and submitted!
+2025-08-22 03:43:27,874 - MiningClient - INFO - Block mined successfully! Getting next template...
+2025-08-22 03:43:27,911 - MiningClient - INFO - SUCCESS: Block #9 accepted by network
+2025-08-22 03:43:27,912 - MiningClient - INFO -   Hash: 000004792f826db5...829fb4b8
+2025-08-22 03:43:27,912 - MiningClient - INFO -   Chain Length: 10
+2025-08-22 03:43:27,913 - MiningClient - INFO - Block #9 successfully mined and submitted!
+2025-08-22 03:43:27,915 - MiningClient - INFO - Block mined successfully! Getting next template...
+2025-08-22 03:43:30,913 - MiningClient - INFO - Node version: unknown, Chain length: 10
+2025-08-22 03:43:30,973 - MiningClient - INFO - Node version: unknown, Chain length: 10
+2025-08-22 03:43:32,971 - MiningClient - INFO - Mining attempt 1/3
+2025-08-22 03:43:32,972 - MiningClient - INFO -   Block: #10
+2025-08-22 03:43:32,972 - MiningClient - INFO -   Difficulty: 1
+2025-08-22 03:43:32,972 - MiningClient - INFO -   Transactions: 1
+2025-08-22 03:43:32,973 - MiningClient - INFO - Starting optimized mining - Block #10, Difficulty: 1
+2025-08-22 03:43:32,975 - MiningClient - INFO - Mining range: 3,355,893,451 to 3,356,893,451
+2025-08-22 03:43:32,975 - MiningClient - INFO - PROOF-OF-WORK FOUND!
+2025-08-22 03:43:32,976 - MiningClient - INFO - Valid Hash: 0460b1a4a58cc76ae39a19483f87f2a98aee16a2a7e70562c344d0f0947a7f0e
+2025-08-22 03:43:32,976 - MiningClient - INFO - Winning Nonce: 3,355,893,470
+2025-08-22 03:43:32,977 - MiningClient - INFO - Mining Time: 0.00 seconds
+2025-08-22 03:43:32,977 - MiningClient - INFO - Hash Rate: 35395 H/s
+2025-08-22 03:43:32,977 - MiningClient - INFO - Submitting to network...
+2025-08-22 03:43:33,019 - MiningClient - INFO - Mining attempt 1/3
+2025-08-22 03:43:33,019 - MiningClient - INFO -   Block: #10
+2025-08-22 03:43:33,020 - MiningClient - INFO -   Difficulty: 1
+2025-08-22 03:43:33,020 - MiningClient - INFO -   Transactions: 1
+2025-08-22 03:43:33,020 - MiningClient - INFO - Starting optimized mining - Block #10, Difficulty: 1
+2025-08-22 03:43:33,021 - MiningClient - INFO - Mining range: 1,199,571,259 to 1,200,571,259
+2025-08-22 03:43:33,021 - MiningClient - INFO - PROOF-OF-WORK FOUND!
+2025-08-22 03:43:33,021 - MiningClient - INFO - Valid Hash: 0e7f9bdca9d4e8e6528af4e146b97377a3e6fc7e9984e440c522adedeb4bb879
+2025-08-22 03:43:33,021 - MiningClient - INFO - Winning Nonce: 1,199,571,266
+2025-08-22 03:43:33,022 - MiningClient - INFO - Mining Time: 0.00 seconds
+2025-08-22 03:43:33,022 - MiningClient - INFO - Hash Rate: 25556 H/s
+2025-08-22 03:43:33,022 - MiningClient - INFO - Submitting to network...
+2025-08-22 03:43:42,107 - MiningClient - INFO - SUCCESS: Block #10 accepted by network
+2025-08-22 03:43:42,108 - MiningClient - INFO -   Hash: 0460b1a4a58cc76a...947a7f0e
+2025-08-22 03:43:42,108 - MiningClient - INFO -   Chain Length: 11
+2025-08-22 03:43:42,108 - MiningClient - INFO - Block #10 successfully mined and submitted!
+2025-08-22 03:43:42,113 - MiningClient - INFO - Block mined successfully! Getting next template...
+2025-08-22 03:43:42,127 - MiningClient - INFO - SUCCESS: Block #10 accepted by network
+2025-08-22 03:43:42,128 - MiningClient - INFO -   Hash: 0e7f9bdca9d4e8e6...eb4bb879
+2025-08-22 03:43:42,129 - MiningClient - INFO -   Chain Length: 11
+2025-08-22 03:43:42,129 - MiningClient - INFO - Block #10 successfully mined and submitted!
+2025-08-22 03:43:42,131 - MiningClient - INFO - Block mined successfully! Getting next template...
+2025-08-22 03:43:45,150 - MiningClient - INFO - Node version: unknown, Chain length: 11
+2025-08-22 03:43:45,168 - MiningClient - INFO - Node version: unknown, Chain length: 11
+2025-08-22 03:43:47,224 - MiningClient - INFO - Mining attempt 1/3
+2025-08-22 03:43:47,227 - MiningClient - INFO -   Block: #11
+2025-08-22 03:43:47,227 - MiningClient - INFO -   Difficulty: 1
+2025-08-22 03:43:47,228 - MiningClient - INFO - Mining attempt 1/3
+2025-08-22 03:43:47,228 - MiningClient - INFO -   Transactions: 1
+2025-08-22 03:43:47,229 - MiningClient - INFO -   Block: #11
+2025-08-22 03:43:47,230 - MiningClient - INFO -   Difficulty: 1
+2025-08-22 03:43:47,229 - MiningClient - INFO - Starting optimized mining - Block #11, Difficulty: 1
+2025-08-22 03:43:47,231 - MiningClient - INFO -   Transactions: 1
+2025-08-22 03:43:47,231 - MiningClient - INFO - Mining range: 1,199,566,873 to 1,200,566,873
+2025-08-22 03:43:47,232 - MiningClient - INFO - Starting optimized mining - Block #11, Difficulty: 1
+2025-08-22 03:43:47,232 - MiningClient - INFO - PROOF-OF-WORK FOUND!
+2025-08-22 03:43:47,233 - MiningClient - INFO - Valid Hash: 036c7d930bd4d8732cbc0c0c2c1a16541f085732a12e92f17f1146017c0417e6
+2025-08-22 03:43:47,233 - MiningClient - INFO - Winning Nonce: 1,199,566,880
+2025-08-22 03:43:47,234 - MiningClient - INFO - Mining Time: 0.00 seconds
+2025-08-22 03:43:47,234 - MiningClient - INFO - Mining range: 3,355,839,598 to 3,356,839,598
+2025-08-22 03:43:47,234 - MiningClient - INFO - Hash Rate: 11570 H/s
+2025-08-22 03:43:47,234 - MiningClient - INFO - PROOF-OF-WORK FOUND!
+2025-08-22 03:43:47,234 - MiningClient - INFO - Valid Hash: 0f8b2a0fea811ec06179af6f0010d97309455ed62e5aa21dceb27f26eebddfe4
+2025-08-22 03:43:47,234 - MiningClient - INFO - Submitting to network...
+2025-08-22 03:43:47,235 - MiningClient - INFO - Winning Nonce: 3,355,839,600
+2025-08-22 03:43:47,235 - MiningClient - INFO - Mining Time: 0.00 seconds
+2025-08-22 03:43:47,235 - MiningClient - INFO - Hash Rate: 5831 H/s
+2025-08-22 03:43:47,236 - MiningClient - INFO - Submitting to network...
+2025-08-22 03:43:56,359 - MiningClient - INFO - SUCCESS: Block #11 accepted by network
+2025-08-22 03:43:56,361 - MiningClient - INFO -   Hash: 0f8b2a0fea811ec0...eebddfe4
+2025-08-22 03:43:56,359 - MiningClient - INFO - SUCCESS: Block #11 accepted by network
+2025-08-22 03:43:56,363 - MiningClient - INFO -   Hash: 036c7d930bd4d873...7c0417e6
+2025-08-22 03:43:56,361 - MiningClient - INFO -   Chain Length: 12
+2025-08-22 03:43:56,365 - MiningClient - INFO -   Chain Length: 12
+2025-08-22 03:43:56,365 - MiningClient - INFO - Block #11 successfully mined and submitted!
+2025-08-22 03:43:56,366 - MiningClient - INFO - Block #11 successfully mined and submitted!
+2025-08-22 03:43:56,372 - MiningClient - INFO - Block mined successfully! Getting next template...
+2025-08-22 03:43:56,375 - MiningClient - INFO - Block mined successfully! Getting next template...
+2025-08-22 03:43:59,416 - MiningClient - INFO - Node version: unknown, Chain length: 12
+2025-08-22 03:43:59,441 - MiningClient - INFO - Node version: unknown, Chain length: 12
+2025-08-22 03:44:01,520 - MiningClient - INFO - Mining attempt 1/3
+2025-08-22 03:44:01,521 - MiningClient - INFO -   Block: #12
+2025-08-22 03:44:01,521 - MiningClient - INFO -   Difficulty: 1
+2025-08-22 03:44:01,521 - MiningClient - INFO -   Transactions: 1
+2025-08-22 03:44:01,522 - MiningClient - INFO - Starting optimized mining - Block #12, Difficulty: 1
+2025-08-22 03:44:01,523 - MiningClient - INFO - Mining range: 1,199,525,813 to 1,200,525,813
+2025-08-22 03:44:01,523 - MiningClient - INFO - PROOF-OF-WORK FOUND!
+2025-08-22 03:44:01,523 - MiningClient - INFO - Valid Hash: 0ae7d1cae7bff9e3e22edf337c69f8b10e248e1c96b4b93055b4735f9902f783
+2025-08-22 03:44:01,523 - MiningClient - INFO - Winning Nonce: 1,199,525,813
+2025-08-22 03:44:01,523 - MiningClient - INFO - Mining Time: 0.00 seconds
+2025-08-22 03:44:01,524 - MiningClient - INFO - Hash Rate: 4491 H/s
+2025-08-22 03:44:01,524 - MiningClient - INFO - Submitting to network...
+2025-08-22 03:44:01,530 - MiningClient - INFO - Mining attempt 1/3
+2025-08-22 03:44:01,531 - MiningClient - INFO -   Block: #12
+2025-08-22 03:44:01,531 - MiningClient - INFO -   Difficulty: 1
+2025-08-22 03:44:01,531 - MiningClient - INFO -   Transactions: 1
+2025-08-22 03:44:01,531 - MiningClient - INFO - Starting optimized mining - Block #12, Difficulty: 1
+2025-08-22 03:44:01,532 - MiningClient - INFO - Mining range: 3,355,893,304 to 3,356,893,304
+2025-08-22 03:44:01,532 - MiningClient - INFO - PROOF-OF-WORK FOUND!
+2025-08-22 03:44:01,533 - MiningClient - INFO - Valid Hash: 02bc9cb4222764223b646cb152fe536961eb2a7dd257611f5fcdba34bb1e93a6
+2025-08-22 03:44:01,533 - MiningClient - INFO - Winning Nonce: 3,355,893,318
+2025-08-22 03:44:01,533 - MiningClient - INFO - Mining Time: 0.00 seconds
+2025-08-22 03:44:01,533 - MiningClient - INFO - Hash Rate: 46024 H/s
+2025-08-22 03:44:01,534 - MiningClient - INFO - Submitting to network...
+2025-08-22 03:44:10,680 - MiningClient - INFO - SUCCESS: Block #12 accepted by network
+2025-08-22 03:44:10,681 - MiningClient - INFO -   Hash: 02bc9cb422276422...bb1e93a6
+2025-08-22 03:44:10,682 - MiningClient - INFO -   Chain Length: 13
+2025-08-22 03:44:10,683 - MiningClient - INFO - Block #12 successfully mined and submitted!
+2025-08-22 03:44:10,690 - MiningClient - INFO - Block mined successfully! Getting next template...
+2025-08-22 03:44:10,691 - MiningClient - INFO - SUCCESS: Block #12 accepted by network
+2025-08-22 03:44:10,693 - MiningClient - INFO -   Hash: 0ae7d1cae7bff9e3...9902f783
+2025-08-22 03:44:10,693 - MiningClient - INFO -   Chain Length: 13
+2025-08-22 03:44:10,694 - MiningClient - INFO - Block #12 successfully mined and submitted!
+2025-08-22 03:44:10,704 - MiningClient - INFO - Block mined successfully! Getting next template...
+2025-08-22 03:44:14,207 - MiningClient - INFO - Node version: unknown, Chain length: 13
+2025-08-22 03:44:14,217 - MiningClient - INFO - Node version: unknown, Chain length: 13
+2025-08-22 03:44:16,294 - MiningClient - INFO - Mining attempt 1/3
+2025-08-22 03:44:16,296 - MiningClient - INFO -   Block: #13
+2025-08-22 03:44:16,296 - MiningClient - INFO -   Difficulty: 1
+2025-08-22 03:44:16,296 - MiningClient - INFO -   Transactions: 1
+2025-08-22 03:44:16,297 - MiningClient - INFO - Starting optimized mining - Block #13, Difficulty: 1
+2025-08-22 03:44:16,300 - MiningClient - INFO - Mining range: 3,355,886,653 to 3,356,886,653
+2025-08-22 03:44:16,301 - MiningClient - INFO - PROOF-OF-WORK FOUND!
+2025-08-22 03:44:16,302 - MiningClient - INFO - Valid Hash: 04afae32e987274ed5b228270e0666fe7deed288775bc327c2275720d39905fc
+2025-08-22 03:44:16,303 - MiningClient - INFO - Winning Nonce: 3,355,886,678
+2025-08-22 03:44:16,303 - MiningClient - INFO - Mining Time: 0.00 seconds
+2025-08-22 03:44:16,304 - MiningClient - INFO - Hash Rate: 22026 H/s
+2025-08-22 03:44:16,304 - MiningClient - INFO - Submitting to network...
+2025-08-22 03:44:16,316 - MiningClient - INFO - Mining attempt 1/3
+2025-08-22 03:44:16,316 - MiningClient - INFO -   Block: #13
+2025-08-22 03:44:16,317 - MiningClient - INFO -   Difficulty: 1
+2025-08-22 03:44:16,317 - MiningClient - INFO -   Transactions: 1
+2025-08-22 03:44:16,317 - MiningClient - INFO - Starting optimized mining - Block #13, Difficulty: 1
+2025-08-22 03:44:16,318 - MiningClient - INFO - Mining range: 1,199,576,599 to 1,200,576,599
+2025-08-22 03:44:16,318 - MiningClient - INFO - PROOF-OF-WORK FOUND!
+2025-08-22 03:44:16,319 - MiningClient - INFO - Valid Hash: 016b1df767411e47ce7488a939c18753cf02a7b07d4c4efef9cddafa232238b2
+2025-08-22 03:44:16,319 - MiningClient - INFO - Winning Nonce: 1,199,576,609
+2025-08-22 03:44:16,319 - MiningClient - INFO - Mining Time: 0.00 seconds
+2025-08-22 03:44:16,319 - MiningClient - INFO - Hash Rate: 27693 H/s
+2025-08-22 03:44:16,320 - MiningClient - INFO - Submitting to network...
+2025-08-22 03:44:25,415 - MiningClient - INFO - SUCCESS: Block #13 accepted by network
+2025-08-22 03:44:25,415 - MiningClient - INFO -   Hash: 04afae32e987274e...d39905fc
+2025-08-22 03:44:25,415 - MiningClient - INFO -   Chain Length: 14
+2025-08-22 03:44:25,416 - MiningClient - INFO - Block #13 successfully mined and submitted!
+2025-08-22 03:44:25,416 - MiningClient - INFO - Block mined successfully! Getting next template...
+2025-08-22 03:44:25,437 - MiningClient - INFO - SUCCESS: Block #13 accepted by network
+2025-08-22 03:44:25,438 - MiningClient - INFO -   Hash: 016b1df767411e47...232238b2
+2025-08-22 03:44:25,438 - MiningClient - INFO -   Chain Length: 14
+2025-08-22 03:44:25,439 - MiningClient - INFO - Block #13 successfully mined and submitted!
+2025-08-22 03:44:25,442 - MiningClient - INFO - Block mined successfully! Getting next template...
+2025-08-22 03:44:28,480 - MiningClient - INFO - Node version: unknown, Chain length: 14
+2025-08-22 03:44:28,490 - MiningClient - INFO - Node version: unknown, Chain length: 14
+2025-08-22 03:50:30,508 - MiningClient - INFO - Enhanced mining client initialized for address: 1Guk...bcJj
+2025-08-22 03:50:30,510 - MiningClient - INFO - Node: http://localhost:5002
+2025-08-22 03:50:30,514 - MiningClient - INFO - ============================================================
+2025-08-22 03:50:30,514 - MiningClient - INFO - ENHANCED MINING CLIENT STARTED
+2025-08-22 03:50:30,515 - MiningClient - INFO - ============================================================
+2025-08-22 03:50:30,516 - MiningClient - INFO - Wallet: 1Guk...bcJj
+2025-08-22 03:50:30,517 - MiningClient - INFO - Node: http://localhost:5002
+2025-08-22 03:50:30,519 - MiningClient - INFO - Session: 2025-08-22 03:50:30
+2025-08-22 03:50:30,519 - MiningClient - INFO - ------------------------------------------------------------
+2025-08-22 03:50:32,581 - MiningClient - INFO - Node version: unknown, Chain length: 1
+2025-08-22 03:50:34,643 - MiningClient - INFO - Mining attempt 1/3
+2025-08-22 03:50:34,643 - MiningClient - INFO -   Block: #1
+2025-08-22 03:50:34,643 - MiningClient - INFO -   Difficulty: 4
+2025-08-22 03:50:34,644 - MiningClient - INFO -   Transactions: 1
+2025-08-22 03:50:34,644 - MiningClient - INFO - Starting optimized mining - Block #1, Difficulty: 4
+2025-08-22 03:50:34,645 - MiningClient - INFO - Mining range: 3,452,228,894 to 3,453,228,894
+2025-08-22 03:50:34,677 - MiningClient - INFO - PROOF-OF-WORK FOUND!
+2025-08-22 03:50:34,678 - MiningClient - INFO - Valid Hash: 00000faca6dcda661360156b7d06ae596d76aa0673d3ee556b1216d094ec3aba
+2025-08-22 03:50:34,678 - MiningClient - INFO - Winning Nonce: 3,452,234,238
+2025-08-22 03:50:34,678 - MiningClient - INFO - Mining Time: 0.03 seconds
+2025-08-22 03:50:34,679 - MiningClient - INFO - Hash Rate: 165322 H/s
+2025-08-22 03:50:34,679 - MiningClient - INFO - Submitting to network...
+2025-08-22 03:50:36,733 - MiningClient - INFO - SUCCESS: Block #1 accepted by network
+2025-08-22 03:50:36,737 - MiningClient - INFO -   Hash: 00000faca6dcda66...94ec3aba
+2025-08-22 03:50:36,739 - MiningClient - INFO -   Chain Length: 2
+2025-08-22 03:50:36,741 - MiningClient - INFO - Block #1 successfully mined and submitted!
+2025-08-22 03:50:36,742 - MiningClient - INFO - Block mined successfully! Getting next template...
+2025-08-22 03:50:39,827 - MiningClient - INFO - Node version: unknown, Chain length: 2
+2025-08-22 03:50:41,898 - MiningClient - INFO - Mining attempt 1/3
+2025-08-22 03:50:41,898 - MiningClient - INFO -   Block: #2
+2025-08-22 03:50:41,899 - MiningClient - INFO -   Difficulty: 4
+2025-08-22 03:50:41,899 - MiningClient - INFO -   Transactions: 1
+2025-08-22 03:50:41,899 - MiningClient - INFO - Starting optimized mining - Block #2, Difficulty: 4
+2025-08-22 03:50:41,900 - MiningClient - INFO - Mining range: 3,452,216,796 to 3,453,216,796
+2025-08-22 03:50:42,225 - MiningClient - INFO - PROOF-OF-WORK FOUND!
+2025-08-22 03:50:42,225 - MiningClient - INFO - Valid Hash: 000099f8ad7bc8d1cd4961fdd75377b24cbab3a4923cc7d4f77e945ae2876506
+2025-08-22 03:50:42,225 - MiningClient - INFO - Winning Nonce: 3,452,303,614
+2025-08-22 03:50:42,226 - MiningClient - INFO - Mining Time: 0.32 seconds
+2025-08-22 03:50:42,226 - MiningClient - INFO - Hash Rate: 267376 H/s
+2025-08-22 03:50:42,226 - MiningClient - INFO - Submitting to network...
+2025-08-22 03:50:44,298 - MiningClient - INFO - SUCCESS: Block #2 accepted by network
+2025-08-22 03:50:44,299 - MiningClient - INFO -   Hash: 000099f8ad7bc8d1...e2876506
+2025-08-22 03:50:44,300 - MiningClient - INFO -   Chain Length: 3
+2025-08-22 03:50:44,300 - MiningClient - INFO - Block #2 successfully mined and submitted!
+2025-08-22 03:50:44,304 - MiningClient - INFO - Block mined successfully! Getting next template...
+2025-08-22 03:50:47,353 - MiningClient - INFO - Node version: unknown, Chain length: 3
+2025-08-22 03:50:49,399 - MiningClient - INFO - Mining attempt 1/3
+2025-08-22 03:50:49,399 - MiningClient - INFO -   Block: #3
+2025-08-22 03:50:49,400 - MiningClient - INFO -   Difficulty: 4
+2025-08-22 03:50:49,400 - MiningClient - INFO -   Transactions: 1
+2025-08-22 03:50:49,402 - MiningClient - INFO - Starting optimized mining - Block #3, Difficulty: 4
+2025-08-22 03:50:49,403 - MiningClient - INFO - Mining range: 3,452,195,443 to 3,453,195,443
+2025-08-22 03:50:49,726 - MiningClient - INFO - PROOF-OF-WORK FOUND!
+2025-08-22 03:50:49,726 - MiningClient - INFO - Valid Hash: 00006e7287e8678e59561e5badc9515f996a306c790d8f772c1b39b8562d05e5
+2025-08-22 03:50:49,726 - MiningClient - INFO - Winning Nonce: 3,452,270,830
+2025-08-22 03:50:49,727 - MiningClient - INFO - Mining Time: 0.32 seconds
+2025-08-22 03:50:49,728 - MiningClient - INFO - Hash Rate: 233766 H/s
+2025-08-22 03:50:49,728 - MiningClient - INFO - Submitting to network...
+2025-08-22 03:50:51,808 - MiningClient - INFO - SUCCESS: Block #3 accepted by network
+2025-08-22 03:50:51,809 - MiningClient - INFO -   Hash: 00006e7287e8678e...562d05e5
+2025-08-22 03:50:51,809 - MiningClient - INFO -   Chain Length: 4
+2025-08-22 03:50:51,809 - MiningClient - INFO - Block #3 successfully mined and submitted!
+2025-08-22 03:50:51,810 - MiningClient - INFO - Block mined successfully! Getting next template...
