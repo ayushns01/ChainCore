@@ -190,7 +190,14 @@ class ThreadSafePeerManager:
         self._network_stats_sync_interval = 60.0  # Sync network stats every 60 seconds
         
         # Peer count management and discovery configuration
-        from ..config import MIN_PEERS, TARGET_PEERS, MAX_PEERS, PEER_DISCOVERY_RANGE
+        try:
+            from ..config import MIN_PEERS, TARGET_PEERS, MAX_PEERS, PEER_DISCOVERY_RANGE
+        except ImportError:
+            # Fallback for direct script execution
+            import sys
+            import os
+            sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
+            from src.config import MIN_PEERS, TARGET_PEERS, MAX_PEERS, PEER_DISCOVERY_RANGE
         self._min_peers = MIN_PEERS
         self._target_peers = TARGET_PEERS  
         self._max_peers = MAX_PEERS
@@ -819,10 +826,10 @@ class ThreadSafePeerManager:
     
     def discover_peers(self, port_range: range = None, host: str = "localhost") -> int:
         """
-        Enhanced peer discovery with proper future handling and main node detection
+        ENHANCED: Scalable peer discovery for large multi-node networks (N > 2)
         Returns number of new peers discovered
         """
-        # Use configured port range if none provided (5000-5099)
+        # Use configured port range if none provided (now supports 200+ nodes)
         if port_range is None:
             port_range = range(*self._discovery_range)
         
@@ -830,55 +837,75 @@ class ThreadSafePeerManager:
         current_active_peers = len(self.get_active_peers())
         discovered_nodes = []  # Track discovered nodes for main node selection
         
-        logger.info(f"🔍 Starting Enhanced Peer Discovery")
-        logger.info(f"   📊 Current: {current_active_peers} active peers")
-        logger.info(f"   🎯 Scanning: ports {port_range.start}-{port_range.stop-1}")
-        logger.info(f"   ⚡ Workers: {self._max_discovery_workers}")
+        # ENHANCED: Batch discovery for large networks to prevent overwhelming
+        from ..config import PEER_DISCOVERY_BATCH_SIZE, PEER_DISCOVERY_PARALLEL_WORKERS
+        batch_size = PEER_DISCOVERY_BATCH_SIZE
+        max_workers = min(PEER_DISCOVERY_PARALLEL_WORKERS, len(port_range))
         
-        with concurrent.futures.ThreadPoolExecutor(max_workers=self._max_discovery_workers) as executor:
-            # Submit all discovery tasks
-            future_to_url = {}
+        logger.info(f"🔍 Starting Scalable Multi-Node Peer Discovery")
+        logger.info(f"   📊 Current: {current_active_peers} active peers")
+        logger.info(f"   🎯 Scanning: ports {port_range.start}-{port_range.stop-1} ({len(port_range)} total)")
+        logger.info(f"   📦 Batch size: {batch_size} ports per batch")
+        logger.info(f"   ⚡ Workers: {max_workers}")
+        
+        # Process discovery in batches for better performance with large networks
+        port_list = list(port_range)
+        for batch_start in range(0, len(port_list), batch_size):
+            batch_ports = port_list[batch_start:batch_start + batch_size]
             
-            for port in port_range:
-                peer_url = f"http://{host}:{port}"
+            logger.debug(f"🔍 Processing batch: ports {batch_ports[0]}-{batch_ports[-1]}")
+            
+            with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
+                # Submit discovery tasks for this batch
+                future_to_url = {}
                 
-                # Skip self URL
-                if self._is_self_url(peer_url):
-                    logger.debug(f"   ⏭️  Skipping self URL: {peer_url}")
-                    continue
-                
-                future = executor.submit(self._try_discover_peer_enhanced, peer_url)
-                future_to_url[future] = peer_url
-            
-            # Process completed futures with timeout handling
-            completed_futures = 0
-            timeout_duration = 15.0  # 15 second total timeout
-            
-            try:
-                for future in concurrent.futures.as_completed(future_to_url.keys(), timeout=timeout_duration):
-                    completed_futures += 1
-                    peer_url = future_to_url[future]
+                for port in batch_ports:
+                    peer_url = f"http://{host}:{port}"
                     
-                    try:
-                        peer_info = future.result()
-                        if peer_info:
-                            discovered_count += 1
-                            discovered_nodes.append((peer_url, peer_info))
-                            logger.info(f"   ✅ Found peer: {peer_url} (chain: {peer_info.chain_length})")
-                            
-                            # Early exit if we have enough peers
-                            if len(self._peers) >= self._max_peers:
-                                logger.info(f"   🎯 Reached max peers ({self._max_peers}), stopping discovery")
-                                break
+                    # Skip self URL
+                    if self._is_self_url(peer_url):
+                        logger.debug(f"   ⏭️  Skipping self URL: {peer_url}")
+                        continue
+                    
+                    future = executor.submit(self._try_discover_peer_enhanced, peer_url)
+                    future_to_url[future] = peer_url
+            
+                # Process completed futures with timeout handling
+                completed_futures = 0
+                timeout_duration = 10.0  # 10 second timeout per batch
+                
+                try:
+                    for future in concurrent.futures.as_completed(future_to_url.keys(), timeout=timeout_duration):
+                        completed_futures += 1
+                        peer_url = future_to_url[future]
+                        
+                        try:
+                            peer_info = future.result()
+                            if peer_info:
+                                discovered_count += 1
+                                discovered_nodes.append((peer_url, peer_info))
+                                logger.info(f"   ✅ Found peer: {peer_url} (chain: {peer_info.chain_length})")
                                 
-                    except Exception as e:
-                        logger.debug(f"   ❌ Discovery failed for {peer_url}: {e}")
-                        self._stats['failed_connections'].increment()
+                                # Early exit if we have enough peers
+                                if len(self._peers) >= self._max_peers:
+                                    logger.info(f"   🎯 Reached max peers ({self._max_peers}), stopping discovery")
+                                    return discovered_count  # Exit completely
+                                    
+                        except Exception as e:
+                            logger.debug(f"   ❌ Discovery failed for {peer_url}: {e}")
+                            self._stats['failed_connections'].increment()
+                
+                except concurrent.futures.TimeoutError:
+                    logger.debug(f"   ⏰ Batch timeout after {timeout_duration}s")
+                
+                # Cancel any remaining futures to prevent resource leaks
+                for future in future_to_url.keys():
+                    if not future.done():
+                        future.cancel()
             
-            except concurrent.futures.TimeoutError:
-                logger.info(f"   ⏰ Discovery timeout after {timeout_duration}s")
-            
-            # Cancel any remaining futures to prevent resource leaks
+            # Small delay between batches to prevent overwhelming the network
+            if batch_start + batch_size < len(port_list):
+                time.sleep(0.1)
             remaining_futures = [f for f in future_to_url.keys() if not f.done()]
             if remaining_futures:
                 logger.debug(f"   🔄 Cancelling {len(remaining_futures)} unfinished futures")
@@ -1136,20 +1163,31 @@ class ThreadSafePeerManager:
         
         return False
     
-    def broadcast_to_peers(self, endpoint: str, data: dict, timeout: float = 10.0) -> Dict[str, bool]:
+    def broadcast_to_peers(self, endpoint: str, data: dict, timeout: float = 10.0, 
+                          exclude_sender: bool = False, sender_url: str = None) -> Dict[str, bool]:
         """
-        Thread-safe broadcasting to all active peers
+        Enhanced thread-safe broadcasting to all active peers for multi-node networks
         Returns dict of peer_url -> success_status
         """
         active_peers = self.get_active_peers()
+        
+        # Exclude sender to prevent broadcast loops in multi-node networks
+        if exclude_sender and sender_url:
+            active_peers = [peer for peer in active_peers if peer != sender_url]
+        
         results = {}
         
         if not active_peers:
             logger.warning("No active peers for broadcasting")
             return results
         
+        # ENHANCED: Scale worker count based on network size
+        max_workers = min(len(active_peers), 20)  # Scale up to 20 workers for large networks
+        
+        logger.info(f"🌐 Broadcasting to {len(active_peers)} peers with {max_workers} workers")
+        
         # Use thread pool for concurrent broadcasting
-        with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
             futures = {
                 executor.submit(self._broadcast_to_peer, peer_url, endpoint, data, timeout): peer_url
                 for peer_url in active_peers

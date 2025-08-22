@@ -131,12 +131,17 @@ python3 wallet_client.py info --wallet miner1.json
 
 ```bash
 # Terminal 7-12: Additional miners connecting to different nodes
+python3 mining_client.py --wallet 18NDhHYAa3bx3jAZkc7HZf3vKr1JrwVXG3 --node http://localhost:5000
 python3 mining_client.py --wallet 1CcUyVAiHT2dGP4ESxWqsDKFzazkQ2UW3n --node http://localhost:5001
 python3 mining_client.py --wallet 1GukayKD1hRAXnQaJYKVwQcwCvVzsUbcJj --node http://localhost:5002
 python3 mining_client.py --wallet 18NDhHYAa3bx3jAZkc7HZf3vKr1JrwVXG3 --node http://localhost:5003
-python3 mining_client.py --wallet 1CcUyVAiHT2dGP4ESxWqsDKFzazkQ2UW3n --node http://localhost:5001
-python3 mining_client.py --wallet 1GukayKD1hRAXnQaJYKVwQcwCvVzsUbcJj --node http://localhost:5002
-python3 mining_client.py --wallet 18NDhHYAa3bx3jAZkc7HZf3vKr1JrwVXG3 --node http://localhost:5003
+python3 mining_client.py --wallet 1CcUyVAiHT2dGP4ESxWqsDKFzazkQ2UW3n --node http://localhost:5004
+python3 mining_client.py --wallet 1GukayKD1hRAXnQaJYKVwQcwCvVzsUbcJj --node http://localhost:5005
+python3 mining_client.py --wallet 1GukayKD1hRAXnQaJYKVwQcwCvVzsUbcJj --node http://localhost:5006
+python3 mining_client.py --wallet 18NDhHYAa3bx3jAZkc7HZf3vKr1JrwVXG3 --node http://localhost:5007
+python3 mining_client.py --wallet 1CcUyVAiHT2dGP4ESxWqsDKFzazkQ2UW3n --node http://localhost:5008
+python3 mining_client.py --wallet 1GukayKD1hRAXnQaJYKVwQcwCvVzsUbcJj --node http://localhost:5009
+python3 mining_client.py --wallet 18NDhHYAa3bx3jAZkc7HZf3vKr1JrwVXG3 --node http://localhost:5010
 ```
 
 ### 🔍 Mining Command Options (Consolidated Enterprise Client)
@@ -171,22 +176,26 @@ python3 mining_client.py --wallet ADDRESS --node https://node.example.com:5001 \
 ### 🚨 Consolidated Enterprise Security Features
 
 **✅ ECDSA Wallet Address Validation**
+
 - Bitcoin-style address format verification using ECDSA cryptography
 - Invalid addresses rejected before mining starts (prevents wasted mining)
 - Comprehensive format validation (length, prefix, checksum)
 
-**✅ Enhanced Privacy Protection** 
+**✅ Enhanced Privacy Protection**
+
 - Wallet addresses sanitized in all logs (e.g., `1Guk...bcJj`)
 - Full addresses never exposed in console output or log files
 - Privacy-compliant logging for production environments
 
 **✅ Enterprise-Grade Logging Framework**
+
 - Structured logging with timestamps, log levels, and categorization
 - Automatic log file rotation (`mining_client.log`)
 - Dual output: console + persistent file storage
 - Production monitoring and debugging support
 
 **✅ Advanced Network Security**
+
 - Comprehensive URL validation with protocol enforcement
 - Optional TLS requirement for production environments (`--require-tls`)
 - Security warnings for insecure HTTP connections to remote nodes
@@ -194,6 +203,7 @@ python3 mining_client.py --wallet ADDRESS --node https://node.example.com:5001 \
 - Exponential backoff for network resilience
 
 **✅ Performance & Reliability Optimizations**
+
 - Random nonce starting points prevent miner collision
 - Template staleness detection (configurable 30s refresh)
 - JSON serialization optimization (50-80% performance improvement)
@@ -671,6 +681,7 @@ Your blockchain is working correctly when you see:
 ## 🔥 Advanced Features
 
 ### Blockchain Core
+
 - **Enterprise Thread Safety**: Advanced reader-writer locks with deadlock detection
 - **MVCC UTXO Management**: Snapshot isolation for concurrent operations
 - **Atomic Operations**: All blockchain state changes are atomic
@@ -683,6 +694,7 @@ Your blockchain is working correctly when you see:
 - **Load Balancing**: Connect wallets to different nodes safely
 
 ### Production Mining Client (NEW)
+
 - **ECDSA Address Validation**: Bitcoin Core-level wallet address verification
 - **Privacy Protection**: Address sanitization in all logs and console output
 - **Performance Optimization**: 50-80% faster mining with JSON pre-computation
@@ -697,6 +709,7 @@ Your blockchain is working correctly when you see:
 ## 📈 Performance Benefits
 
 ### Blockchain Performance
+
 - **Zero Lock Contentions**: Perfect thread safety without performance loss
 - **Concurrent Operations**: Multiple API calls processed simultaneously
 - **Microsecond Lock Times**: Enterprise-grade lock acquisition performance
@@ -704,6 +717,7 @@ Your blockchain is working correctly when you see:
 - **Fault Tolerant**: Deadlock detection and automatic recovery
 
 ### Mining Performance (NEW)
+
 - **50-80% Speed Improvement**: Optimized JSON serialization eliminates bottlenecks
 - **Memory Efficiency**: Bounded statistics with automatic cleanup
 - **Smart Nonce Distribution**: Random starting points prevent miner collision
@@ -714,6 +728,7 @@ Your blockchain is working correctly when you see:
 ## 🚀 Production Mining Examples
 
 ### Basic Production Mining
+
 ```bash
 # Start with validated address and secure connection
 python3 mining_client.py --wallet 1GukayKD1hRAXnQaJYKVwQcwCvVzsUbcJj --node http://localhost:5001
@@ -726,6 +741,7 @@ python3 mining_client.py --wallet 1GukayKD1hRAXnQaJYKVwQcwCvVzsUbcJj --node http
 ```
 
 ### Monitor Mining Performance
+
 ```bash
 # Real-time statistics with privacy protection
 python3 mining_client.py --wallet 1GukayKD1hRAXnQaJYKVwQcwCvVzsUbcJj --node http://localhost:5001 --stats
@@ -735,12 +751,13 @@ tail -f mining_client.log
 ```
 
 ### Test Security Features
+
 ```bash
 # Address validation test
 python3 mining_client.py --wallet invalid_address --node http://localhost:5001
 # Output: ValueError: Invalid wallet address format: inva...ress
 
-# URL validation test  
+# URL validation test
 python3 mining_client.py --wallet 1GukayKD1hRAXnQaJYKVwQcwCvVzsUbcJj --node invalid_url
 # Output: ValueError: Invalid node URL: Invalid protocol:
 ```

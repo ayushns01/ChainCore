@@ -14,10 +14,13 @@ import requests
 import logging
 import secrets
 import threading
+import multiprocessing
+import concurrent.futures
 from typing import Dict, Optional, Tuple, List
 from urllib.parse import urlparse
 from collections import deque
 from dataclasses import dataclass, field
+from queue import Queue, Empty
 
 # Add src to path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
@@ -95,6 +98,13 @@ class MiningConfig:
     
     # Memory management
     max_statistics_history: int = 1000
+    
+    # ENHANCED: Multi-core mining settings
+    mining_workers: Optional[int] = None  # None = auto-detect CPU cores
+    enable_core_affinity: bool = True     # Enable CPU core affinity for workers
+    worker_nonce_range: int = 100000      # Nonce range per worker
+    enable_gpu_acceleration: bool = False # Future GPU mining support
+    max_worker_memory_mb: int = 100       # Memory limit per worker
 
 @dataclass
 class MiningStats:
@@ -180,10 +190,259 @@ class MiningClient:
         
         # Optimized mining data structures
         self._block_data_template = {}
+        
+        # ENHANCED: Multi-core mining capabilities
+        self.cpu_cores = self._detect_cpu_cores()
+        self.mining_workers = self.config.mining_workers or self.cpu_cores
+        self.worker_pool = None
+        self.mining_result_queue = Queue()
+        self.worker_stop_event = threading.Event()
+        self.core_affinity_enabled = self.config.enable_core_affinity
+        
+        logger.info(f"💻 Multi-core mining initialized: {self.cpu_cores} cores detected, using {self.mining_workers} workers")
+        if self.core_affinity_enabled:
+            logger.info("🔧 CPU core affinity enabled for optimal performance")
         self._json_cache = {}
         
         logger.info(f"Enhanced mining client initialized for address: {self._sanitize_address(wallet_address)}")
         logger.info(f"Node: {self._sanitize_url_for_log(node_url)}")
+    
+    def _detect_cpu_cores(self) -> int:
+        """Detect available CPU cores for mining"""
+        try:
+            # Get logical CPU count
+            logical_cores = multiprocessing.cpu_count()
+            
+            # Try to get physical cores (more accurate for mining)
+            try:
+                import psutil
+                physical_cores = psutil.cpu_count(logical=False)
+                if physical_cores and physical_cores > 0:
+                    logger.info(f"💻 CPU detected: {physical_cores} physical cores, {logical_cores} logical cores")
+                    # Use physical cores for mining to avoid hyperthreading contention
+                    return physical_cores
+            except ImportError:
+                logger.debug("psutil not available, using logical core count")
+            
+            logger.info(f"💻 CPU detected: {logical_cores} logical cores")
+            return logical_cores
+            
+        except Exception as e:
+            logger.warning(f"Failed to detect CPU cores: {e}, defaulting to 1")
+            return 1
+    
+    def _mining_worker(self, worker_id: int, template: Dict, difficulty: int, 
+                      nonce_start: int, nonce_end: int, result_queue: Queue,
+                      stop_event: threading.Event) -> None:
+        """Multi-core mining worker function"""
+        try:
+            # Set CPU affinity if enabled and supported
+            if self.core_affinity_enabled:
+                self._set_worker_affinity(worker_id)
+            
+            target = "0" * difficulty
+            base_json = self._precompute_block_data(template, difficulty)
+            
+            # Mining metadata preservation
+            mining_metadata = template.get('mining_metadata', {})
+            mining_node = template.get('mining_node', 'unknown')
+            
+            logger.debug(f"👷 Worker {worker_id} starting: nonce range {nonce_start:,} to {nonce_end:,}")
+            
+            worker_start_time = time.time()
+            worker_hash_count = 0
+            
+            nonce = nonce_start
+            while nonce < nonce_end and not stop_event.is_set():
+                # Optimized hash calculation
+                block_json = base_json[:-1] + f',"nonce":{nonce}' + '}'
+                block_hash = double_sha256(block_json)
+                worker_hash_count += 1
+                
+                # Check for valid hash
+                if block_hash.startswith(target):
+                    mining_time = time.time() - worker_start_time
+                    hash_rate = worker_hash_count / mining_time if mining_time > 0 else 0
+                    
+                    # Create mined block with preserved metadata
+                    mined_block = json.loads(block_json)
+                    mined_block['hash'] = block_hash
+                    mined_block['mining_time'] = mining_time
+                    mined_block['hash_rate'] = hash_rate
+                    mined_block['worker_id'] = worker_id
+                    
+                    # Preserve mining metadata
+                    if mining_metadata:
+                        mined_block['mining_metadata'] = mining_metadata
+                    if mining_node:
+                        mined_block['mining_node'] = mining_node
+                    
+                    logger.info(f"🎉 Worker {worker_id} found solution! Hash: {block_hash[:32]}...")
+                    logger.info(f"   ⚡ Worker stats: {worker_hash_count:,} hashes in {mining_time:.2f}s ({hash_rate:.1f} H/s)")
+                    
+                    # Put result in queue and signal other workers to stop
+                    result_queue.put(('success', mined_block, worker_id, worker_hash_count))
+                    stop_event.set()
+                    return
+                    
+                nonce += 1
+                
+                # Periodic progress check
+                if worker_hash_count % 10000 == 0:
+                    # Check if template became stale during mining
+                    if self._is_template_stale():
+                        logger.debug(f"Worker {worker_id}: Template stale, stopping")
+                        stop_event.set()
+                        break
+                        
+                    # Check network advancement
+                    if self._check_network_advancement_during_mining(template):
+                        logger.debug(f"Worker {worker_id}: Network advanced, stopping")
+                        stop_event.set()
+                        break
+            
+            # Worker completed range without finding solution
+            mining_time = time.time() - worker_start_time
+            hash_rate = worker_hash_count / mining_time if mining_time > 0 else 0
+            
+            logger.debug(f"👷 Worker {worker_id} completed: {worker_hash_count:,} hashes, {hash_rate:.1f} H/s")
+            result_queue.put(('completed', None, worker_id, worker_hash_count))
+            
+        except Exception as e:
+            logger.error(f"Worker {worker_id} error: {e}")
+            result_queue.put(('error', str(e), worker_id, 0))
+    
+    def _set_worker_affinity(self, worker_id: int) -> None:
+        """Set CPU affinity for mining worker"""
+        try:
+            import psutil
+            import os
+            
+            # Calculate target CPU core (round-robin assignment)
+            target_core = worker_id % self.cpu_cores
+            
+            # Set CPU affinity to specific core
+            process = psutil.Process()
+            process.cpu_affinity([target_core])
+            
+            logger.debug(f"Worker {worker_id} pinned to CPU core {target_core}")
+            
+        except ImportError:
+            logger.debug("psutil not available, skipping CPU affinity")
+        except Exception as e:
+            logger.debug(f"Failed to set CPU affinity for worker {worker_id}: {e}")
+    
+    def mine_block_multicore(self, template: Dict, difficulty: int, timeout: int = None) -> Optional[Dict]:
+        """Enhanced multi-core mining implementation"""
+        timeout = timeout or self.config.max_mining_timeout
+        
+        logger.info(f"🚀 Starting multi-core mining with {self.mining_workers} workers")
+        logger.info(f"   🎯 Target: {'0' * difficulty} (difficulty {difficulty})")
+        logger.info(f"   📦 Block #{template['index']} with {len(template['transactions'])} transactions")
+        
+        # Calculate nonce ranges for each worker
+        total_nonce_range = self.config.worker_nonce_range * self.mining_workers
+        nonce_per_worker = total_nonce_range // self.mining_workers
+        
+        # Random starting point to avoid collisions with other miners
+        base_start_nonce = secrets.randbits(32)
+        
+        # Clear any previous results
+        while not self.mining_result_queue.empty():
+            try:
+                self.mining_result_queue.get_nowait()
+            except Empty:
+                break
+        
+        # Reset worker stop event
+        self.worker_stop_event.clear()
+        
+        start_time = time.time()
+        worker_futures = []
+        
+        # Start mining workers
+        with concurrent.futures.ThreadPoolExecutor(max_workers=self.mining_workers) as executor:
+            for worker_id in range(self.mining_workers):
+                nonce_start = base_start_nonce + (worker_id * nonce_per_worker)
+                nonce_end = nonce_start + nonce_per_worker
+                
+                future = executor.submit(
+                    self._mining_worker,
+                    worker_id, template, difficulty,
+                    nonce_start, nonce_end,
+                    self.mining_result_queue,
+                    self.worker_stop_event
+                )
+                worker_futures.append(future)
+            
+            logger.info(f"   ⚡ {self.mining_workers} workers started, mining in progress...")
+            
+            # Monitor for results or timeout
+            result = None
+            total_worker_hashes = 0
+            completed_workers = 0
+            
+            while time.time() - start_time < timeout and completed_workers < self.mining_workers:
+                try:
+                    # Check for results (non-blocking)
+                    status, data, worker_id, hash_count = self.mining_result_queue.get(timeout=1.0)
+                    total_worker_hashes += hash_count
+                    
+                    if status == 'success':
+                        logger.info(f"✅ Block mined successfully by worker {worker_id}!")
+                        result = data
+                        # Signal all workers to stop
+                        self.worker_stop_event.set()
+                        break
+                    elif status == 'completed':
+                        completed_workers += 1
+                        logger.debug(f"Worker {worker_id} completed range")
+                    elif status == 'error':
+                        logger.error(f"Worker {worker_id} error: {data}")
+                        completed_workers += 1
+                        
+                except Empty:
+                    # Check if mining should stop
+                    if hasattr(self, 'stop_mining') and self.stop_mining.is_set():
+                        logger.info("Mining stopped by user")
+                        self.worker_stop_event.set()
+                        break
+                    continue
+            
+            # Ensure all workers are stopped
+            self.worker_stop_event.set()
+            
+            # Wait for all workers to complete
+            for future in worker_futures:
+                try:
+                    future.result(timeout=2.0)
+                except concurrent.futures.TimeoutError:
+                    logger.warning("Worker timeout during shutdown")
+                except Exception as e:
+                    logger.debug(f"Worker shutdown error: {e}")
+        
+        mining_time = time.time() - start_time
+        combined_hash_rate = total_worker_hashes / mining_time if mining_time > 0 else 0
+        
+        if result:
+            logger.info(f"🎉 Multi-core mining successful!")
+            logger.info(f"   ⏱️  Total time: {mining_time:.2f}s")
+            logger.info(f"   🔢 Total hashes: {total_worker_hashes:,}")
+            logger.info(f"   ⚡ Combined hash rate: {combined_hash_rate:.1f} H/s")
+            
+            # Update stats
+            with self.stats._lock:
+                self.stats.total_hashes += total_worker_hashes
+                self.stats.total_mining_time += mining_time
+                
+        else:
+            if completed_workers >= self.mining_workers:
+                logger.warning(f"⏰ Mining completed all ranges without solution")
+            else:
+                logger.warning(f"⏰ Mining timeout after {timeout}s")
+            logger.info(f"   🔢 Searched {total_worker_hashes:,} hashes at {combined_hash_rate:.1f} H/s")
+        
+        return result
     
     def _validate_wallet_address(self, address: str) -> bool:
         """Validate wallet address using ECDSA format verification"""
@@ -569,17 +828,30 @@ class MiningClient:
         return self.mine_with_enhanced_retry(max_retries)
     
     def mine_with_enhanced_retry(self, max_retries=None) -> bool:
-        """Enhanced mining with intelligent retry logic"""
+        """Enhanced mining with intelligent retry logic and network state verification"""
         max_retries = max_retries or self.config.max_retries
         
         for attempt in range(max_retries):
             try:
-                # Get fresh template
+                # CRITICAL: Verify network state before mining
+                if not self._verify_network_readiness():
+                    print("NETWORK: Node not ready for mining, waiting...")
+                    logger.warning("Network node not ready for mining")
+                    time.sleep(10)
+                    continue
+                
+                # Get fresh template with network sync verification
                 template_data = self.get_block_template_with_auth()
                 if not template_data:
                     print("WAITING: Getting block template...")
                     logger.warning("Failed to get block template")
                     time.sleep(5)
+                    continue
+                
+                # Verify template is from latest blockchain state
+                if not self._verify_template_freshness(template_data):
+                    print("SYNC: Template appears stale, requesting fresh one...")
+                    logger.warning("Template appears stale, requesting fresh template")
                     continue
                 
                 template = template_data['block_template']
@@ -630,15 +902,28 @@ class MiningClient:
         return self.mine_block_optimized(block_template, target_difficulty, timeout)
     
     def mine_block_optimized(self, template: Dict, difficulty: int, timeout: int = None) -> Optional[Dict]:
-        """Optimized mining with performance enhancements"""
+        """Optimized mining with multi-core performance enhancements"""
         timeout = timeout or self.config.max_mining_timeout
-        target = "0" * difficulty
         
         logger.info(f"Starting optimized mining - Block #{template['index']}, Difficulty: {difficulty}")
-        print(f"MINING: Starting Proof-of-Work Mining...")
-        print(f"   Target: {target} (difficulty {difficulty})")
-        print(f"   Block Size: {len(template['transactions'])} transactions")
-        print("   Mining in progress...")
+        print(f"MINING: Starting Multi-Core Proof-of-Work Mining...")
+        print(f"   💻 Using {self.mining_workers} CPU cores ({self.cpu_cores} available)")
+        print(f"   🎯 Target: {'0' * difficulty} (difficulty {difficulty})")
+        print(f"   📦 Block Size: {len(template['transactions'])} transactions")
+        print("   ⚡ Multi-core mining in progress...")
+        
+        # Use multi-core mining for better performance
+        if self.mining_workers > 1:
+            return self.mine_block_multicore(template, difficulty, timeout)
+        
+        # Fallback to single-core mining if only 1 worker
+        return self._mine_block_single_core(template, difficulty, timeout)
+    
+    def _mine_block_single_core(self, template: Dict, difficulty: int, timeout: int) -> Optional[Dict]:
+        """Single-core mining fallback (original algorithm)"""
+        target = "0" * difficulty
+        
+        logger.info(f"Using single-core mining fallback")
         
         # Precompute block data template
         base_json = self._precompute_block_data(template, difficulty)
@@ -668,10 +953,17 @@ class MiningClient:
                 logger.info("Mining stopped by user")
                 return None
             
-            # Check template staleness during mining
-            if hash_count > 0 and hash_count % 10000 == 0:
+            # ENHANCED: Real-time network state monitoring during mining
+            if hash_count > 0 and hash_count % 5000 == 0:  # Check more frequently
+                # Check template staleness
                 if self._is_template_stale():
                     logger.warning("Template became stale during mining, stopping")
+                    return None
+                
+                # CRITICAL: Check if network has advanced while we're mining
+                if self._check_network_advancement_during_mining(template):
+                    logger.warning("Network has advanced during mining - our work is now stale")
+                    print("NETWORK: Chain advanced while mining - abandoning current work")
                     return None
             
             # Optimized hash calculation (avoid JSON serialization in loop)
@@ -758,8 +1050,15 @@ class MiningClient:
         return self.submit_block_secure(mined_block)
     
     def submit_block_secure(self, block: Dict) -> bool:
-        """Secure block submission with comprehensive validation"""
+        """Secure block submission with comprehensive validation and network sync check"""
         try:
+            # CRITICAL: Final network sync check before submission
+            print("SYNC: Performing final network sync check before block submission...")
+            if not self._perform_pre_submission_sync_check(block):
+                print("REJECTED: Block is stale - network has moved forward during mining")
+                logger.warning("Block submission rejected - network advanced during mining")
+                return False
+            
             # Pre-submission validation
             if not self._validate_block_before_submission(block):
                 return False
@@ -941,6 +1240,172 @@ class MiningClient:
             'miner_address': self.wallet_address
         }
     
+    def _verify_network_readiness(self) -> bool:
+        """Verify network node is ready and properly synchronized"""
+        try:
+            response = requests.get(f"{self.node_url}/status", timeout=5)
+            if response.status_code != 200:
+                return False
+            
+            status = response.json()
+            
+            # Check basic node health
+            if not status.get('thread_safe', False):
+                logger.warning("Node reports thread safety issues")
+                return False
+            
+            # Check blockchain initialization
+            blockchain_length = status.get('blockchain_length', 0)
+            if blockchain_length < 1:
+                logger.warning("Blockchain not properly initialized")
+                return False
+            
+            # Check peer connectivity for better mining coordination
+            peer_count = status.get('peers', 0)
+            if peer_count == 0:
+                logger.info("Mining in single node mode (no peers)")
+            
+            return True
+            
+        except Exception as e:
+            logger.error(f"Network readiness check failed: {e}")
+            return False
+    
+    def _verify_template_freshness(self, template_data: Dict) -> bool:
+        """Verify the template represents the latest blockchain state"""
+        try:
+            # Get current blockchain status
+            response = requests.get(f"{self.node_url}/status", timeout=3)
+            if response.status_code != 200:
+                logger.warning("Cannot verify template freshness - status check failed")
+                return True  # Assume fresh if can't verify
+            
+            status = response.json()
+            current_length = status.get('blockchain_length', 0)
+            template_index = template_data['block_template']['index']
+            
+            # Template should be for the next block
+            if template_index != current_length:
+                logger.warning(f"Template stale: template for #{template_index}, current chain #{current_length}")
+                return False
+            
+            # Additional freshness check - timestamp should be recent
+            template_timestamp = template_data['block_template'].get('timestamp', 0)
+            current_time = time.time()
+            if current_time - template_timestamp > 60:  # Template older than 60 seconds
+                logger.warning(f"Template timestamp too old: {current_time - template_timestamp:.1f}s")
+                return False
+            
+            return True
+            
+        except Exception as e:
+            logger.error(f"Template freshness check failed: {e}")
+            return True  # Assume fresh if can't verify to avoid blocking
+    
+    def _perform_pre_submission_sync_check(self, block: Dict) -> bool:
+        """Perform critical sync check before block submission to prevent stale blocks"""
+        try:
+            # Get the latest blockchain state from network node
+            response = requests.get(f"{self.node_url}/status", timeout=5)
+            if response.status_code != 200:
+                logger.error("Pre-submission sync check failed - cannot reach node")
+                return False  # Reject if cannot verify - safety first
+            
+            status = response.json()
+            current_chain_length = status.get('blockchain_length', 0)
+            block_index = block.get('index', -1)
+            
+            # CRITICAL CHECK: Block must be for the next position in chain
+            if block_index != current_chain_length:
+                logger.warning(f"STALE BLOCK DETECTED: Block #{block_index} vs current chain #{current_chain_length}")
+                print(f"   Network moved forward: Chain now at #{current_chain_length}, our block is #{block_index}")
+                return False
+            
+            # Additional verification: Check if block's previous_hash matches current chain tip
+            try:
+                blockchain_response = requests.get(f"{self.node_url}/blockchain", timeout=5)
+                if blockchain_response.status_code == 200:
+                    blockchain_data = blockchain_response.json()
+                    chain = blockchain_data.get('chain', [])
+                    
+                    if chain and len(chain) > 0:
+                        latest_block_hash = chain[-1].get('hash', '')
+                        block_prev_hash = block.get('previous_hash', '')
+                        
+                        if latest_block_hash != block_prev_hash:
+                            logger.warning(f"HASH MISMATCH: Block prev_hash doesn't match chain tip")
+                            print(f"   Chain tip hash: {latest_block_hash[:32]}...")
+                            print(f"   Block prev_hash: {block_prev_hash[:32]}...")
+                            return False
+                        
+                        logger.info("✅ Pre-submission sync check passed - block is fresh")
+                        print("   ✅ Block is current with network state")
+                        return True
+                
+            except Exception as e:
+                logger.warning(f"Could not verify chain tip hash: {e}")
+                # Continue with basic index check if detailed check fails
+            
+            # If we get here with matching index, consider it valid
+            logger.info("✅ Pre-submission sync check passed (basic)")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Pre-submission sync check failed: {e}")
+            return False  # Reject if cannot verify - safety first
+    
+    def _check_network_advancement_during_mining(self, original_template: Dict) -> bool:
+        """Check if network has advanced while we're mining, making our work stale"""
+        try:
+            # Quick status check to see if chain has grown
+            response = requests.get(f"{self.node_url}/status", timeout=2)
+            if response.status_code != 200:
+                # If we can't check, assume network is stable
+                return False
+            
+            status = response.json()
+            current_chain_length = status.get('blockchain_length', 0)
+            our_block_index = original_template.get('index', -1)
+            
+            # If current chain length is greater than our target block index,
+            # someone else mined a block while we were working
+            if current_chain_length > our_block_index:
+                logger.warning(f"Network advanced: Chain now #{current_chain_length}, we're mining #{our_block_index}")
+                return True
+            
+            # Additional check: Verify the chain tip hash hasn't changed
+            # This catches cases where the chain length is the same but content changed
+            try:
+                our_prev_hash = original_template.get('previous_hash', '')
+                if our_prev_hash and current_chain_length > 0:
+                    # Get current chain tip
+                    blockchain_response = requests.get(f"{self.node_url}/blockchain", timeout=2)
+                    if blockchain_response.status_code == 200:
+                        blockchain_data = blockchain_response.json()
+                        chain = blockchain_data.get('chain', [])
+                        
+                        if chain and len(chain) >= current_chain_length:
+                            current_tip_hash = chain[-1].get('hash', '')
+                            
+                            # If we're mining for block N and current chain tip (block N-1) 
+                            # has a different hash than our template's previous_hash,
+                            # then the chain has been reorganized
+                            if our_block_index == current_chain_length and current_tip_hash != our_prev_hash:
+                                logger.warning(f"Chain reorganization detected during mining")
+                                print(f"   Expected prev_hash: {our_prev_hash[:32]}...")
+                                print(f"   Current tip hash:   {current_tip_hash[:32]}...")
+                                return True
+                            
+            except Exception as e:
+                logger.debug(f"Could not perform detailed chain advancement check: {e}")
+                # If detailed check fails, rely on basic length check
+            
+            return False
+            
+        except Exception as e:
+            logger.debug(f"Network advancement check failed: {e}")
+            return False  # Assume stable if we can't check
+
     def cleanup_resources(self):
         """Cleanup resources and locks when mining stops"""
         try:
@@ -993,6 +1458,18 @@ Examples:
     parser.add_argument('--verbose', '-v', action='store_true',
                        help='Enable verbose logging')
     
+    # ENHANCED: Multi-core mining arguments
+    parser.add_argument('--workers', type=int, default=None,
+                       help='Number of mining workers (default: auto-detect CPU cores)')
+    parser.add_argument('--disable-affinity', action='store_true',
+                       help='Disable CPU core affinity for workers')
+    parser.add_argument('--worker-range', type=int, default=100000,
+                       help='Nonce range per worker (default: 100000)')
+    parser.add_argument('--single-core', action='store_true',
+                       help='Force single-core mining (for testing)')
+    parser.add_argument('--show-cores', action='store_true',
+                       help='Show detected CPU cores and exit')
+    
     args = parser.parse_args()
     
     # Configure logging level
@@ -1009,14 +1486,18 @@ Examples:
             logger.error(f"Invalid difficulty range format: {e}")
             sys.exit(1)
         
-        # Create enhanced configuration
+        # Create enhanced configuration with multi-core settings
         config = MiningConfig(
             max_mining_timeout=args.timeout,
             max_retries=args.retries,
             template_refresh_interval=args.refresh_interval,
             require_tls=args.require_tls,
             min_difficulty=min_diff,
-            max_difficulty=max_diff
+            max_difficulty=max_diff,
+            # Multi-core settings
+            mining_workers=1 if args.single_core else args.workers,
+            enable_core_affinity=not args.disable_affinity,
+            worker_nonce_range=args.worker_range
         )
         
         # Show startup banner unless quiet mode
@@ -1030,6 +1511,16 @@ Examples:
                 wallet_display = f"{args.wallet[:4]}...{args.wallet[-4:]}" if len(args.wallet) >= 8 else "***INVALID***"
                 print(f"   Wallet: {wallet_display}")
                 print(f"   Node: {args.node}")
+        
+        # Handle show-cores option before creating miner
+        if args.show_cores:
+            temp_miner = MiningClient.__new__(MiningClient)
+            cores = temp_miner._detect_cpu_cores()
+            print(f"💻 CPU Information:")
+            print(f"   Detected CPU cores: {cores}")
+            print(f"   Default workers: {cores}")
+            print(f"   Affinity support: {'Yes' if not args.disable_affinity else 'Disabled'}")
+            sys.exit(0)
         
         # Create enhanced mining client
         miner = MiningClient(args.wallet, args.node, config)

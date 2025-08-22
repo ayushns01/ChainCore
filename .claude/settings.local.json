@@ -12,7 +12,8 @@
       "Bash(powershell:*)",
       "Bash(python:*)",
       "Bash(timeout:*)",
-      "Bash(del:*)"
+      "Bash(del:*)",
+      "Bash(grep:*)"
     ],
     "defaultMode": "acceptEdits"
   }

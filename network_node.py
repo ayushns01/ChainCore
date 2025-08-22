@@ -96,8 +96,9 @@ class ThreadSafeNetworkNode:
         logger.info("   ✨ All systems ready!")
     
     def _sync_with_network_before_mining(self) -> Dict:
-        """Synchronize with network peers before mining to ensure latest chain state"""
+        """Enhanced synchronization with comprehensive chain validation"""
         blocks_added = 0
+        sync_errors = []
         
         try:
             # Get active peers
@@ -109,45 +110,121 @@ class ThreadSafeNetworkNode:
             max_peer_length = current_length
             best_peer = None
             
-            # Check all peers for longer chains
-            for peer_url in peers:
-                try:
-                    response = requests.get(f"{peer_url}/blockchain", timeout=5)
-                    if response.status_code == 200:
-                        peer_data = response.json()
-                        peer_chain_length = len(peer_data.get('chain', []))
-                        
-                        if peer_chain_length > max_peer_length:
-                            max_peer_length = peer_chain_length
-                            best_peer = peer_url
-                            
-                except requests.RequestException:
-                    continue  # Skip unresponsive peers
+            # ENHANCED: Optimized peer checking for large networks
+            # Use status endpoint first (lightweight), then blockchain if needed
+            peer_candidates = []
             
-            # Synchronize if we found a longer chain
+            # Phase 1: Quick status check for all peers
+            import concurrent.futures
+            with concurrent.futures.ThreadPoolExecutor(max_workers=20) as executor:
+                status_futures = {
+                    executor.submit(self._get_peer_status, peer_url): peer_url 
+                    for peer_url in peers
+                }
+                
+                for future in concurrent.futures.as_completed(status_futures, timeout=10):
+                    peer_url = status_futures[future]
+                    try:
+                        status = future.result()
+                        if status and status.get('blockchain_length', 0) > current_length:
+                            peer_candidates.append((peer_url, status['blockchain_length']))
+                    except Exception:
+                        continue
+            
+            # Phase 2: Sort by chain length and check top candidates only
+            if peer_candidates:
+                peer_candidates.sort(key=lambda x: x[1], reverse=True)  # Sort by length desc
+                # Only check top 5 peers for full blockchain to save bandwidth
+                top_peers = peer_candidates[:5]
+                
+                for peer_url, peer_length in top_peers:
+                    try:
+                        response = requests.get(f"{peer_url}/blockchain", timeout=10)
+                        if response.status_code == 200:
+                            peer_data = response.json()
+                            actual_length = len(peer_data.get('chain', []))
+                            
+                            if actual_length > max_peer_length:
+                                max_peer_length = actual_length
+                                best_peer = peer_url
+                                break  # Use first best peer found
+                                
+                    except requests.RequestException:
+                        continue
+            
+            # Enhanced synchronization with comprehensive validation
             if best_peer and max_peer_length > current_length:
                 print(f"   🔄 Found longer chain: {max_peer_length} blocks vs our {current_length}")
                 print(f"   📡 Synchronizing with {best_peer}")
                 
-                # Get the longer chain
-                response = requests.get(f"{best_peer}/blockchain", timeout=10)
-                if response.status_code == 200:
-                    peer_data = response.json()
-                    peer_chain = peer_data.get('chain', [])
+                # Get chain info first for validation
+                chain_info_response = requests.get(f"{best_peer}/chain/info", timeout=5)
+                if chain_info_response.status_code == 200:
+                    peer_chain_info = chain_info_response.json().get('chain_info', {})
+                    our_chain_info = self.blockchain.get_chain_info()
                     
-                    # Add missing blocks
-                    for block_data in peer_chain[current_length:]:
-                        from src.blockchain.block import Block
-                        block = Block.from_dict(block_data)
+                    # Verify genesis block matches
+                    if peer_chain_info.get('genesis_hash') != our_chain_info.get('genesis_hash'):
+                        print(f"     ❌ Genesis block mismatch - cannot sync with this peer")
+                        return {'blocks_added': 0, 'error': 'Genesis block mismatch'}
+                
+                # ENHANCED: Get missing blocks in optimized batches for large networks
+                missing_blocks = max_peer_length - current_length
+                
+                # Dynamic batch sizing based on network size and missing blocks
+                from src.config import SYNC_BATCH_SIZE, NETWORK_TIMEOUT_SCALING, BASE_TIMEOUT, MAX_TIMEOUT
+                batch_size = min(SYNC_BATCH_SIZE, max(10, missing_blocks // 10))  # Adaptive batch size
+                
+                # Calculate timeout based on network size and batch size
+                active_peer_count = len(self.peer_manager.get_active_peers())
+                if NETWORK_TIMEOUT_SCALING:
+                    sync_timeout = min(MAX_TIMEOUT, BASE_TIMEOUT + (active_peer_count * 0.5) + (batch_size * 0.1))
+                else:
+                    sync_timeout = BASE_TIMEOUT
+                
+                print(f"     📦 Sync optimization: batch_size={batch_size}, timeout={sync_timeout:.1f}s")
+                
+                for start_index in range(current_length, max_peer_length, batch_size):
+                    end_index = min(start_index + batch_size - 1, max_peer_length - 1)
+                    
+                    # Request block range with optimized timeout
+                    response = requests.get(
+                        f"{best_peer}/blocks/range?start={start_index}&end={end_index}",
+                        timeout=sync_timeout
+                    )
+                    
+                    if response.status_code == 200:
+                        batch_data = response.json()
+                        blocks_data = batch_data.get('blocks', [])
                         
-                        if self.blockchain.add_block(block):
-                            blocks_added += 1
-                            print(f"     ✅ Added block #{block.index} from network")
-                        else:
-                            print(f"     ❌ Failed to add block #{block.index}")
-                            break
+                        # Add blocks in order
+                        for block_data in blocks_data:
+                            from src.blockchain.block import Block
+                            block = Block.from_dict(block_data)
+                            
+                            if self.blockchain.add_block(block, allow_reorganization=False):
+                                blocks_added += 1
+                                if blocks_added % 10 == 0:  # Progress updates
+                                    print(f"     📊 Synchronized {blocks_added}/{missing_blocks} blocks...")
+                            else:
+                                print(f"     ❌ Failed to add block #{block.index}")
+                                sync_errors.append(f"Block #{block.index} validation failed")
+                                # Don't break completely - log and continue
+                    else:
+                        print(f"     ❌ Failed to get block range {start_index}-{end_index}")
+                        break
+                
+                if blocks_added > 0:
+                    print(f"   ✅ Synchronization complete: Added {blocks_added} blocks")
+                else:
+                    print(f"   ⚠️ No blocks added during synchronization")
             
-            return {'blocks_added': blocks_added}
+            return {
+                'blocks_added': blocks_added,
+                'sync_errors': sync_errors if sync_errors else None,
+                'peers_checked': len(peers),
+                'best_peer': best_peer
+            }
             
         except Exception as e:
             logger.error(f"Sync error: {e}")
@@ -647,12 +724,21 @@ class ThreadSafeNetworkNode:
         @self.app.route('/submit_block', methods=['POST'])
         @synchronized("api_submit_block", LockOrder.NETWORK, mode='write')
         def submit_block():
-            """Thread-safe block submission"""
+            """Thread-safe block submission with enhanced race condition prevention"""
             self._increment_api_calls()
             
             try:
                 data = request.get_json()
                 block_data = data.get('block', data)  # Handle both formats
+                
+                # CRITICAL: Pre-submission network sync to prevent stale blocks
+                is_locally_mined = request.headers.get('X-Local-Mining') == 'true'
+                if not is_locally_mined:
+                    print(f"📡 NETWORK BLOCK: Received block #{block_data.get('index', '?')} from peer")
+                    # For network blocks, sync before processing to ensure latest state
+                    sync_result = self._sync_with_network_before_mining()
+                    if sync_result['blocks_added'] > 0:
+                        print(f"   📥 Pre-processing sync: Added {sync_result['blocks_added']} blocks")
                 
                 # Use Block.from_dict for proper mining attribution preservation
                 block = Block.from_dict(block_data)
@@ -663,14 +749,40 @@ class ThreadSafeNetworkNode:
                         block._mining_metadata = {}
                     block._mining_metadata['mining_node'] = f"Node-{self.api_port}"
                 
-                # CRITICAL: Verify this is the next sequential block
+                # ENHANCED: Get fresh chain state after potential sync
                 current_chain_length = self.blockchain.get_chain_length()
-                if block.index != current_chain_length:
+                
+                # CRITICAL: Verify block is still valid after sync
+                if is_locally_mined and block.index != current_chain_length:
+                    logger.warning(f"LOCAL BLOCK STALE: Block #{block.index} vs chain #{current_chain_length}")
                     return jsonify({
-                        'status': 'rejected', 
-                        'error': f'Invalid block index #{block.index}, expected #{current_chain_length}',
-                        'reason': 'invalid_block_sequence'
+                        'status': 'rejected',
+                        'reason': 'stale_block',
+                        'error': f'Block is stale: mining #{block.index}, chain now #{current_chain_length}',
+                        'current_chain_length': current_chain_length
                     }), 409
+                
+                # Case 1: Next sequential block (normal case)
+                if block.index == current_chain_length:
+                    pass  # Continue with normal processing
+                
+                # Case 2: Block from a fork (potential reorganization)
+                elif block.index < current_chain_length:
+                    logger.info(f"🍴 Potential fork detected: Block #{block.index} for chain length {current_chain_length}")
+                    # Don't reject immediately - this could be part of a longer chain
+                    pass
+                
+                # Case 3: Future block (missing intermediate blocks)
+                elif block.index > current_chain_length:
+                    logger.warning(f"⚠️ Future block #{block.index} received (chain length: {current_chain_length})")
+                    # Request missing blocks from the sender
+                    return jsonify({
+                        'status': 'need_sync',
+                        'error': f'Missing blocks: have #{current_chain_length-1}, received #{block.index}',
+                        'reason': 'missing_blocks',
+                        'request_blocks_from': current_chain_length - 1,
+                        'request_blocks_to': block.index - 1
+                    }), 202  # Accepted for later processing
                 
                 # Check if locally mined for priority handling
                 is_locally_mined = request.headers.get('X-Local-Mining') == 'true'
@@ -685,6 +797,9 @@ class ThreadSafeNetworkNode:
                         timeout=5.0  # Fast broadcast for priority
                     )
                 
+                # ENHANCED: Multi-node consensus validation before acceptance
+                network_consensus_result = self._validate_multi_node_consensus(block, is_locally_mined)
+                
                 # Attempt to add block (this validates the block)
                 if self.blockchain.add_block(block):
                     # Extract miner information
@@ -692,20 +807,60 @@ class ThreadSafeNetworkNode:
                     if block.transactions and block.transactions[0].outputs:
                         miner_address = block.transactions[0].outputs[0].recipient_address
                     
-                    # Log successful block acceptance
+                    # Log successful block acceptance with consensus info
                     mining_source = "LOCALLY MINED" if is_locally_mined else f"RECEIVED from peer"
                     print(f"✅ BLOCK ACCEPTED: #{block.index} ({mining_source})")
                     print(f"   ⛏️  Mined by: {miner_address}")
                     print(f"   📊 Chain length: {self.blockchain.get_chain_length()}")
+                    print(f"   🌐 Network peers: {len(self.peer_manager.get_active_peers())}")
                     
-                    # Broadcast to remaining peers if received from another node
+                    # ENHANCED: Smart broadcasting based on network size and consensus
                     if not is_locally_mined:
-                        self.peer_manager.broadcast_to_peers(
+                        # Received from peer - broadcast to all other peers to maintain consensus
+                        sender_url = request.headers.get('X-Peer-Origin', 'unknown')
+                        # ENHANCED: Adaptive timeout based on network size
+                        active_peers_count = len(self.peer_manager.get_active_peers())
+                        if active_peers_count <= 10:
+                            broadcast_timeout = 5.0
+                        elif active_peers_count <= 50:
+                            broadcast_timeout = 8.0
+                        else:
+                            broadcast_timeout = 12.0  # Longer timeout for large networks
+                        
+                        broadcast_results = self.peer_manager.broadcast_to_peers(
                             '/submit_block',
                             {'block': block_data},
-                            timeout=3.0,
-                            exclude_sender=True  # Don't send back to sender
+                            timeout=broadcast_timeout,
+                            exclude_sender=True,
+                            sender_url=sender_url
                         )
+                        
+                        # Log broadcasting results for multi-node debugging
+                        successful_broadcasts = sum(1 for success in broadcast_results.values() if success)
+                        total_peers = len(broadcast_results)
+                        if total_peers > 0:
+                            print(f"   📡 Broadcasted to {successful_broadcasts}/{total_peers} peers")
+                    else:
+                        # Local mining - broadcast to all peers
+                        # ENHANCED: Adaptive timeout for local mining broadcasts in large networks
+                        active_peers_count = len(self.peer_manager.get_active_peers())
+                        if active_peers_count <= 10:
+                            broadcast_timeout = 5.0
+                        elif active_peers_count <= 50:
+                            broadcast_timeout = 8.0
+                        else:
+                            broadcast_timeout = 12.0
+                        
+                        broadcast_results = self.peer_manager.broadcast_to_peers(
+                            '/submit_block',
+                            {'block': block_data},
+                            timeout=broadcast_timeout
+                        )
+                        
+                        successful_broadcasts = sum(1 for success in broadcast_results.values() if success)
+                        total_peers = len(broadcast_results)
+                        if total_peers > 0:
+                            print(f"   📡 Notified {successful_broadcasts}/{total_peers} network peers")
                     
                     with self._stats_lock:
                         self._stats['blocks_processed'] += 1
@@ -732,6 +887,61 @@ class ThreadSafeNetworkNode:
                     'error': str(e)
                 }), 500
         
+        @self.app.route('/blocks/range', methods=['GET'])
+        @synchronized("api_blocks_range", LockOrder.NETWORK, mode='read')
+        def get_blocks_range():
+            """Get range of blocks for synchronization"""
+            self._increment_api_calls()
+            
+            try:
+                start = int(request.args.get('start', 0))
+                end = int(request.args.get('end', start + 100))  # Default to 100 block range
+                
+                # Limit range size to prevent memory issues
+                max_range = 1000
+                if end - start > max_range:
+                    end = start + max_range
+                
+                blocks = self.blockchain.get_blocks_range(start, end)
+                
+                return jsonify({
+                    'status': 'success',
+                    'blocks': [block.to_dict() for block in blocks],
+                    'start_index': start,
+                    'end_index': end,
+                    'actual_count': len(blocks)
+                })
+                
+            except Exception as e:
+                logger.error(f"Error getting block range: {e}")
+                return jsonify({
+                    'status': 'error',
+                    'error': str(e)
+                }), 500
+        
+        @self.app.route('/chain/info', methods=['GET'])
+        @synchronized("api_chain_info", LockOrder.NETWORK, mode='read')
+        def get_chain_info():
+            """Get comprehensive chain information"""
+            self._increment_api_calls()
+            
+            try:
+                chain_info = self.blockchain.get_chain_info()
+                
+                return jsonify({
+                    'status': 'success',
+                    'chain_info': chain_info,
+                    'node_id': self.node_id,
+                    'api_port': self.api_port
+                })
+                
+            except Exception as e:
+                logger.error(f"Error getting chain info: {e}")
+                return jsonify({
+                    'status': 'error',
+                    'error': str(e)
+                }), 500
+
         @self.app.route('/peers', methods=['GET'])
         @synchronized("api_peers", LockOrder.NETWORK, mode='read')
         def get_peers():
@@ -1023,6 +1233,114 @@ class ThreadSafeNetworkNode:
         server_thread.start()
         
         return server_thread
+    
+    def _validate_multi_node_consensus(self, block, is_locally_mined: bool) -> Dict:
+        """
+        ENHANCED: Validate block against multi-node network consensus
+        Returns consensus validation results for large networks (N > 2)
+        """
+        try:
+            active_peers = self.peer_manager.get_active_peers()
+            consensus_data = {
+                'network_size': len(active_peers),
+                'consensus_checks': 0,
+                'matching_chains': 0,
+                'chain_lengths': [],
+                'genesis_consensus': 0,
+                'validation_successful': True
+            }
+            
+            # Skip consensus check if network is too small or no peers
+            if len(active_peers) < 2:
+                logger.debug("🔍 Skipping consensus validation - insufficient peers")
+                return consensus_data
+            
+            # ENHANCED: Adaptive consensus checking based on network size
+            # Small networks (< 10): Check all peers
+            # Medium networks (10-50): Check random sample of 10
+            # Large networks (> 50): Check random sample of 20 with geographic distribution
+            if len(active_peers) <= 10:
+                sample_peers = active_peers
+                consensus_threshold = 0.7  # 70% agreement for small networks
+            elif len(active_peers) <= 50:
+                import random
+                sample_peers = random.sample(active_peers, min(10, len(active_peers)))
+                consensus_threshold = 0.6  # 60% agreement for medium networks
+            else:
+                import random
+                sample_peers = random.sample(active_peers, min(20, len(active_peers)))
+                consensus_threshold = 0.5  # 50% agreement for large networks (more resilient)
+            
+            logger.debug(f"🔍 Validating consensus with {len(sample_peers)} peers")
+            
+            # Get our current chain state
+            our_chain_length = self.blockchain.get_chain_length()
+            our_genesis_hash = None
+            if our_chain_length > 0:
+                chain = self.blockchain.get_chain()
+                our_genesis_hash = chain[0].hash if chain and len(chain) > 0 else None
+            
+            # Check each sample peer
+            for peer_url in sample_peers:
+                try:
+                    response = requests.get(f"{peer_url}/status", timeout=3)
+                    if response.status_code == 200:
+                        peer_status = response.json()
+                        peer_chain_length = peer_status.get('blockchain_length', 0)
+                        
+                        consensus_data['consensus_checks'] += 1
+                        consensus_data['chain_lengths'].append(peer_chain_length)
+                        
+                        # Check if peer has similar chain length (within 1 block)
+                        if abs(peer_chain_length - our_chain_length) <= 1:
+                            consensus_data['matching_chains'] += 1
+                        
+                        # Verify genesis consensus if possible
+                        try:
+                            blockchain_response = requests.get(f"{peer_url}/blockchain", timeout=3)
+                            if blockchain_response.status_code == 200:
+                                peer_blockchain = blockchain_response.json()
+                                peer_chain = peer_blockchain.get('chain', [])
+                                if peer_chain and len(peer_chain) > 0:
+                                    peer_genesis_hash = peer_chain[0].get('hash')
+                                    if peer_genesis_hash == our_genesis_hash:
+                                        consensus_data['genesis_consensus'] += 1
+                        except:
+                            pass  # Genesis check is optional
+                        
+                except Exception as e:
+                    logger.debug(f"Consensus check failed for {peer_url}: {e}")
+            
+            # Calculate consensus percentage
+            if consensus_data['consensus_checks'] > 0:
+                matching_percentage = (consensus_data['matching_chains'] / consensus_data['consensus_checks']) * 100
+                genesis_percentage = (consensus_data['genesis_consensus'] / consensus_data['consensus_checks']) * 100
+                
+                logger.debug(f"🔍 Consensus result: {matching_percentage:.1f}% chain agreement, {genesis_percentage:.1f}% genesis agreement")
+                
+                # ENHANCED: Use adaptive consensus threshold based on network size
+                required_percentage = consensus_threshold * 100
+                if matching_percentage < required_percentage:
+                    logger.warning(f"⚠️  Low consensus in {len(active_peers)}-node network: {matching_percentage:.1f}% < {required_percentage:.1f}%")
+                    consensus_data['validation_successful'] = False
+                else:
+                    logger.debug(f"✅ Consensus achieved: {matching_percentage:.1f}% >= {required_percentage:.1f}%")
+            
+            return consensus_data
+            
+        except Exception as e:
+            logger.error(f"Multi-node consensus validation failed: {e}")
+            return {'validation_successful': False, 'error': str(e)}
+    
+    def _get_peer_status(self, peer_url: str) -> Optional[Dict]:
+        """Get peer status with timeout for large network efficiency"""
+        try:
+            response = requests.get(f"{peer_url}/status", timeout=3)
+            if response.status_code == 200:
+                return response.json()
+        except Exception:
+            pass
+        return None
     
     def _wait_for_api_ready(self, timeout: float = 10.0) -> bool:
         """Wait for API server to be ready to accept connections"""

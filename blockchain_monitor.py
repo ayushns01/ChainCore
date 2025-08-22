@@ -47,7 +47,7 @@ class NetworkBlockchainMonitor:
                 'network_hash_rate': 0.0,
                 'consensus_status': 'unknown'
             }
-        print("🧹 Cleared all preserved blockchain data")
+        print("Cleared all preserved blockchain data")
         
     def discover_active_peers(self) -> Set[str]:
         """Automatically discover all active peers in the network"""
@@ -119,6 +119,109 @@ class NetworkBlockchainMonitor:
             pass
         return None
     
+    def get_consensus_ledger(self, peer_chains: Dict) -> Dict:
+        """
+        ENHANCED: Determine the unified consensus ledger from all peer chains
+        Returns the longest valid chain that represents the network's unified ledger
+        """
+        if not peer_chains:
+            return {'consensus_chain': [], 'consensus_source': None, 'consensus_count': 0}
+        
+        # Find the longest valid chain(s)
+        longest_length = 0
+        candidate_chains = []
+        
+        for peer_url, peer_data in peer_chains.items():
+            chain = peer_data['chain']
+            chain_length = len(chain)
+            
+            # Validate chain integrity
+            if self.is_valid_chain(chain):
+                if chain_length > longest_length:
+                    longest_length = chain_length
+                    candidate_chains = [(peer_url, chain)]
+                elif chain_length == longest_length:
+                    candidate_chains.append((peer_url, chain))
+        
+        if not candidate_chains:
+            return {'consensus_chain': [], 'consensus_source': None, 'consensus_count': 0}
+        
+        # If multiple chains of same length, find the one with majority consensus
+        if len(candidate_chains) == 1:
+            consensus_source, consensus_chain = candidate_chains[0]
+            consensus_count = 1
+        else:
+            # Compare chains and find majority consensus
+            chain_groups = {}
+            for peer_url, chain in candidate_chains:
+                # Create chain signature based on hashes
+                chain_sig = tuple(block['hash'] for block in chain)
+                if chain_sig not in chain_groups:
+                    chain_groups[chain_sig] = []
+                chain_groups[chain_sig].append((peer_url, chain))
+            
+            # Pick the chain group with most nodes
+            consensus_group = max(chain_groups.values(), key=len)
+            consensus_source, consensus_chain = consensus_group[0]
+            consensus_count = len(consensus_group)
+        
+        # Verify consensus percentage
+        total_nodes = len(peer_chains)
+        consensus_percentage = (consensus_count / total_nodes) * 100 if total_nodes > 0 else 0
+        
+        return {
+            'consensus_chain': consensus_chain,
+            'consensus_source': consensus_source,
+            'consensus_count': consensus_count,
+            'total_nodes': total_nodes,
+            'consensus_percentage': consensus_percentage,
+            'longest_length': longest_length
+        }
+    
+    def _check_and_report_consensus_issues(self, peer_chains: Dict, consensus_ledger: Dict):
+        """Check for and report consensus issues like forks or disagreements"""
+        if not peer_chains:
+            return
+        
+        consensus_chain = consensus_ledger.get('consensus_chain', [])
+        consensus_length = len(consensus_chain)
+        total_nodes = len(peer_chains)
+        consensus_count = consensus_ledger.get('consensus_count', 0)
+        
+        # Check for nodes with different chain lengths
+        nodes_with_issues = []
+        for peer_url, peer_data in peer_chains.items():
+            peer_chain = peer_data['chain']
+            peer_length = len(peer_chain)
+            
+            # Check if this node's chain differs from consensus
+            if peer_length != consensus_length:
+                port = peer_url.split(':')[-1]
+                nodes_with_issues.append(f"Node-{port} ({peer_length} blocks)")
+            elif peer_length > 0 and consensus_length > 0:
+                # Check if same length but different blocks (fork)
+                for i in range(min(peer_length, consensus_length)):
+                    if i < len(peer_chain) and i < len(consensus_chain):
+                        if peer_chain[i]['hash'] != consensus_chain[i]['hash']:
+                            port = peer_url.split(':')[-1]
+                            nodes_with_issues.append(f"Node-{port} (fork at block #{i})")
+                            break
+        
+        # Report consensus issues
+        if nodes_with_issues:
+            print("⚠️  CONSENSUS ISSUES DETECTED:")
+            print(f"   🌐 Unified Ledger: {consensus_length} blocks ({consensus_count}/{total_nodes} nodes)")
+            print("   🍴 Nodes with different chains:")
+            for issue in nodes_with_issues:
+                print(f"      - {issue}")
+            print()
+        elif total_nodes > 1 and consensus_count == total_nodes:
+            # Perfect consensus - only report occasionally
+            import random
+            if random.random() < 0.1:  # 10% chance to show this message
+                print(f"✅ Perfect consensus: All {total_nodes} nodes agree on {consensus_length} block ledger")
+                print()
+
     def aggregate_network_data(self) -> Dict:
         """Aggregate blockchain data from all active peers"""
         with self.peer_lock:
@@ -177,11 +280,15 @@ class NetworkBlockchainMonitor:
                     'length': len(chain)
                 }
         
+        # ENHANCED: Determine consensus ledger
+        consensus_info = self.get_consensus_ledger(peer_chains)
+        
         return {
             'peer_chains': peer_chains,
             'peer_count': len(peer_chains),
             'total_active_peers': len(self.active_peers),
-            'has_any_data': len(peer_chains) > 0
+            'has_any_data': len(peer_chains) > 0,
+            'consensus_ledger': consensus_info
         }
     
     def is_valid_chain(self, chain: List[Dict]) -> bool:
@@ -319,6 +426,206 @@ class NetworkBlockchainMonitor:
         
         return issues
     
+    def get_enhanced_peer_metadata(self, peer_url: str) -> Dict:
+        """Get comprehensive metadata from a peer including block headers and chain info"""
+        try:
+            metadata = {
+                'peer_url': peer_url,
+                'timestamp': time.time(),
+                'basic_status': None,
+                'chain_info': None,
+                'genesis_verification': False,
+                'recent_blocks_metadata': None,
+                'errors': []
+            }
+            
+            # Get basic status
+            try:
+                status_response = requests.get(f"{peer_url}/status", timeout=3)
+                if status_response.status_code == 200:
+                    metadata['basic_status'] = status_response.json()
+                else:
+                    metadata['errors'].append(f"Status HTTP {status_response.status_code}")
+            except requests.RequestException as e:
+                metadata['errors'].append(f"Status error: {str(e)}")
+            
+            # Get enhanced chain information
+            try:
+                chain_info_response = requests.get(f"{peer_url}/chain/info", timeout=3)
+                if chain_info_response.status_code == 200:
+                    metadata['chain_info'] = chain_info_response.json().get('chain_info', {})
+                    
+                    # Verify genesis block
+                    from src.config.genesis_block import GENESIS_BLOCK_HASH
+                    peer_genesis = metadata['chain_info'].get('genesis_hash')
+                    metadata['genesis_verification'] = (peer_genesis == GENESIS_BLOCK_HASH)
+                    
+                else:
+                    metadata['errors'].append(f"Chain info HTTP {chain_info_response.status_code}")
+            except requests.RequestException as e:
+                metadata['errors'].append(f"Chain info error: {str(e)}")
+            
+            # Get recent blocks with full metadata
+            try:
+                blocks_response = requests.get(f"{peer_url}/blocks/range?start=0&end=20", timeout=5)
+                if blocks_response.status_code == 200:
+                    blocks_data = blocks_response.json().get('blocks', [])
+                    metadata['recent_blocks_metadata'] = self._analyze_blocks_comprehensive(blocks_data)
+                else:
+                    metadata['errors'].append(f"Blocks HTTP {blocks_response.status_code}")
+            except requests.RequestException as e:
+                metadata['errors'].append(f"Blocks error: {str(e)}")
+            
+            return metadata
+            
+        except Exception as e:
+            return {
+                'peer_url': peer_url,
+                'timestamp': time.time(),
+                'errors': [f"Critical error: {str(e)}"],
+                'metadata_available': False
+            }
+    
+    def _analyze_blocks_comprehensive(self, blocks_data: List[Dict]) -> Dict:
+        """Comprehensive analysis of blocks metadata"""
+        if not blocks_data:
+            return {'blocks_analyzed': 0}
+        
+        analysis = {
+            'blocks_analyzed': len(blocks_data),
+            'genesis_block': None,
+            'latest_block': None,
+            'mining_nodes': {},
+            'transaction_analysis': {
+                'total_transactions': 0,
+                'coinbase_transactions': 0,
+                'user_transactions': 0,
+                'average_tx_per_block': 0
+            },
+            'timing_analysis': {
+                'timestamps': [],
+                'average_block_time': 0,
+                'block_intervals': []
+            },
+            'difficulty_analysis': {
+                'difficulties': [],
+                'average_difficulty': 0,
+                'difficulty_changes': 0
+            },
+            'metadata_preservation': {
+                'blocks_with_mining_metadata': 0,
+                'blocks_with_genesis_metadata': 0,
+                'metadata_completion_rate': 0
+            }
+        }
+        
+        # Sort blocks by index for proper analysis
+        sorted_blocks = sorted(blocks_data, key=lambda b: b.get('index', 0))
+        
+        # Analyze each block
+        for i, block_data in enumerate(sorted_blocks):
+            block_index = block_data.get('index', 0)
+            
+            # Genesis block special handling
+            if block_index == 0:
+                analysis['genesis_block'] = {
+                    'hash': block_data.get('hash'),
+                    'timestamp': block_data.get('timestamp'),
+                    'has_genesis_metadata': '_genesis_metadata' in block_data,
+                    'genesis_data': block_data.get('_genesis_metadata', {})
+                }
+            
+            # Track latest block
+            if not analysis['latest_block'] or block_index > analysis['latest_block'].get('index', 0):
+                analysis['latest_block'] = {
+                    'index': block_index,
+                    'hash': block_data.get('hash'),
+                    'timestamp': block_data.get('timestamp'),
+                    'difficulty': block_data.get('target_difficulty'),
+                    'transaction_count': len(block_data.get('transactions', []))
+                }
+            
+            # Mining node analysis
+            mining_metadata = block_data.get('_mining_metadata', {})
+            if mining_metadata:
+                analysis['metadata_preservation']['blocks_with_mining_metadata'] += 1
+                mining_node = mining_metadata.get('mining_node', 'unknown')
+                
+                if mining_node not in analysis['mining_nodes']:
+                    analysis['mining_nodes'][mining_node] = {
+                        'blocks_mined': 0,
+                        'block_indices': [],
+                        'first_block': block_index,
+                        'last_block': block_index
+                    }
+                
+                node_stats = analysis['mining_nodes'][mining_node]
+                node_stats['blocks_mined'] += 1
+                node_stats['block_indices'].append(block_index)
+                node_stats['last_block'] = max(node_stats['last_block'], block_index)
+            
+            # Transaction analysis
+            transactions = block_data.get('transactions', [])
+            analysis['transaction_analysis']['total_transactions'] += len(transactions)
+            
+            coinbase_count = sum(1 for tx in transactions if tx.get('is_coinbase', False))
+            analysis['transaction_analysis']['coinbase_transactions'] += coinbase_count
+            analysis['transaction_analysis']['user_transactions'] += len(transactions) - coinbase_count
+            
+            # Timing analysis
+            timestamp = block_data.get('timestamp')
+            if timestamp:
+                analysis['timing_analysis']['timestamps'].append(timestamp)
+                
+                # Calculate block interval
+                if i > 0 and len(analysis['timing_analysis']['timestamps']) > 1:
+                    prev_timestamp = analysis['timing_analysis']['timestamps'][i-1]
+                    interval = timestamp - prev_timestamp
+                    analysis['timing_analysis']['block_intervals'].append(interval)
+            
+            # Difficulty analysis
+            difficulty = block_data.get('target_difficulty')
+            if difficulty is not None:
+                analysis['difficulty_analysis']['difficulties'].append(difficulty)
+                
+                # Check for difficulty changes
+                if i > 0 and len(analysis['difficulty_analysis']['difficulties']) > 1:
+                    prev_difficulty = analysis['difficulty_analysis']['difficulties'][i-1]
+                    if difficulty != prev_difficulty:
+                        analysis['difficulty_analysis']['difficulty_changes'] += 1
+            
+            # Check for genesis metadata
+            if '_genesis_metadata' in block_data:
+                analysis['metadata_preservation']['blocks_with_genesis_metadata'] += 1
+        
+        # Calculate averages
+        if analysis['transaction_analysis']['total_transactions'] > 0:
+            analysis['transaction_analysis']['average_tx_per_block'] = (
+                analysis['transaction_analysis']['total_transactions'] / len(sorted_blocks)
+            )
+        
+        if analysis['timing_analysis']['block_intervals']:
+            analysis['timing_analysis']['average_block_time'] = (
+                sum(analysis['timing_analysis']['block_intervals']) / 
+                len(analysis['timing_analysis']['block_intervals'])
+            )
+        
+        if analysis['difficulty_analysis']['difficulties']:
+            analysis['difficulty_analysis']['average_difficulty'] = (
+                sum(analysis['difficulty_analysis']['difficulties']) / 
+                len(analysis['difficulty_analysis']['difficulties'])
+            )
+        
+        # Calculate metadata completion rate
+        total_metadata_fields = len(sorted_blocks) * 2  # Mining + Genesis metadata
+        actual_metadata = (analysis['metadata_preservation']['blocks_with_mining_metadata'] + 
+                          analysis['metadata_preservation']['blocks_with_genesis_metadata'])
+        analysis['metadata_preservation']['metadata_completion_rate'] = (
+            (actual_metadata / total_metadata_fields * 100) if total_metadata_fields > 0 else 0
+        )
+        
+        return analysis
+
     def analyze_mining_distribution(self, blocks: List[Dict]) -> Dict:
         """Analyze which core nodes mined which blocks across the network"""
         miner_stats = {}
@@ -383,14 +690,37 @@ class NetworkBlockchainMonitor:
         return peer_analysis
     
     def display_network_status(self):
-        """Display comprehensive network status"""
-        print("🌐 NETWORK STATUS OVERVIEW")
+        """Display comprehensive network status with unified ledger info"""
+        print("🌐 UNIFIED NETWORK LEDGER STATUS")
         print("=" * 50)
+        
+        # Get current data
+        data = self.aggregate_network_data()
+        consensus_ledger = data.get('consensus_ledger', {})
+        consensus_chain = consensus_ledger.get('consensus_chain', [])
         
         # Basic network stats
         print(f"📊 Active Peers: {len(self.active_peers)}")
-        print(f"Longest Chain: {self.network_stats['longest_chain_length']} blocks")
-        print(f"🎯 Consensus: {self.network_stats['consensus_status'].upper()}")
+        print(f"📝 Unified Ledger: {len(consensus_chain)} blocks")
+        
+        # Consensus information
+        consensus_count = consensus_ledger.get('consensus_count', 0)
+        total_nodes = consensus_ledger.get('total_nodes', 0)
+        consensus_percentage = consensus_ledger.get('consensus_percentage', 0)
+        
+        if total_nodes > 0:
+            print(f"🌐 Network Consensus: {consensus_count}/{total_nodes} nodes ({consensus_percentage:.1f}%)")
+            if consensus_percentage >= 100:
+                print("✅ Perfect Consensus: All nodes agree on ledger state")
+            elif consensus_percentage >= 80:
+                print("🟢 Strong Consensus: Majority agreement")
+            elif consensus_percentage >= 60:
+                print("🟡 Weak Consensus: Some disagreement detected")
+            else:
+                print("🔴 Poor Consensus: Significant network fragmentation")
+        else:
+            print("⏳ No consensus data available")
+        
         print()
         
         # Peer details
@@ -472,20 +802,21 @@ class NetworkBlockchainMonitor:
         return None
     
     def display_block_details(self, block: Dict, is_new: bool = False, source_peer: str = None):
-        """Display block information with enhanced mining attribution"""
+        """Display block information for unified ledger"""
         miner_address, mining_node = self.extract_miner_from_block(block, source_peer)
         timestamp = datetime.fromtimestamp(block['timestamp']).strftime("%H:%M:%S")
         
-        status = "🆕 NEW" if is_new else "📦 BLOCK"
+        # Enhanced display for unified ledger
+        print(f"   🔗 Hash: {block['hash'][:32]}...")
+        print(f"   ⬅️  Prev: {block['previous_hash'][:32]}...")
+        print(f"   ⏰ Time: {timestamp}")
+        print(f"   🎲 Nonce: {block['nonce']}")
         
-        # Enhanced display with core identification
-        print(f"{status} Block #{block['index']}")
-        
-        # Show mining node with emphasis
+        # Show mining attribution  
         if mining_node != "unknown":
             print(f"   ⛏️  Mined by: {mining_node}")
         else:
-            print(f"   ⛏️  Mined by: Unknown Core")
+            print(f"   ⛏️  Mined by: Unknown Node")
         
         # Show miner address (truncated if long)
         if len(miner_address) > 40:
@@ -493,17 +824,7 @@ class NetworkBlockchainMonitor:
         else:
             print(f"   🏷️  Address: {miner_address}")
         
-        # Show source peer if available
-        if source_peer:
-            peer_port = source_peer.split(':')[-1]
-            print(f"   🌐 Source: Node-{peer_port}")
-        
-        print(f"   ⏰ Time: {timestamp}")
-        print(f"   🔗 Hash: {block['hash'][:32]}...")
-        print(f"   ⬅️  Prev: {block['previous_hash'][:32]}...")
-        print(f"   🎲 Nonce: {block['nonce']}")
-        
-        # Show coinbase reward with emphasis
+        # Show coinbase reward
         try:
             coinbase_tx = block['transactions'][0]
             if coinbase_tx['outputs']:
@@ -511,6 +832,10 @@ class NetworkBlockchainMonitor:
                 print(f"   💰 Reward: {reward} CC")
         except (KeyError, IndexError):
             pass
+        
+        # Show transaction count
+        tx_count = len(block.get('transactions', []))
+        print(f"   📝 Transactions: {tx_count}")
         
         # Show mining metadata if available
         if 'mining_metadata' in block:
@@ -608,56 +933,62 @@ class NetworkBlockchainMonitor:
                 if current_time - last_discovery < 5:
                     self.display_network_status()
                 
-                # Track each peer's blockchain separately
-                peer_chains = data.get('peer_chains', {})
+                # ENHANCED: Track unified consensus ledger instead of individual peers
+                consensus_ledger = data.get('consensus_ledger', {})
+                consensus_chain = consensus_ledger.get('consensus_chain', [])
                 new_blocks_found = False
                 
-                # Check each peer for new blocks
-                for peer_url, peer_data in peer_chains.items():
-                    chain = peer_data['chain']
-                    peer_key = f"peer_{peer_url}"
+                # Track the unified network ledger
+                network_key = "unified_ledger"
+                if network_key not in self.peer_last_seen:
+                    self.peer_last_seen[network_key] = 0
+                
+                current_ledger_length = len(consensus_chain)
+                last_ledger_length = self.peer_last_seen[network_key]
+                
+                # Show new blocks in the unified consensus ledger
+                if current_ledger_length > last_ledger_length:
+                    consensus_count = consensus_ledger.get('consensus_count', 0)
+                    total_nodes = consensus_ledger.get('total_nodes', 0)
+                    consensus_percentage = consensus_ledger.get('consensus_percentage', 0)
                     
-                    # Track last seen length for this specific peer
-                    if peer_key not in self.peer_last_seen:
-                        self.peer_last_seen[peer_key] = 0
+                    print(f"🎉 NEW BLOCKS ADDED TO UNIFIED LEDGER:")
+                    print(f"   🌐 Network Consensus: {consensus_count}/{total_nodes} nodes ({consensus_percentage:.1f}%)")
                     
-                    current_peer_length = len(chain)
-                    last_peer_length = self.peer_last_seen[peer_key]
+                    # Display only the new blocks in the consensus ledger
+                    for i in range(last_ledger_length, current_ledger_length):
+                        if i < len(consensus_chain):
+                            block = consensus_chain[i]
+                            
+                            print(f"📝 LEDGER BLOCK #{block['index']} - NETWORK ACCEPTED")
+                            self.display_block_details(block, is_new=True, source_peer=None)
+                            print(f"   ✅ Consensus Status: ACCEPTED by {consensus_count}/{total_nodes} nodes")
+                            print()
                     
-                    # Show new blocks from this peer with enhanced attribution
-                    if current_peer_length > last_peer_length:
-                        port = peer_url.split(':')[-1]
-                        print(f"🎉 New blocks detected from Node-{port}:")
-                        
-                        for i in range(last_peer_length, current_peer_length):
-                            if i < len(chain):
-                                block = chain[i]
-                                
-                                # Check if this block exists on other nodes (consensus verification)
-                                consensus_status = self._check_block_consensus(block, peer_chains)
-                                
-                                print(f"🎉 CONSENSUS BLOCK ACCEPTED: #{block['index']}")
-                                print(f"   🌐 Network Agreement: {consensus_status['consensus_count']}/{consensus_status['total_nodes']} nodes")
-                                print(f"   🏁 First Mined: {consensus_status['first_appearance']}")
-                                
-                                self.display_block_details(block, is_new=True, source_peer=peer_url)
-                        
-                        # Update tracking for this peer
-                        self.peer_last_seen[peer_key] = current_peer_length
-                        new_blocks_found = True
+                    # Update tracking for the unified ledger
+                    self.peer_last_seen[network_key] = current_ledger_length
+                    new_blocks_found = True
+                
+                # Check for consensus issues (forks or disagreements)
+                peer_chains = data.get('peer_chains', {})
+                self._check_and_report_consensus_issues(peer_chains, consensus_ledger)
                 
                 # If no new blocks found, show waiting message occasionally
                 if not new_blocks_found and current_time % 10 < interval:
-                    print("⏳ Monitoring for new blocks from all active nodes...")
-                    for peer_url in peer_chains:
-                        port = peer_url.split(':')[-1]
-                        length = peer_chains[peer_url]['length']
-                        print(f"   📊 Node-{port}: {length} blocks")
+                    print("⏳ Monitoring unified network ledger for new blocks...")
+                    consensus_count = consensus_ledger.get('consensus_count', 0)
+                    total_nodes = consensus_ledger.get('total_nodes', 0)
+                    ledger_length = len(consensus_chain)
+                    print(f"   📊 Unified Ledger: {ledger_length} blocks")
+                    print(f"   🌐 Network Consensus: {consensus_count}/{total_nodes} nodes")
                 else:
                     # Show periodic status updates even without new blocks
                     if int(current_time) % 30 == 0:  # Every 30 seconds
-                        total_blocks = sum(chains['length'] for chains in peer_chains.values())
-                        print(f"💭 Network status: {len(self.active_peers)} peers, {total_blocks} total blocks")
+                        ledger_length = len(consensus_chain)
+                        consensus_count = consensus_ledger.get('consensus_count', 0)
+                        total_nodes = consensus_ledger.get('total_nodes', 0)
+                        print(f"💭 Network status: {len(self.active_peers)} peers, unified ledger: {ledger_length} blocks")
+                        print(f"   🌐 Consensus: {consensus_count}/{total_nodes} nodes agree")
                 
                 time.sleep(interval)
                 
