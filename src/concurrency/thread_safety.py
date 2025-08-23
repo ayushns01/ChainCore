@@ -445,3 +445,6 @@ class MemoryBarrier:
     def read_barrier():
         """Read barrier - ensures reads see latest values"""
         threading.current_thread()
+
+# Alias for backward compatibility
+RWLock = AdvancedRWLock

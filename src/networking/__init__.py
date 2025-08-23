@@ -13,8 +13,12 @@ from .peer_manager import (
     get_peer_manager
 )
 
+# Alias for backward compatibility
+PeerManager = EnhancedPeerManager
+
 __all__ = [
     'EnhancedPeerManager',
+    'PeerManager',
     'PeerInfo', 
     'PeerStorage',
     'OutboundConnectionManager',

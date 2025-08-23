@@ -86,6 +86,9 @@ class ThreadSafeNetworkNode:
         bootstrap_nodes = bootstrap_nodes or []
         self.peer_network_manager = initialize_peer_manager(node_id, api_port, bootstrap_nodes)
         
+        # Enhanced peer manager (alias for backward compatibility)
+        self.enhanced_peer_manager = self.peer_network_manager
+        
         # Flask app
         self.app = Flask(__name__)
         self.app.json.compact = False
