@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Thread-Safe Network and Peer Management
-Enterprise-grade networking with connection pooling and rate limiting
+Networking with connection pooling and rate limiting
 """
 
 import threading
@@ -60,7 +60,7 @@ class ConnectionPool:
                     del self._connection_counts[least_used[0]]
                 
                 session = requests.Session()
-                # Configure session with enterprise settings
+                # Configure session settings
                 adapter = requests.adapters.HTTPAdapter(
                     pool_connections=self._max_per_host,
                     pool_maxsize=self._max_per_host,
@@ -145,7 +145,7 @@ class RateLimiter:
 
 class ThreadSafePeerManager:
     """
-    Enterprise-grade peer management with health monitoring
+    Peer management with health monitoring
     """
     
     def __init__(self):
@@ -207,7 +207,7 @@ class ThreadSafePeerManager:
         self._self_url = None  # Will be set by network node
         self._is_main_node = False  # Track if this is the main coordinator node
         
-        # Enhanced discovery settings for robust peer finding
+        # Discovery settings for robust peer finding
         self._discovery_timeout = 3.0  # Fast discovery timeout
         self._max_discovery_workers = 20  # More workers for faster scanning
         self._backoff_multiplier = 1.5  # Exponential backoff for failed peers
@@ -826,7 +826,7 @@ class ThreadSafePeerManager:
     
     def discover_peers(self, port_range: range = None, host: str = "localhost") -> int:
         """
-        ENHANCED: Scalable peer discovery for large multi-node networks (N > 2)
+        Scalable peer discovery for large multi-node networks (N > 2)
         Returns number of new peers discovered
         """
         # Use configured port range if none provided (now supports 200+ nodes)
@@ -837,7 +837,7 @@ class ThreadSafePeerManager:
         current_active_peers = len(self.get_active_peers())
         discovered_nodes = []  # Track discovered nodes for main node selection
         
-        # ENHANCED: Batch discovery for large networks to prevent overwhelming
+        # Batch discovery for large networks to prevent overwhelming
         from ..config import PEER_DISCOVERY_BATCH_SIZE, PEER_DISCOVERY_PARALLEL_WORKERS
         batch_size = PEER_DISCOVERY_BATCH_SIZE
         max_workers = min(PEER_DISCOVERY_PARALLEL_WORKERS, len(port_range))
@@ -867,7 +867,7 @@ class ThreadSafePeerManager:
                         logger.debug(f"   ⏭️  Skipping self URL: {peer_url}")
                         continue
                     
-                    future = executor.submit(self._try_discover_peer_enhanced, peer_url)
+                    future = executor.submit(self._try_discover_peer_detailed, peer_url)
                     future_to_url[future] = peer_url
             
                 # Process completed futures with timeout handling
@@ -923,8 +923,8 @@ class ThreadSafePeerManager:
         
         return discovered_count
     
-    def _try_discover_peer_enhanced(self, peer_url: str) -> Optional[PeerInfo]:
-        """Enhanced peer discovery with better error handling and info gathering"""
+    def _try_discover_peer_detailed(self, peer_url: str) -> Optional[PeerInfo]:
+        """Peer discovery with better error handling and info gathering"""
         try:
             # Use adaptive timeout for discovery too
             timeout = self._get_adaptive_timeout(peer_url)
@@ -935,7 +935,7 @@ class ThreadSafePeerManager:
                 if response.status_code == 200:
                     peer_data = response.json()
                     
-                    # Create comprehensive peer info
+                    # Create detailed peer info
                     peer_info = PeerInfo(
                         url=peer_url,
                         last_seen=time.time(),
@@ -970,7 +970,7 @@ class ThreadSafePeerManager:
     
     def _determine_main_node(self, discovered_nodes: List[Tuple[str, PeerInfo]]):
         """Determine if this node should be the main coordinator node"""
-        # FIXED: Only bootstrap node (port 5000) or nodes with no bootstrap should be main
+        # Only bootstrap node (port 5000) or nodes with no bootstrap should be main
         current_port = self._extract_port(self._self_url) if self._self_url else 0
         
         # Bootstrap node (port 5000) is always main if it exists
@@ -1057,9 +1057,9 @@ class ThreadSafePeerManager:
             discovery_thread.start()
     
     def _immediate_peer_discovery(self):
-        """Immediate peer discovery when node starts with enhanced coordination"""
+        """Immediate peer discovery when node starts with coordination"""
         try:
-            # Enhanced thundering herd prevention with exponential backoff
+            # Thundering herd prevention with exponential backoff
             import random
             import time
             
@@ -1179,7 +1179,7 @@ class ThreadSafePeerManager:
     def broadcast_to_peers(self, endpoint: str, data: dict, timeout: float = 10.0, 
                           exclude_sender: bool = False, sender_url: str = None) -> Dict[str, bool]:
         """
-        Enhanced thread-safe broadcasting to all active peers for multi-node networks
+        Thread-safe broadcasting to all active peers for multi-node networks
         Returns dict of peer_url -> success_status
         """
         active_peers = self.get_active_peers()
@@ -1194,7 +1194,7 @@ class ThreadSafePeerManager:
             logger.warning("No active peers for broadcasting")
             return results
         
-        # ENHANCED: Scale worker count based on network size
+        # Scale worker count based on network size
         max_workers = min(len(active_peers), 20)  # Scale up to 20 workers for large networks
         
         logger.info(f"[NET] Broadcasting to {len(active_peers)} peers with {max_workers} workers")
@@ -1358,7 +1358,7 @@ class ThreadSafePeerManager:
         }
     
     def cleanup(self):
-        """Enhanced cleanup of peer manager resources"""
+        """Cleanup of peer manager resources"""
         try:
             # Stop health monitoring
             if hasattr(self, '_health_monitor') and self._health_monitor:

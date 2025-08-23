@@ -2,7 +2,7 @@
 """
 Thread-Safe Blockchain Implementation
 Replaces the original Blockchain class with enterprise-grade thread safety
-Enhanced with PostgreSQL persistence
+With PostgreSQL persistence
 """
 
 import threading
@@ -17,7 +17,7 @@ from contextlib import contextmanager
 from .thread_safety import (
     LockManager, LockOrder, synchronized, AtomicCounter, 
     TransactionQueue, MemoryBarrier, deadlock_detector, Transaction as TxContext,
-    lock_manager, AdvancedRWLock
+    lock_manager, RWLock
 )
 
 logger = logging.getLogger(__name__)
@@ -51,7 +51,7 @@ class ThreadSafeUTXOSet:
         self._dirty_utxos: Set[str] = set()  # Track modified UTXOs
         self._snapshot_cache: Dict[int, Dict[str, Dict]] = {}
         self._version_counter = AtomicCounter()
-        self._lock = AdvancedRWLock("utxo_set", LockOrder.UTXO_SET)
+        self._lock = RWLock("utxo_set", LockOrder.UTXO_SET)
         
     @synchronized("utxo_set", LockOrder.UTXO_SET, mode='read')
     def get_utxo(self, key: str) -> Optional[Dict]:
@@ -141,7 +141,7 @@ class ThreadSafeUTXOSet:
 
 class ThreadSafeBlockchain:
     """
-    Enterprise-grade thread-safe blockchain implementation
+    Thread-safe blockchain implementation
     Uses reader-writer locks, atomic operations, and snapshot isolation
     """
     
@@ -188,7 +188,7 @@ class ThreadSafeBlockchain:
         self._stats = ChainStats()
         self._stats_lock = threading.Lock()
         
-        # ENHANCED: Blockchain state versioning for stale block detection
+        # Blockchain state versioning for stale block detection
         self._chain_state_version = 0  # Incremented on every chain modification
         self._last_block_hash = ""     # Hash of last block for quick change detection
         self._chain_tip_timestamp = 0  # Timestamp of last block addition
@@ -394,7 +394,7 @@ class ThreadSafeBlockchain:
                 genesis_block.hash = genesis_data["hash"]
                 genesis_block.merkle_root = genesis_data["merkle_root"]
                 
-                # Add metadata for enhanced tracking
+                # Add metadata for tracking
                 genesis_block._genesis_metadata = genesis_data["metadata"]
                 
                 # Verify the genesis block hash is correct
@@ -667,7 +667,7 @@ class ThreadSafeBlockchain:
             # Potential fork - immediate evaluation for chain reorganization
             logger.info(f"🍴 Fork detected: Block #{block.index} vs chain length {current_chain_length}")
             
-            # ENHANCED: Immediate fork resolution instead of just storing
+            # Immediate fork resolution instead of just storing
             if self._should_trigger_chain_reorganization(block):
                 logger.info(f"🔄 CHAIN REORGANIZATION: Switching to longer fork")
                 return self._perform_chain_reorganization(block)
@@ -723,7 +723,7 @@ class ThreadSafeBlockchain:
         # Add operations to transaction
         def add_block_op():
             self._chain.append(block)
-            # CRITICAL: Update state version when chain is modified
+            # Update state version when chain is modified
             self._update_chain_state_version(block)
             logger.info(f"Block {block.index} added to chain (state version: {self._chain_state_version})")
         
@@ -998,7 +998,7 @@ class ThreadSafeBlockchain:
             # Create sync engine
             sync_engine = BlockchainSync(self)
             
-            # Perform industry-standard sync
+            # Perform sync
             result, stats = sync_engine.sync_with_peer_chain(peer_chain_data, peer_url)
             
             if result == SyncResult.SUCCESS or result == SyncResult.FORK_RESOLVED:
@@ -1345,7 +1345,7 @@ class ThreadSafeBlockchain:
             return self._chain[start:end+1] if start <= end else []
     
     def get_chain_info(self) -> Dict:
-        """Get comprehensive chain information"""
+        """Get chain information"""
         with self._chain_lock.read_lock():
             if not self._chain:
                 return {
@@ -1370,7 +1370,7 @@ class ThreadSafeBlockchain:
         """
         Create mining block template with thread safety and state versioning
         """
-        # CRITICAL: Capture current blockchain state for template validation
+        # Capture current blockchain state for template validation
         template_state = self.get_chain_state_snapshot()
         
         with self._pool_lock.read_lock():
@@ -1421,7 +1421,7 @@ class ThreadSafeBlockchain:
                 mining_node=mining_node
             )
         
-        # ENHANCED: Add state versioning metadata to block template
+        # Add state versioning metadata to block template
         if not hasattr(new_block, '_template_metadata'):
             new_block._template_metadata = {}
         
@@ -1469,7 +1469,7 @@ class ThreadSafeBlockchain:
             logger.error(f"Thread creation traceback: {traceback.format_exc()}")
     
     def get_database_statistics(self) -> Dict:
-        """Get comprehensive statistics from database"""
+        """Get statistics from database"""
         if not self.database_enabled:
             return {'database_enabled': False}
             

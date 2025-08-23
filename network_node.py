@@ -1,18 +1,18 @@
 #!/usr/bin/env python3
 """
 Thread-Safe ChainCore Network Node
-Enterprise-grade blockchain node with comprehensive thread safety
+Thread-safe blockchain node
 
 This implementation combines the original network_node.py with full thread safety integration.
-All original functionality is preserved while adding enterprise-grade concurrency control.
+All original functionality is preserved while adding concurrency control.
 
 Thread Safety Features:
-- Advanced reader-writer locks with deadlock detection
+- Reader-writer locks with deadlock detection
 - MVCC UTXO management with snapshot isolation
 - Atomic operations for blockchain state changes
 - Connection pooling and rate limiting for peers
 - Work coordination for mining operations
-- Comprehensive statistics and monitoring
+- Statistics and monitoring
 """
 
 import sys
@@ -35,9 +35,9 @@ from src.concurrency import (
     mining_pool, lock_manager
 )
 
-# Import enhanced networking
+# Import networking
 from src.networking import (
-    EnhancedPeerManager, initialize_peer_manager, get_peer_manager
+    PeerManager, initialize_peer_manager, get_peer_manager
 )
 from src.networking.connection_cleaner import start_connection_cleanup, stop_connection_cleanup
 
@@ -68,7 +68,7 @@ from src.blockchain.block import Block
 
 class ThreadSafeNetworkNode:
     """
-    Thread-safe network node with enterprise-grade concurrency control
+    Thread-safe network node with concurrency control
     """
     
     def __init__(self, node_id: str = "core0", api_port: int = 5000, p2p_port: int = 8000, bootstrap_nodes: List[str] = None):
@@ -82,9 +82,9 @@ class ThreadSafeNetworkNode:
         # Thread-safe peer management (legacy)
         self.peer_manager = ThreadSafePeerManager()
         
-        # Enhanced peer management with full P2P capabilities
+        # Peer management with full P2P capabilities
         bootstrap_nodes = bootstrap_nodes or []
-        self.enhanced_peer_manager = initialize_peer_manager(node_id, api_port, bootstrap_nodes)
+        self.peer_network_manager = initialize_peer_manager(node_id, api_port, bootstrap_nodes)
         
         # Flask app
         self.app = Flask(__name__)
@@ -111,7 +111,7 @@ class ThreadSafeNetworkNode:
         logger.info("   [READY] All systems ready!")
     
     def _sync_with_network_before_mining(self) -> Dict:
-        """Enhanced synchronization with comprehensive chain validation"""
+        """Synchronization with chain validation"""
         blocks_added = 0
         sync_errors = []
         
@@ -125,7 +125,7 @@ class ThreadSafeNetworkNode:
             max_peer_length = current_length
             best_peer = None
             
-            # ENHANCED: Optimized peer checking for large networks
+            # Optimized peer checking for large networks
             # Use status endpoint first (lightweight), then blockchain if needed
             peer_candidates = []
             
@@ -167,7 +167,7 @@ class ThreadSafeNetworkNode:
                     except requests.RequestException:
                         continue
             
-            # Enhanced synchronization with comprehensive validation
+            # Synchronization with validation
             if best_peer and max_peer_length > current_length:
                 print(f"   [SYNC] Found longer chain: {max_peer_length} blocks vs our {current_length}")
                 print(f"   [SYNC] Synchronizing with {best_peer}")
@@ -187,7 +187,7 @@ class ThreadSafeNetworkNode:
                         print(f"     [INFO] Peer genesis: {peer_genesis[:20]}...")
                         # Continue with sync - allow for minor genesis differences
                 
-                # ENHANCED: Get missing blocks in optimized batches for large networks
+                # Get missing blocks in optimized batches for large networks
                 missing_blocks = max_peer_length - current_length
                 
                 # Dynamic batch sizing based on network size and missing blocks
@@ -255,7 +255,7 @@ class ThreadSafeNetworkNode:
         @self.app.route('/status', methods=['GET'])
         @synchronized("api_status", LockOrder.NETWORK, mode='read')
         def get_status():
-            """Enhanced user-friendly status endpoint with comprehensive information"""
+            """Status endpoint with information"""
             self._increment_api_calls()
             
             # Get current statistics
@@ -305,9 +305,9 @@ class ThreadSafeNetworkNode:
                               "Moderate" if self.blockchain.target_difficulty > 2 else \
                               "Easy"
             
-            # FIXED: Unified status display format for all nodes (ASCII only)
+            # Unified status display format for all nodes (ASCII only)
             if is_main_node:
-                # Main node gets enhanced display but still ASCII format
+                # Main node gets detailed display but still ASCII format
                 status_summary = f"""
 +======================================================================+
 |                    🏆 CHAINCORE MAIN NODE STATUS                    |
@@ -335,7 +335,7 @@ class ThreadSafeNetworkNode:
 +======================================================================+
                 """.strip()
 
-            # FIXED: Ensure ASCII-only status display (remove any unicode)
+            # Ensure ASCII-only status display
             status_summary_clean = status_summary
             # Remove common unicode characters that might appear
             unicode_replacements = {
@@ -363,7 +363,7 @@ class ThreadSafeNetworkNode:
                     'SYNC_STATUS': blockchain_health
                 },
                 
-                # FIXED: Add status format version to detect inconsistencies  
+                # Add status format version to detect inconsistencies  
                 'status_format_version': 'ascii-v2.0',
                 'display_consistent': True,
                 'format_enforcement': 'ascii-only',
@@ -748,7 +748,7 @@ class ThreadSafeNetworkNode:
                 data = request.get_json() or {}
                 miner_address = data.get('miner_address', 'unknown')
                 
-                # CRITICAL: Synchronize with network before creating mining template
+                # Synchronize with network before creating mining template
                 print(f"[SYNC] SYNC CHECK: Ensuring latest blockchain state before mining")
                 sync_result = self._sync_with_network_before_mining()
                 if sync_result['blocks_added'] > 0:
@@ -777,14 +777,14 @@ class ThreadSafeNetworkNode:
         @self.app.route('/submit_block', methods=['POST'])
         @synchronized("api_submit_block", LockOrder.NETWORK, mode='write')
         def submit_block():
-            """Thread-safe block submission with enhanced race condition prevention"""
+            """Thread-safe block submission with race condition prevention"""
             self._increment_api_calls()
             
             try:
                 data = request.get_json()
                 block_data = data.get('block', data)  # Handle both formats
                 
-                # CRITICAL: Pre-submission network sync to prevent stale blocks
+                # Pre-submission network sync to prevent stale blocks
                 is_locally_mined = request.headers.get('X-Local-Mining') == 'true'
                 if not is_locally_mined:
                     print(f"[NETWORK] NETWORK BLOCK: Received block #{block_data.get('index', '?')} from peer")
@@ -802,10 +802,10 @@ class ThreadSafeNetworkNode:
                         block._mining_metadata = {}
                     block._mining_metadata['mining_node'] = f"Node-{self.api_port}"
                 
-                # ENHANCED: Get fresh chain state after potential sync
+                # Get fresh chain state after potential sync
                 current_chain_length = self.blockchain.get_chain_length()
                 
-                # CRITICAL: Verify block is still valid after sync
+                # Verify block is still valid after sync
                 if is_locally_mined and block.index != current_chain_length:
                     logger.warning(f"LOCAL BLOCK STALE: Block #{block.index} vs chain #{current_chain_length}")
                     return jsonify({
@@ -850,7 +850,7 @@ class ThreadSafeNetworkNode:
                         timeout=5.0  # Fast broadcast for priority
                     )
                 
-                # ENHANCED: Multi-node consensus validation before acceptance
+                # Multi-node consensus validation before acceptance
                 network_consensus_result = self._validate_multi_node_consensus(block, is_locally_mined)
                 
                 # CRITICAL FIX: Check for potential forks before block acceptance
@@ -899,7 +899,7 @@ class ThreadSafeNetworkNode:
                 
                 # Attempt to add block (this validates the block)
                 if self.blockchain.add_block(block):
-                    # FIXED: Extract miner information from multiple sources
+                    # Extract miner information from multiple sources
                     miner_address = "unknown"
                     
                     # Try mining metadata first (most reliable)
@@ -921,11 +921,11 @@ class ThreadSafeNetworkNode:
                     print(f"   [CHAIN] Chain length: {self.blockchain.get_chain_length()}")
                     print(f"   [NETWORK] Network peers: {len(self.peer_manager.get_active_peers())}")
                     
-                    # ENHANCED: Smart broadcasting based on network size and consensus
+                    # Smart broadcasting based on network size and consensus
                     if not is_locally_mined:
                         # Received from peer - broadcast to all other peers to maintain consensus
                         sender_url = request.headers.get('X-Peer-Origin', 'unknown')
-                        # ENHANCED: Adaptive timeout based on network size
+                        # Adaptive timeout based on network size
                         active_peers_count = len(self.peer_manager.get_active_peers())
                         if active_peers_count <= 10:
                             broadcast_timeout = 5.0
@@ -949,7 +949,7 @@ class ThreadSafeNetworkNode:
                             print(f"   [NETWORK] Broadcasted to {successful_broadcasts}/{total_peers} peers")
                     else:
                         # Local mining - broadcast to all peers
-                        # ENHANCED: Adaptive timeout for local mining broadcasts in large networks
+                        # Adaptive timeout for local mining broadcasts in large networks
                         active_peers_count = len(self.peer_manager.get_active_peers())
                         if active_peers_count <= 10:
                             broadcast_timeout = 5.0
@@ -1029,7 +1029,7 @@ class ThreadSafeNetworkNode:
         @self.app.route('/chain/info', methods=['GET'])
         @synchronized("api_chain_info", LockOrder.NETWORK, mode='read')
         def get_chain_info():
-            """Get comprehensive chain information"""
+            """Get chain information"""
             self._increment_api_calls()
             
             try:
@@ -1166,7 +1166,7 @@ class ThreadSafeNetworkNode:
         @self.app.route('/stats', methods=['GET'])
         @synchronized("api_stats", LockOrder.NETWORK, mode='read')
         def get_stats():
-            """Comprehensive thread-safe statistics"""
+            """Thread-safe statistics"""
             self._increment_api_calls()
             
             blockchain_stats = self.blockchain.get_stats()
@@ -1263,7 +1263,7 @@ class ThreadSafeNetworkNode:
                     'error': str(e)
                 }), 500
         
-        # Enhanced Peer Exchange API Endpoints
+        # Peer Exchange API Endpoints
         @self.app.route('/getpeers', methods=['GET'])
         @synchronized("api_getpeers", LockOrder.NETWORK, mode='read')
         def get_peers_for_exchange():
@@ -1271,9 +1271,9 @@ class ThreadSafeNetworkNode:
             self._increment_api_calls()
             
             try:
-                # Get enhanced peer manager if available
-                if hasattr(self, 'enhanced_peer_manager') and self.enhanced_peer_manager:
-                    peers_data = self.enhanced_peer_manager.get_peers_for_sharing()
+                # Get peer network manager if available
+                if hasattr(self, 'peer_network_manager') and self.peer_network_manager:
+                    peers_data = self.peer_network_manager.get_peers_for_sharing()
                 else:
                     # Fallback to basic peer manager
                     peer_info = self.peer_manager.get_all_peers()
@@ -1317,8 +1317,8 @@ class ThreadSafeNetworkNode:
                 sender_node_id = data.get('node_id', 'unknown')
                 shared_peers = data.get('peers', [])
                 
-                if hasattr(self, 'enhanced_peer_manager') and self.enhanced_peer_manager:
-                    result = self.enhanced_peer_manager.handle_peer_share(sender_node_id, shared_peers)
+                if hasattr(self, 'peer_network_manager') and self.peer_network_manager:
+                    result = self.peer_network_manager.handle_peer_share(sender_node_id, shared_peers)
                 else:
                     # Fallback to basic peer addition
                     new_peers_added = 0
@@ -1369,8 +1369,8 @@ class ThreadSafeNetworkNode:
                     return jsonify({'status': 'error', 'message': 'Cannot add self as peer'}), 400
                 
                 # Add peer
-                if hasattr(self, 'enhanced_peer_manager') and self.enhanced_peer_manager:
-                    success = self.enhanced_peer_manager.add_peer(peer_url)
+                if hasattr(self, 'peer_network_manager') and self.peer_network_manager:
+                    success = self.peer_network_manager.add_peer(peer_url)
                 else:
                     success = self.peer_manager.add_peer(peer_url)
                 
@@ -1741,7 +1741,7 @@ class ThreadSafeNetworkNode:
         # Start enhanced peer manager
         if self.enhanced_peer_manager:
             self.enhanced_peer_manager.start()
-            logger.info("Enhanced P2P network manager started")
+            logger.info("P2P network manager started")
         
         # Start connection cleanup system
         try:
@@ -1783,9 +1783,9 @@ class ThreadSafeNetworkNode:
         # Configure self-awareness for enhanced peer discovery  
         self_url = f"http://localhost:{self.api_port}"
         
-        # Enhanced peer discovery with main node detection
+        # Peer discovery with main node detection
         if discover_peers:
-            logger.info("🔍 Starting Enhanced Peer Discovery...")
+            logger.info("🔍 Starting Peer Discovery...")
             logger.info(f"   🆔 This node: {self_url}")
             logger.info("   🌐 Scanning for existing nodes...")
             
@@ -1828,7 +1828,7 @@ class ThreadSafeNetworkNode:
             # Stop enhanced peer manager
             if hasattr(self, 'enhanced_peer_manager') and self.enhanced_peer_manager:
                 self.enhanced_peer_manager.stop()
-                logger.info("Enhanced peer manager stopped")
+                logger.info("Peer manager stopped")
             
             # Stop connection cleanup
             stop_connection_cleanup()
@@ -2030,7 +2030,7 @@ class ThreadSafeNetworkNode:
             logger.error(f"Error in aggressive sync: {e}")
     
     def _perform_enhanced_automatic_sync(self):
-        """Enhanced automatic sync that preserves mining attribution and updates balances"""
+        """Automatic sync that preserves mining attribution and updates balances"""
         try:
             logger.debug("🔄 Starting enhanced automatic blockchain sync")
             
@@ -2043,14 +2043,14 @@ class ThreadSafeNetworkNode:
             if peer_sync_result:
                 peer_url_result, chain_data = peer_sync_result
                 
-                logger.info(f"📡 Enhanced sync with peer: {peer_url_result}")
+                logger.info(f"📡 Sync with peer: {peer_url_result}")
                 logger.info(f"📊 Current chain length: {current_length}")
                 logger.info(f"📊 Peer chain length: {len(chain_data)}")
                 
                 # Use industry-standard smart sync with enhanced features
                 if self.blockchain.smart_sync_with_peer_chain(chain_data, peer_url_result):
                     new_length = self.blockchain.get_chain_length()
-                    logger.info(f"🎉 Enhanced Blockchain Sync Successful!")
+                    logger.info(f"🎉 Blockchain Sync Successful!")
                     logger.info(f"   📊 Chain updated: {current_length} -> {new_length} blocks")
                     logger.info(f"   🌐 Source: {peer_url_result}")
                     logger.info(f"   💾 Mining history: PRESERVED")
@@ -2061,11 +2061,11 @@ class ThreadSafeNetworkNode:
                     self._stats['last_sync_time'] = time.time()
                     logger.info(f"   📈 Total successful syncs: {self._stats['successful_syncs']}")
                 else:
-                    logger.error("❌ Enhanced Smart Sync Failed!")
+                    logger.error("❌ Smart Sync Failed!")
                     logger.error("   🔍 Chain validation failed or sync error occurred")
                     self._stats['failed_syncs'] = self._stats.get('failed_syncs', 0) + 1
             else:
-                logger.info("⚠️  Enhanced Automatic Sync: No suitable peers available for sync")
+                logger.info("⚠️  Automatic Sync: No suitable peers available for sync")
                 
         except Exception as e:
             logger.error(f"Error in enhanced automatic blockchain sync: {e}")

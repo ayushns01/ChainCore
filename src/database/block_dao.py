@@ -25,7 +25,7 @@ class BlockDAO:
             # Prepare block data
             block_data = block.to_dict()
             
-            # FIXED: Extract mining information with proper fallbacks
+            # Extract mining information with proper fallbacks
             miner_node = "unknown"
             miner_address = "unknown"
             
@@ -71,18 +71,18 @@ class BlockDAO:
                 # Add mining statistics if available
                 self._add_mining_statistics(block, block_id, miner_node)
                 
-                logger.info(f"✅ Block #{block.index} added to database (ID: {block_id})")
-                logger.info(f"   🏷️  Hash: {block.hash[:16]}...")
-                logger.info(f"   ⛏️  Miner: {miner_node} ({miner_address[:16]}...)")
-                logger.info(f"   📝 Transactions: {len(block.transactions)}")
+                logger.info(f"Block #{block.index} added to database (ID: {block_id})")
+                logger.info(f"   Hash: {block.hash[:16]}...")
+                logger.info(f"   Miner: {miner_node} ({miner_address[:16]}...)")
+                logger.info(f"   Transactions: {len(block.transactions)}")
                 
                 return True
             else:
-                logger.error(f"❌ Failed to add block #{block.index} to database")
+                logger.error(f"Failed to add block #{block.index} to database")
                 return False
                 
         except Exception as e:
-            logger.error(f"❌ Error adding block #{block.index} to database: {e}")
+            logger.error(f"Error adding block #{block.index} to database: {e}")
             return False
     
     def _add_block_transactions(self, block: Block, block_id: int):
@@ -127,7 +127,7 @@ class BlockDAO:
                     )
                     
                     if success:
-                        logger.info(f"   📊 Mining stats recorded: {hash_attempts:,} hashes in {mining_duration:.1f}s ({hash_rate:.0f} H/s)")
+                        logger.info(f"   Mining stats recorded: {hash_attempts:,} hashes in {mining_duration:.1f}s ({hash_rate:.0f} H/s)")
                 else:
                     logger.debug(f"No mining statistics available for block #{block.index}")
             else:
@@ -189,7 +189,7 @@ class BlockDAO:
     def get_blockchain_length(self) -> int:
         """Get the current blockchain length"""
         try:
-            # FIXED: Add better error handling and table existence check
+            # Add better error handling and table existence check
             # First check if blocks table exists
             table_check_query = """
                 SELECT EXISTS (
@@ -216,7 +216,7 @@ class BlockDAO:
             
         except Exception as e:
             logger.error(f"Error getting blockchain length: {e}")
-            # FIXED: Try to provide more specific error info
+            # Try to provide more specific error info
             try:
                 # Test basic database connectivity
                 test_query = "SELECT 1"

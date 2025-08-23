@@ -14,7 +14,7 @@ from .bitcoin_transaction import Transaction
 
 
 class Block:
-    """Enterprise-grade Block class with comprehensive metadata and Bitcoin Core standards"""
+    """Blockchain block containing transactions and proof-of-work validation"""
     def __init__(self, index: int, transactions: List[Transaction], previous_hash: str, 
                  timestamp: float = None, nonce: int = 0, target_difficulty: int = BLOCKCHAIN_DIFFICULTY,
                  mining_node: str = None, version: int = 1):
@@ -32,7 +32,7 @@ class Block:
         self.block_size = self._calculate_block_size()
         self.hash = self._calculate_hash()
         
-        # Comprehensive mining metadata (industry standard)
+        # Mining metadata for tracking block origins
         self._mining_metadata = {
             'mining_node': mining_node or 'unknown',
             'created_at': time.time(),
@@ -44,7 +44,7 @@ class Block:
             }
         }
         
-        # Block header metadata (Bitcoin Core style)
+        # Block header containing essential block information
         self._block_header = {
             'version': self.version,
             'previous_block_hash': previous_hash,
@@ -106,7 +106,7 @@ class Block:
         return base_size + tx_size
     
     def _calculate_target_bits(self) -> str:
-        """Calculate target bits for difficulty (Bitcoin Core style)"""
+        """Calculate target bits representation for difficulty"""
         # Simplified bit representation
         return f"0x{(0x1d00ffff >> self.target_difficulty):08x}"
     
@@ -135,13 +135,13 @@ class Block:
         return self.hash.startswith(target)
     
     def calculate_block_work(self) -> int:
-        """Calculate cumulative work for this block (industry standard)"""
+        """Calculate work performed for this block"""
         # Work = 2^256 / (target + 1)
         # For simplicity, we use 2^difficulty as work measure
         return 2 ** self.target_difficulty
     
     def validate_proof_of_work(self) -> bool:
-        """Comprehensive PoW validation following Bitcoin Core standards"""
+        """Validate proof-of-work hash meets difficulty requirements"""
         try:
             # 1. Validate hash format and difficulty
             if not self.is_valid_hash():
@@ -217,7 +217,7 @@ class Block:
         return True
     
     def to_dict(self) -> Dict:
-        """Convert block to dictionary with comprehensive metadata preservation"""
+        """Convert block to dictionary format"""
         block_dict = {
             # Core block data
             'index': self.index,
@@ -235,7 +235,7 @@ class Block:
             'block_size': getattr(self, 'block_size', 0)
         }
         
-        # Include comprehensive mining metadata
+        # Include mining metadata
         if hasattr(self, '_mining_metadata') and self._mining_metadata:
             block_dict['_mining_metadata'] = self._mining_metadata
             
@@ -243,7 +243,7 @@ class Block:
             if 'mining_node' in self._mining_metadata:
                 block_dict['mining_node'] = self._mining_metadata['mining_node']
         
-        # Include block header metadata (Bitcoin Core style)
+        # Include block header metadata
         if hasattr(self, '_block_header') and self._block_header:
             block_dict['_block_header'] = self._block_header
             
@@ -287,11 +287,11 @@ class Block:
             mining_node=mining_node
         )
         
-        # CRITICAL: Preserve original hash to maintain blockchain integrity
+        # Preserve original hash to maintain blockchain integrity
         if 'hash' in block_dict:
             block.hash = block_dict['hash']
         
-        # INDUSTRY STANDARD: Restore complete mining metadata if available
+        # Restore mining metadata if available
         if 'mining_metadata' in block_dict and isinstance(block_dict['mining_metadata'], dict):
             metadata = block_dict['mining_metadata']
             block._mining_metadata.update({

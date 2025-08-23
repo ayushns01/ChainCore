@@ -363,7 +363,7 @@ class EnhancedPeerManager:
             if response.status_code == 200:
                 status_data = response.json()
                 
-                # FIXED: Reset failure count on successful health check
+                # Reset failure count on successful health check
                 with self._lock:
                     if peer_url in self._peers:
                         self._peers[peer_url].is_active = True
@@ -448,7 +448,7 @@ class EnhancedPeerManager:
                             self.add_peer(peer_url)
                             active_found += 1
                         else:
-                            # FIXED: Reconnect to previously known but inactive peers
+                            # Reconnect to previously known but inactive peers
                             with self._lock:
                                 if peer_url in self._peers and not self._peers[peer_url].is_active:
                                     self._peers[peer_url].is_active = True
@@ -458,7 +458,7 @@ class EnhancedPeerManager:
                                         self._active_peers.add(peer_url)
                                     reconnected += 1
                 except:
-                    # FIXED: Mark failed peers as inactive instead of removing them
+                    # Mark failed peers as inactive instead of removing them
                     with self._lock:
                         if peer_url in self._peers:
                             peer = self._peers[peer_url]

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-ChainCore Mining Client - Enterprise-Grade Production Implementation
-Consolidated mining client with all advanced features and optimizations
+ChainCore Mining Client
+Multi-core mining client with proof-of-work implementation
 """
 
 import sys
@@ -45,7 +45,7 @@ except ImportError:
     TARGET_BLOCK_TIME = 10.0
     MINING_ROUND_DURATION = 12.0
 
-# Configure production-grade logging with file rotation
+# Configure logging with file rotation
 try:
     from logging.handlers import RotatingFileHandler
     
@@ -89,7 +89,7 @@ except ImportError:
 
 @dataclass
 class MiningConfig:
-    """Mining configuration with security and performance settings"""
+    """Mining configuration settings"""
     # Performance settings
     progress_update_interval: int = 50000  # Hash attempts between progress updates
     template_refresh_interval: float = 30.0  # Seconds before refreshing template
@@ -109,7 +109,7 @@ class MiningConfig:
     # Memory management
     max_statistics_history: int = 1000
     
-    # ENHANCED: Multi-core mining settings
+    # Multi-core mining settings
     mining_workers: Optional[int] = None  # None = auto-detect CPU cores
     enable_core_affinity: bool = True     # Enable CPU core affinity for workers
     worker_nonce_range: int = 100000      # Nonce range per worker
@@ -118,7 +118,7 @@ class MiningConfig:
 
 @dataclass
 class MiningStats:
-    """Thread-safe mining statistics with memory management"""
+    """Thread-safe mining statistics"""
     blocks_mined: int = 0
     total_mining_time: float = 0.0
     total_hashes: int = 0
@@ -142,7 +142,7 @@ class MiningStats:
             return sum(self.hash_rate_history) / len(self.hash_rate_history)
     
     def get_session_stats(self) -> Dict:
-        """Get comprehensive session statistics"""
+        """Get session statistics"""
         with self._lock:
             session_time = time.time() - self.session_start
             avg_block_time = session_time / self.blocks_mined if self.blocks_mined > 0 else 0
@@ -157,7 +157,7 @@ class MiningStats:
             }
 
 class MiningClient:
-    """Enterprise-grade mining client with comprehensive security and performance features"""
+    """Multi-core mining client with proof-of-work implementation"""
     
     def __init__(self, wallet_address: str, node_url: str = "http://localhost:5000", config: MiningConfig = None):
         # Initialize config first
@@ -171,7 +171,7 @@ class MiningClient:
         self.node_url = self._validate_node_url(node_url)
         self.wallet_address = wallet_address
         
-        # Thread-safe mining state with enhanced controls
+        # Thread-safe mining state
         self.is_mining = threading.Event()
         self.stop_mining = threading.Event()
         self.stats = MiningStats()
@@ -189,11 +189,11 @@ class MiningClient:
         self._template_max_age = self.config.template_refresh_interval
         self._template_lock = threading.Lock()
         
-        # Nonce optimization with enhanced randomization
+        # Nonce optimization with randomization
         self._nonce_start = secrets.randbits(32)
         self._nonce_range_size = 1000000
         
-        # Enhanced exponential backoff settings
+        # Exponential backoff settings
         self._base_retry_delay = self.config.initial_backoff
         self._max_retry_delay = self.config.max_backoff
         self._backoff_multiplier = self.config.backoff_multiplier
@@ -201,7 +201,7 @@ class MiningClient:
         # Optimized mining data structures
         self._block_data_template = {}
         
-        # ENHANCED: Multi-core mining capabilities
+        # Multi-core mining capabilities
         self.cpu_cores = self._detect_cpu_cores()
         self.mining_workers = self.config.mining_workers or self.cpu_cores
         self.worker_pool = None
@@ -211,10 +211,10 @@ class MiningClient:
         
         logger.info(f"[INIT] Multi-core mining initialized: {self.cpu_cores} cores detected, using {self.mining_workers} workers")
         if self.core_affinity_enabled:
-            logger.info("[PERFORMANCE] CPU core affinity enabled for optimal performance")
+            logger.info("[PERFORMANCE] CPU core affinity enabled")
         self._json_cache = {}
         
-        logger.info(f"Enhanced mining client initialized for address: {self._sanitize_address(wallet_address)}")
+        logger.info(f"Mining client initialized for address: {self._sanitize_address(wallet_address)}")
         logger.info(f"Node: {self._sanitize_url_for_log(node_url)}")
     
     def _detect_cpu_cores(self) -> int:
@@ -281,9 +281,9 @@ class MiningClient:
                     mined_block['hash_rate'] = hash_rate
                     mined_block['worker_id'] = worker_id
                     
-                    # Enhanced mining metadata for database statistics
+                    # Mining metadata for database statistics
                     current_time = time.time()
-                    enhanced_metadata = {
+                    metadata = {
                         'miner_address': self.wallet_address,
                         'mining_node': mining_node or f"Worker-{worker_id}",
                         'mining_client': f'ChainCore-Miner-{self.wallet_address[:8]}',
@@ -296,8 +296,8 @@ class MiningClient:
                         **mining_metadata  # Preserve any existing metadata
                     }
                     
-                    mined_block['_mining_metadata'] = enhanced_metadata
-                    mined_block['mining_metadata'] = enhanced_metadata  # For backward compatibility
+                    mined_block['_mining_metadata'] = metadata
+                    mined_block['mining_metadata'] = metadata  # For backward compatibility
                     if mining_node:
                         mined_block['mining_node'] = mining_node
                     
@@ -357,7 +357,7 @@ class MiningClient:
             logger.debug(f"Failed to set CPU affinity for worker {worker_id}: {e}")
     
     def mine_block_multicore(self, template: Dict, difficulty: int, timeout: int = None) -> Optional[Dict]:
-        """Enhanced multi-core mining implementation"""
+        """Multi-core mining implementation"""
         timeout = timeout or self.config.max_mining_timeout
         
         logger.info(f"[MINING] Starting multi-core mining with {self.mining_workers} workers")
@@ -485,7 +485,7 @@ class MiningClient:
         return f"{address[:4]}...{address[-4:]}"
     
     def _validate_node_url(self, url: str) -> str:
-        """Validate and sanitize node URL with enhanced security checks"""
+        """Validate and sanitize node URL"""
         try:
             parsed = urlparse(url)
             
@@ -523,18 +523,18 @@ class MiningClient:
             return "[INVALID_URL]"
     
     def get_block_template(self) -> Optional[Dict]:
-        """Get block template from network node with enhanced security"""
+        """Get block template from network node"""
         return self.get_block_template_with_auth()
     
     def get_block_template_with_auth(self) -> Optional[Dict]:
-        """Get block template with enhanced authentication and validation"""
+        """Get block template with authentication and validation"""
         for attempt in range(self.config.max_retries):
             try:
-                # Enhanced authentication headers
+                # Authentication headers
                 headers = {
                     'Content-Type': 'application/json',
                     'User-Agent': 'ChainCore-MiningClient/2.0',
-                    'X-Mining-Client': 'enhanced',
+                    'X-Mining-Client': 'chaincore',
                     'X-Client-Version': '2.0'
                 }
                 
@@ -617,11 +617,11 @@ class MiningClient:
         return self.submit_block_with_validation(mined_block)
     
     def check_network_health(self) -> bool:
-        """Enhanced network health check with peer connectivity validation"""
-        return self.check_network_health_enhanced()
+        """Network health check with peer connectivity validation"""
+        return self.check_network_health_detailed()
     
-    def check_network_health_enhanced(self) -> bool:
-        """Enhanced network health check with comprehensive validation"""
+    def check_network_health_detailed(self) -> bool:
+        """Network health check with validation"""
         try:
             response = requests.get(f"{self.node_url}/status", timeout=10)
             if response.status_code != 200:
@@ -631,7 +631,7 @@ class MiningClient:
             
             status = response.json()
             
-            # Comprehensive health validation
+            # Health validation
             blockchain_length = status.get('blockchain_length', 0)
             if blockchain_length < 1:
                 print("WARNING: Blockchain not initialized - waiting for genesis block")
@@ -708,7 +708,7 @@ class MiningClient:
         self.start_time = time.time()
         
         print("=" * 60)
-        print("MINING: ChainCore Enhanced Mining Client Started")
+        print("MINING: ChainCore Mining Client Started")
         print("=" * 60)
         print(f"ADDRESS: {self._sanitize_address(self.wallet_address)}")
         print(f"NODE: {self._sanitize_url_for_log(self.node_url)}")
@@ -742,8 +742,8 @@ class MiningClient:
         
         try:
             while self._is_mining_active():
-                # Enhanced network health check
-                if not self.check_network_health_enhanced():
+                # Network health check
+                if not self.check_network_health_detailed():
                     print("WARNING: Network Health Check Failed")
                     print("   Issues detected:")
                     print("      * Node not responding")
@@ -785,8 +785,8 @@ class MiningClient:
                         logger.debug(f"Mining coordination check failed: {e}")
                         # Continue with normal mining if coordination fails
                 
-                # Mine with enhanced retry logic
-                success = self.mine_with_enhanced_retry()
+                # Mine with retry logic
+                success = self.mine_with_retry()
                 
                 if success:
                     self.blocks_mined += 1
@@ -856,8 +856,8 @@ class MiningClient:
             self.is_mining = False
     
     def _print_session_summary(self):
-        """Print comprehensive session summary"""
-        # Use enhanced stats if available, otherwise fall back to legacy
+        """Print session summary"""
+        # Use stats if available, otherwise fall back to legacy
         if hasattr(self, 'stats'):
             stats = self.stats.get_session_stats()
         else:
@@ -904,15 +904,15 @@ class MiningClient:
     def mine_with_retry(self, max_retries=None):
         """Mine with intelligent retry logic to handle stale templates"""
         max_retries = max_retries or self.config.max_retries
-        return self.mine_with_enhanced_retry(max_retries)
+        return self.mine_with_retry(max_retries)
     
-    def mine_with_enhanced_retry(self, max_retries=None) -> bool:
-        """Enhanced mining with intelligent retry logic and network state verification"""
+    def mine_with_retry(self, max_retries=None) -> bool:
+        """Mining with intelligent retry logic and network state verification"""
         max_retries = max_retries or self.config.max_retries
         
         for attempt in range(max_retries):
             try:
-                # CRITICAL: Verify network state before mining
+                # Verify network state before mining
                 if not self._verify_network_readiness():
                     print("NETWORK: Node not ready for mining, waiting...")
                     logger.warning("Network node not ready for mining")
@@ -1007,7 +1007,7 @@ class MiningClient:
         # Precompute block data template
         base_json = self._precompute_block_data(template, difficulty)
         
-        # Enhanced nonce range with random starting point
+        # Nonce range with random starting point
         start_nonce = self._nonce_start + secrets.randbits(16)
         end_nonce = start_nonce + self._nonce_range_size
         
@@ -1032,14 +1032,14 @@ class MiningClient:
                 logger.info("Mining stopped by user")
                 return None
             
-            # ENHANCED: Real-time network state monitoring during mining
+            # Real-time network state monitoring during mining
             if hash_count > 0 and hash_count % 5000 == 0:  # Check more frequently
                 # Check template staleness
                 if self._is_template_stale():
                     logger.warning("Template became stale during mining, stopping")
                     return None
                 
-                # CRITICAL: Check if network has advanced while we're mining
+                # Check if network has advanced while we're mining
                 if self._check_network_advancement_during_mining(template):
                     logger.warning("Network has advanced during mining - our work is now stale")
                     print("NETWORK: Chain advanced while mining - abandoning current work")
@@ -1071,7 +1071,7 @@ class MiningClient:
                 result['nonce'] = nonce
                 result['hash'] = block_hash
                 
-                # Enhanced mining metadata for database statistics
+                # Mining metadata for database statistics
                 current_time = time.time()
                 result['_mining_metadata'] = {
                     'miner_address': self.wallet_address,
@@ -1142,13 +1142,13 @@ class MiningClient:
         return base_json
     
     def submit_block_with_validation(self, mined_block: Dict) -> bool:
-        """Submit mined block with enhanced error handling and validation"""
+        """Submit mined block with error handling and validation"""
         return self.submit_block_secure(mined_block)
     
     def submit_block_secure(self, block: Dict) -> bool:
-        """Secure block submission with comprehensive validation and network sync check"""
+        """Secure block submission with validation and network sync check"""
         try:
-            # CRITICAL: Final network sync check before submission
+            # Final network sync check before submission
             print("SYNC: Performing final network sync check before block submission...")
             if not self._perform_pre_submission_sync_check(block):
                 print("REJECTED: Block is stale - network has moved forward during mining")
@@ -1162,7 +1162,7 @@ class MiningClient:
             headers = {
                 'Content-Type': 'application/json',
                 'X-Local-Mining': 'true',
-                'X-Mining-Client': 'enhanced',
+                'X-Mining-Client': 'chaincore',
                 'User-Agent': 'ChainCore-MiningClient/2.0'
             }
             
@@ -1254,7 +1254,7 @@ class MiningClient:
             print(f"ERROR: BLOCK VALIDATION FAILED: {error_msg}")
             print(f"   Reason: {reason}")
             
-            # Enhanced error handling for specific cases
+            # Error handling for specific cases
             if reason == 'invalid_block_data':
                 print("   Block data structure is invalid")
             elif 'previous hash' in error_msg.lower():
@@ -1514,7 +1514,7 @@ class MiningClient:
             with self._stats_lock:
                 self.hash_rate_history.clear()
             
-            # Clear enhanced stats if available
+            # Clear stats if available
             if hasattr(self, 'stats'):
                 with self.stats._lock:
                     self.stats.hash_rate_history.clear()
@@ -1524,9 +1524,9 @@ class MiningClient:
             logger.warning(f"Error during resource cleanup: {e}")
 
 def main():
-    """Enhanced main function with comprehensive argument validation"""
+    """Main function with argument validation"""
     parser = argparse.ArgumentParser(
-        description='ChainCore Enhanced Mining Client - Enterprise Grade',
+        description='ChainCore Mining Client',
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
@@ -1554,7 +1554,7 @@ Examples:
     parser.add_argument('--verbose', '-v', action='store_true',
                        help='Enable verbose logging')
     
-    # ENHANCED: Multi-core mining arguments
+    # Multi-core mining arguments
     parser.add_argument('--workers', type=int, default=None,
                        help='Number of mining workers (default: auto-detect CPU cores)')
     parser.add_argument('--disable-affinity', action='store_true',
@@ -1582,7 +1582,7 @@ Examples:
             logger.error(f"Invalid difficulty range format: {e}")
             sys.exit(1)
         
-        # Create enhanced configuration with multi-core settings
+        # Create configuration with multi-core settings
         config = MiningConfig(
             max_mining_timeout=args.timeout,
             max_retries=args.retries,
@@ -1602,7 +1602,7 @@ Examples:
                 from startup_banner import startup_mining_client
                 startup_mining_client(args.wallet, args.node)
             except ImportError:
-                print("MINING: ChainCore Enhanced Mining Client Starting...")
+                print("MINING: ChainCore Mining Client Starting...")
                 # Sanitize wallet address for privacy
                 wallet_display = f"{args.wallet[:4]}...{args.wallet[-4:]}" if len(args.wallet) >= 8 else "***INVALID***"
                 print(f"   Wallet: {wallet_display}")
@@ -1618,14 +1618,14 @@ Examples:
             print(f"   Affinity support: {'Yes' if not args.disable_affinity else 'Disabled'}")
             sys.exit(0)
         
-        # Create enhanced mining client
+        # Create mining client
         miner = MiningClient(args.wallet, args.node, config)
         
         if args.stats:
             # Try enhanced stats first, fall back to legacy
             if hasattr(miner, 'stats'):
                 stats = miner.stats.get_session_stats()
-                print("STATS: Enhanced Mining Client Statistics")
+                print("STATS: Mining Client Statistics")
                 print(f"  Blocks mined: {stats['blocks_mined']}")
                 print(f"  Average hash rate: {stats['average_hash_rate']:.0f} H/s")
                 print(f"  Total hashes: {stats['total_hashes']:,}")

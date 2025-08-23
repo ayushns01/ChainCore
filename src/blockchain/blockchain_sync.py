@@ -295,14 +295,14 @@ class BlockchainSync:
             logger.info("ℹ️  Chains are already synchronized")
             return SyncResult.NO_CHANGES
         
-        # CRITICAL: Validate entire peer chain follows consensus rules before adding
+        # Validate entire peer chain follows consensus rules before adding
         if not self._validate_consensus_rules(peer_blocks):
             logger.error("❌ Peer chain violates PoW consensus rules")
             return SyncResult.INVALID_CHAIN
         
-        # Enhanced validation and addition with mining preservation
+        # Validation and addition with mining preservation
         for block in blocks_to_add:
-            if self._validate_block_addition_enhanced(block):
+            if self._validate_block_addition(block):
                 # Preserve mining metadata during addition
                 self._preserve_mining_attribution(block)
                 
@@ -372,7 +372,7 @@ class BlockchainSync:
         
         logger.info(f"🔀 Resolving fork from block #{comparison.fork_point} with PoW consensus validation")
         
-        # Step 1: CRITICAL: Validate peer's entire chain follows consensus rules
+        # Step 1: Validate peer's entire chain follows consensus rules
         if not self._validate_consensus_rules(peer_blocks):
             logger.error("❌ Peer chain violates PoW consensus rules")
             return SyncResult.INVALID_CHAIN
@@ -481,7 +481,7 @@ class BlockchainSync:
         if not basic_valid:
             return False
         
-        # 2. CRITICAL: Full PoW consensus validation
+        # 2. Full PoW consensus validation
         if not block.validate_block_full():
             logger.error(f"Block #{block.index} failed comprehensive PoW validation")
             return False
@@ -543,7 +543,7 @@ class BlockchainSync:
     def _update_balances_for_block(self, block: Block):
         """Update wallet balances for a specific block with enhanced validation"""
         try:
-            # CRITICAL: Validate UTXO integrity before updating
+            # Validate UTXO integrity before updating
             if not self._validate_block_utxo(block):
                 logger.error(f"UTXO validation failed for block #{block.index} - skipping balance update")
                 return
@@ -567,7 +567,7 @@ class BlockchainSync:
             logger.warning(f"Failed to update balances for block #{block.index}: {e}")
     
     def _update_wallet_balances_post_sync(self):
-        """Comprehensive wallet balance update after sync completion"""
+        """Wallet balance update after sync completion"""
         try:
             if hasattr(self.blockchain, 'utxo_set'):
                 # Recalculate all balances from UTXO set
