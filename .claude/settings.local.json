@@ -13,7 +13,11 @@
       "Bash(python:*)",
       "Bash(timeout:*)",
       "Bash(del:*)",
-      "Bash(grep:*)"
+      "Bash(grep:*)",
+      "Bash(pip install:*)",
+      "Bash(./chaincore/Scripts/python.exe:*)",
+      "Bash(rg:*)",
+      "Bash(taskkill:*)"
     ],
     "defaultMode": "acceptEdits"
   }

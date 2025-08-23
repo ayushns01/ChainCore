@@ -153,10 +153,13 @@ BEGIN
     -- Insert the block
     INSERT INTO blocks (
         block_index, hash, previous_hash, merkle_root, timestamp,
-        nonce, difficulty, miner_node, miner_address, block_data
+        nonce, difficulty, miner_node, miner_address, block_data,
+        transaction_count, block_size
     ) VALUES (
         p_block_index, p_hash, p_previous_hash, p_merkle_root, p_timestamp,
-        p_nonce, p_difficulty, p_miner_node, p_miner_address, p_block_data
+        p_nonce, p_difficulty, p_miner_node, p_miner_address, p_block_data,
+        (p_block_data->>'transaction_count')::INTEGER,
+        (p_block_data->>'block_size')::INTEGER
     ) RETURNING id INTO new_block_id;
     
     -- Update node statistics

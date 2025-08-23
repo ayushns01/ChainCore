@@ -8,7 +8,7 @@ import logging
 from typing import List, Dict, Optional, Any
 from datetime import datetime
 
-from .connection import get_db_manager
+from .simple_connection import get_simple_db_manager
 from ..blockchain.block import Block
 
 logger = logging.getLogger(__name__)
@@ -17,7 +17,7 @@ class BlockDAO:
     """Data Access Object for blockchain blocks"""
     
     def __init__(self):
-        self.db = get_db_manager()
+        self.db = get_simple_db_manager()
     
     def add_block(self, block: Block) -> bool:
         """Add a new block to the database"""
@@ -25,13 +25,18 @@ class BlockDAO:
             # Prepare block data
             block_data = block.to_dict()
             
-            # Extract mining information
+            # FIXED: Extract mining information with proper fallbacks
             miner_node = "unknown"
             miner_address = "unknown"
             
+            # Try mining metadata first (most reliable)
             if hasattr(block, '_mining_metadata') and block._mining_metadata:
                 miner_node = block._mining_metadata.get('mining_node', 'unknown')
                 miner_address = block._mining_metadata.get('miner_address', 'unknown')
+            
+            # Try top-level miner_address if metadata unavailable
+            if miner_address == "unknown" and hasattr(block, 'miner_address'):
+                miner_address = getattr(block, 'miner_address', 'unknown')
             
             # If miner_address is still unknown, try to get from coinbase transaction
             if miner_address == "unknown" and block.transactions:
@@ -63,6 +68,9 @@ class BlockDAO:
                 # Add transactions for this block
                 self._add_block_transactions(block, block_id)
                 
+                # Add mining statistics if available
+                self._add_mining_statistics(block, block_id, miner_node)
+                
                 logger.info(f"✅ Block #{block.index} added to database (ID: {block_id})")
                 logger.info(f"   🏷️  Hash: {block.hash[:16]}...")
                 logger.info(f"   ⛏️  Miner: {miner_node} ({miner_address[:16]}...)")
@@ -88,6 +96,45 @@ class BlockDAO:
                 
         except Exception as e:
             logger.error(f"Error adding transactions for block #{block.index}: {e}")
+    
+    def _add_mining_statistics(self, block: Block, block_id: int, miner_node: str):
+        """Add mining statistics if available in block metadata"""
+        try:
+            from .mining_stats_dao import MiningStatsDAO
+            
+            # Check if block has mining metadata
+            if hasattr(block, '_mining_metadata') and block._mining_metadata:
+                mining_data = block._mining_metadata
+                
+                # Extract mining statistics
+                mining_duration = mining_data.get('mining_duration', 0.0)
+                hash_attempts = mining_data.get('hash_attempts', 0)
+                hash_rate = mining_data.get('hash_rate', 0.0)
+                mining_started_at = mining_data.get('mining_started_at', block.timestamp)
+                mining_completed_at = mining_data.get('mining_completed_at', block.timestamp)
+                
+                # Only record if we have meaningful data
+                if mining_duration > 0 and hash_attempts > 0:
+                    stats_dao = MiningStatsDAO()
+                    success = stats_dao.record_mining_stats(
+                        node_id=miner_node,
+                        block_id=block_id,
+                        mining_duration_seconds=mining_duration,
+                        hash_attempts=hash_attempts,
+                        hash_rate=hash_rate,
+                        mining_started_at=mining_started_at,
+                        mining_completed_at=mining_completed_at
+                    )
+                    
+                    if success:
+                        logger.info(f"   📊 Mining stats recorded: {hash_attempts:,} hashes in {mining_duration:.1f}s ({hash_rate:.0f} H/s)")
+                else:
+                    logger.debug(f"No mining statistics available for block #{block.index}")
+            else:
+                logger.debug(f"No mining metadata available for block #{block.index}")
+                
+        except Exception as e:
+            logger.error(f"Error adding mining statistics for block #{block.index}: {e}")
     
     def get_block_by_index(self, block_index: int) -> Optional[Dict]:
         """Get a block by its index"""
@@ -142,6 +189,22 @@ class BlockDAO:
     def get_blockchain_length(self) -> int:
         """Get the current blockchain length"""
         try:
+            # FIXED: Add better error handling and table existence check
+            # First check if blocks table exists
+            table_check_query = """
+                SELECT EXISTS (
+                    SELECT FROM information_schema.tables 
+                    WHERE table_schema = 'public' 
+                    AND table_name = 'blocks'
+                );
+            """
+            table_exists = self.db.execute_query(table_check_query, fetch_one=True)
+            
+            if not table_exists or not table_exists[0]:
+                logger.warning("Blocks table does not exist - database not initialized properly")
+                return 0
+            
+            # Get blockchain length
             query = """
                 SELECT COUNT(*) as length FROM blocks
             """
@@ -153,6 +216,17 @@ class BlockDAO:
             
         except Exception as e:
             logger.error(f"Error getting blockchain length: {e}")
+            # FIXED: Try to provide more specific error info
+            try:
+                # Test basic database connectivity
+                test_query = "SELECT 1"
+                test_result = self.db.execute_query(test_query, fetch_one=True)
+                if test_result:
+                    logger.error("Database connection works, but blocks table query failed")
+                else:
+                    logger.error("Database connection test failed")
+            except Exception as conn_e:
+                logger.error(f"Database connection completely failed: {conn_e}")
             return 0
     
     def get_blocks_range(self, start_index: int, end_index: int) -> List[Dict]:

@@ -2,6 +2,7 @@
 """
 Thread-Safe Blockchain Implementation
 Replaces the original Blockchain class with enterprise-grade thread safety
+Enhanced with PostgreSQL persistence
 """
 
 import threading
@@ -20,6 +21,16 @@ from .thread_safety import (
 )
 
 logger = logging.getLogger(__name__)
+
+# Database integration
+try:
+    from ..database.simple_connection import get_simple_db_manager
+    from ..database.block_dao import BlockDAO
+    from ..database.transaction_dao import TransactionDAO
+    DATABASE_AVAILABLE = True
+except ImportError:
+    DATABASE_AVAILABLE = False
+    logger.warning("Database components not available - running in memory-only mode")
 
 @dataclass
 class ChainStats:
@@ -192,16 +203,34 @@ class ThreadSafeBlockchain:
         self._orphaned_blocks_lock = threading.RLock()
         self._max_orphaned_blocks = 100  # Limit memory usage
         
-        # Initialize with genesis block
-        self._create_genesis_block()
+        # Database integration (optional)
+        self.database_enabled = False
+        self.block_dao = None
+        self.tx_dao = None
         
-        logger.info("🔗 ChainCore Blockchain System Initialized")
-        logger.info(f"   💎 Target Difficulty: {self.target_difficulty} leading zeros")
-        logger.info(f"   🎯 Block Reward: {self.block_reward} CC")
-        logger.info(f"   ⚙️  Difficulty Adjustment: {'Enabled' if self.difficulty_adjustment_enabled else 'Disabled'}")
+        if DATABASE_AVAILABLE:
+            try:
+                self.db_manager = get_simple_db_manager()
+                self.db_manager.initialize()
+                self.block_dao = BlockDAO()
+                self.tx_dao = TransactionDAO()
+                self.database_enabled = True
+                logger.info("[DB] Database integration enabled (simple connection)")
+            except Exception as e:
+                logger.warning(f"Database initialization failed: {e}")
+                logger.info("Continuing in memory-only mode")
+        
+        # Initialize blockchain - try to load from database first, then create genesis
+        self._initialize_blockchain_from_database_or_genesis()
+        
+        logger.info("[BLOCKCHAIN] ChainCore Blockchain System Initialized")
+        logger.info(f"   [DIFFICULTY] Target Difficulty: {self.target_difficulty} leading zeros")
+        logger.info(f"   [REWARD] Block Reward: {self.block_reward} CC")
+        logger.info(f"   [DB] Database: {'Enabled' if self.database_enabled else 'Memory Only'}")
+        logger.info(f"   [ADJUST] Difficulty Adjustment: {'Enabled' if self.difficulty_adjustment_enabled else 'Disabled'}")
         if self.difficulty_adjustment_enabled:
-            logger.info(f"   ⏱️  Target Block Time: {self.target_block_time}s")
-            logger.info(f"   🔄 Adjustment Interval: Every {self.difficulty_adjustment_interval} blocks")
+            logger.info(f"   [TIME] Target Block Time: {self.target_block_time}s")
+            logger.info(f"   [CONFIG] Adjustment Interval: Every {self.difficulty_adjustment_interval} blocks")
     
     @synchronized("blockchain_chain", LockOrder.BLOCKCHAIN, mode='read')
     def get_transaction_history(self, address: str) -> List[Dict]:
@@ -280,6 +309,46 @@ class ThreadSafeBlockchain:
                     return tx
         return None
     
+    def _initialize_blockchain_from_database_or_genesis(self):
+        """Initialize blockchain by loading from database or creating genesis block"""
+        try:
+            # Try to load existing blockchain from database
+            if self.database_enabled and self._load_blockchain_from_database():
+                logger.info("[DATABASE] Loaded existing blockchain from database")
+                return
+        except Exception as e:
+            logger.warning(f"[DATABASE] Failed to load from database: {e}")
+        
+        # If database loading failed, create genesis block
+        self._create_genesis_block()
+    
+    def _load_blockchain_from_database(self):
+        """Load blockchain state from database if available"""
+        if not self.database_enabled or not hasattr(self, 'db_manager'):
+            return False
+        
+        try:
+            with self.db_manager.get_connection() as conn:
+                with conn.cursor() as cur:
+                    # Check if we have any blocks in database
+                    cur.execute("SELECT COUNT(*) FROM blocks")
+                    block_count = cur.fetchone()[0]
+                    
+                    if block_count > 0:
+                        # Load blocks in order
+                        cur.execute("SELECT block_data FROM blocks ORDER BY block_index ASC")
+                        block_rows = cur.fetchall()
+                        
+                        # TODO: Implement full block reconstruction from database
+                        # For now, return False to force genesis creation
+                        logger.info(f"[DATABASE] Found {block_count} blocks in database")
+                        return False  # Skip database loading for now
+                    
+                    return False
+        except Exception as e:
+            logger.error(f"[DATABASE] Error loading blockchain: {e}")
+            return False
+    
     def _create_genesis_block(self):
         """Create hardcoded genesis block for network consensus"""
         try:
@@ -295,7 +364,7 @@ class ThreadSafeBlockchain:
         
         with self._chain_lock.write_lock():
             if len(self._chain) == 0:  # Double-check pattern
-                logger.info("🏁 Loading Hardcoded Genesis Block...")
+                logger.info("[GENESIS] Loading Hardcoded Genesis Block...")
                 
                 # Get the hardcoded genesis block data
                 genesis_data = get_genesis_block()
@@ -332,11 +401,11 @@ class ThreadSafeBlockchain:
                 if genesis_block.hash != GENESIS_BLOCK_HASH:
                     raise ValueError(f"Genesis block hash mismatch: {genesis_block.hash} != {GENESIS_BLOCK_HASH}")
                 
-                logger.info("✅ Genesis Block Verification Successful!")
-                logger.info(f"   📋 Hash: {genesis_block.hash}")
-                logger.info(f"   🎲 Nonce: {genesis_block.nonce:,}")
-                logger.info(f"   ⏰ Timestamp: {genesis_block.timestamp}")
-                logger.info(f"   🆔 Chain ID: {genesis_data['metadata']['chain_id']}")
+                logger.info("[OK] Genesis Block Verification Successful!")
+                logger.info(f"   [HASH] Hash: {genesis_block.hash}")
+                logger.info(f"   [NONCE] Nonce: {genesis_block.nonce:,}")
+                logger.info(f"   [TIME] Timestamp: {genesis_block.timestamp}")
+                logger.info(f"   [CHAIN] Chain ID: {genesis_data['metadata']['chain_id']}")
                 
                 self._chain.append(genesis_block)
                 
@@ -358,12 +427,12 @@ class ThreadSafeBlockchain:
                     self._stats.blocks_processed += 1
                     self._stats.transactions_processed += 1
                 
-                logger.info("💎 Genesis Block Successfully Added to Chain")
-                logger.info(f"   💰 Genesis UTXO: {genesis_data['transactions'][0]['outputs'][0]['amount']} CC")
-                logger.info(f"   🏠 Genesis Address: {genesis_data['transactions'][0]['outputs'][0]['recipient_address']}")
-                logger.info(f"   📊 Blockchain Length: {len(self._chain)} block(s)")
-                logger.info("🌐 Network Consensus Genesis Block Loaded!")
-                logger.info("🚀 Blockchain Ready for Transactions!")
+                logger.info("[GENESIS] Genesis Block Successfully Added to Chain")
+                logger.info(f"   [UTXO] Genesis UTXO: {genesis_data['transactions'][0]['outputs'][0]['amount']} CC")
+                logger.info(f"   [ADDRESS] Genesis Address: {genesis_data['transactions'][0]['outputs'][0]['recipient_address']}")
+                logger.info(f"   [LENGTH] Blockchain Length: {len(self._chain)} block(s)")
+                logger.info("[NETWORK] Network Consensus Genesis Block Loaded!")
+                logger.info("[READY] Blockchain Ready for Transactions!")
     
     @synchronized("transaction_pool", LockOrder.MEMPOOL, mode='write')
     def add_transaction(self, transaction) -> bool:
@@ -468,10 +537,10 @@ class ThreadSafeBlockchain:
             new_difficulty = current_difficulty  # No change needed
         
         if new_difficulty != current_difficulty:
-            logger.info(f"⚙️  Dynamic Difficulty Adjustment Triggered!")
-            logger.info(f"   📊 Old Difficulty: {current_difficulty} -> New Difficulty: {new_difficulty}")
-            logger.info(f"   ⏱️  Block Time Ratio: {ratio:.2f} (Actual: {actual_time:.1f}s, Expected: {expected_time:.1f}s)")
-            logger.info(f"   🎯 Target: {'Faster' if ratio < 1.0 else 'Slower'} block times detected")
+            logger.info(f"[ADJUST] Dynamic Difficulty Adjustment Triggered!")
+            logger.info(f"   [DIFF] Old Difficulty: {current_difficulty} -> New Difficulty: {new_difficulty}")
+            logger.info(f"   [TIME] Block Time Ratio: {ratio:.2f} (Actual: {actual_time:.1f}s, Expected: {expected_time:.1f}s)")
+            logger.info(f"   [TARGET] Target: {'Faster' if ratio < 1.0 else 'Slower'} block times detected")
             logger.info(f"   🔧 Mining difficulty {'increased' if new_difficulty > current_difficulty else 'decreased'} to maintain {self.target_block_time}s target")
             
             # Update our target difficulty
@@ -498,7 +567,7 @@ class ThreadSafeBlockchain:
                 self._stats.orphaned_blocks += 1
             
             logger.info(f"🔀 Block {block.index} Orphaned (Fork Detected)")
-            logger.info(f"   📋 Block Hash: {block.hash[:16]}...{block.hash[-8:]}")
+            logger.info(f"   [HASH] Block Hash: {block.hash[:16]}...{block.hash[-8:]}")
             logger.info(f"   🔄 Previous Hash: {block.previous_hash[:16]}...")
             logger.info(f"   📦 Orphaned blocks stored: {len(self._orphaned_blocks)}/{self._max_orphaned_blocks}")
     
@@ -585,7 +654,7 @@ class ThreadSafeBlockchain:
                 logger.info(f"⚡ RACING BLOCKS: Multiple blocks for position #{block.index}")
                 # Implement immediate longest chain rule
                 if self._should_accept_competing_block(block):
-                    logger.info(f"✅ Accepting competing block (better chain)")
+                    logger.info(f"[ACCEPT] Accepting competing block (better chain)")
                     return self._add_sequential_block(block)
                 else:
                     logger.info(f"❌ Rejecting competing block (keeping current)")
@@ -696,16 +765,19 @@ class ThreadSafeBlockchain:
             # Perform difficulty adjustment after successful block addition
             self._calculate_new_difficulty()
             
-            logger.info(f"✅ Block {block.index} Successfully Added to Blockchain!")
-            logger.info(f"   📋 Block Hash: {block.hash[:16]}...{block.hash[-8:]}")
-            logger.info(f"   💎 Transactions: {len(block.transactions)} ({len([tx for tx in block.transactions if not tx.is_coinbase()])} user + 1 coinbase)")
-            logger.info(f"   📊 Chain Length: {len(self._chain)} blocks")
-            logger.info(f"   💰 Total UTXO Count: {len(self.utxo_set._utxos)}")
+            logger.info(f"[SUCCESS] Block {block.index} Successfully Added to Blockchain!")
+            logger.info(f"   [HASH] Block Hash: {block.hash[:16]}...{block.hash[-8:]}")
+            logger.info(f"   [TXN] Transactions: {len(block.transactions)} ({len([tx for tx in block.transactions if not tx.is_coinbase()])} user + 1 coinbase)")
+            logger.info(f"   [LENGTH] Chain Length: {len(self._chain)} blocks")
+            logger.info(f"   [UTXO] Total UTXO Count: {len(self.utxo_set._utxos)}")
             
             # Show transaction pool update
             with self._pool_lock.read_lock():
                 remaining_txs = len(self._transaction_pool)
             logger.info(f"   📝 Transaction Pool: {remaining_txs} pending transactions")
+            
+            # Store block in database (non-blocking)
+            self._store_block_in_database(block)
         
         return success
     
@@ -861,6 +933,56 @@ class ThreadSafeBlockchain:
             logger.error("Chain replacement failed - rolled back")
         
         return success
+    
+    @synchronized("blockchain_chain", LockOrder.BLOCKCHAIN, mode='write') 
+    def replace_chain_if_valid(self, new_chain: List) -> bool:
+        """
+        Replace chain only if the new chain is valid and longer/heavier
+        Used for fork resolution
+        """
+        try:
+            if not new_chain:
+                return False
+            
+            current_length = len(self._chain)
+            new_length = len(new_chain)
+            
+            # Only replace if new chain is longer
+            if new_length <= current_length:
+                logger.debug(f"Chain replacement skipped: new chain not longer ({new_length} vs {current_length})")
+                return False
+            
+            # Validate the new chain
+            if not self._validate_full_chain(new_chain):
+                logger.warning("Chain replacement failed: new chain is invalid")
+                return False
+            
+            logger.info(f"🔄 Replacing chain: {current_length} -> {new_length} blocks")
+            
+            # Backup current chain
+            backup_chain = self._chain.copy()
+            backup_utxos = self._utxo_set.copy()
+            
+            try:
+                # Replace the chain
+                self._chain = new_chain.copy()
+                
+                # Rebuild UTXO set from new chain
+                self._rebuild_utxo_set()
+                
+                logger.info(f"✅ Chain replacement successful")
+                return True
+                
+            except Exception as e:
+                logger.error(f"Chain replacement failed, rolling back: {e}")
+                # Restore backup
+                self._chain = backup_chain
+                self._utxo_set = backup_utxos
+                return False
+                
+        except Exception as e:
+            logger.error(f"Error in replace_chain_if_valid: {e}")
+            return False
     
     def smart_sync_with_peer_chain(self, peer_chain_data: List[Dict], peer_url: str) -> bool:
         """
@@ -1312,3 +1434,56 @@ class ThreadSafeBlockchain:
         
         logger.info(f"Block template created: index={new_block.index}, txs={len(all_transactions)}, fees={total_fees}, state_v{template_state['state_version']}")
         return new_block
+    
+    def _store_block_in_database(self, block):
+        """Store block in PostgreSQL database (non-blocking, preserves all functionality)"""
+        if not self.database_enabled:
+            logger.debug(f"Database not enabled - block #{block.index} not stored to database")
+            return
+            
+        try:
+            # Store block in database in background thread to avoid blocking
+            import threading
+            
+            def store_block():
+                try:
+                    logger.info(f"🔄 Attempting to store block #{block.index} in database...")
+                    success = self.block_dao.add_block(block)
+                    if success:
+                        logger.info(f"💾 Block #{block.index} successfully stored in database")
+                    else:
+                        logger.warning(f"⚠️  Failed to store block #{block.index} in database - add_block returned False")
+                except Exception as e:
+                    logger.error(f"❌ Database storage error for block #{block.index}: {e}")
+                    import traceback
+                    logger.error(f"Database storage traceback: {traceback.format_exc()}")
+            
+            # Store in background thread
+            storage_thread = threading.Thread(target=store_block, daemon=True)
+            storage_thread.start()
+            logger.info(f"📤 Started database storage thread for block #{block.index}")
+            
+        except Exception as e:
+            logger.error(f"Error creating database storage thread: {e}")
+            import traceback
+            logger.error(f"Thread creation traceback: {traceback.format_exc()}")
+    
+    def get_database_statistics(self) -> Dict:
+        """Get comprehensive statistics from database"""
+        if not self.database_enabled:
+            return {'database_enabled': False}
+            
+        try:
+            block_stats = self.block_dao.get_mining_statistics()
+            tx_stats = self.tx_dao.get_transaction_statistics() 
+            utxo_stats = self.tx_dao.get_utxo_statistics()
+            
+            return {
+                'database_enabled': True,
+                'blockchain_stats': block_stats,
+                'transaction_stats': tx_stats,
+                'utxo_stats': utxo_stats
+            }
+        except Exception as e:
+            logger.error(f"Error getting database statistics: {e}")
+            return {'database_enabled': True, 'error': str(e)}

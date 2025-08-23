@@ -27,13 +27,23 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
 
 from src.crypto.ecdsa_crypto import double_sha256, validate_address
 
+# Import mining coordination
+try:
+    from src.consensus import get_mining_coordinator
+    MINING_COORDINATION_AVAILABLE = True
+except ImportError:
+    MINING_COORDINATION_AVAILABLE = False
+    print("Mining coordination not available, using independent mining")
+
 # Safe config import with fallbacks
 try:
-    from src.config import BLOCKCHAIN_DIFFICULTY, BLOCK_REWARD
+    from src.config import BLOCKCHAIN_DIFFICULTY, BLOCK_REWARD, TARGET_BLOCK_TIME, MINING_ROUND_DURATION
 except ImportError:
-    logger.warning("Could not import config, using default values")
+    print("Could not import config, using default values")
     BLOCKCHAIN_DIFFICULTY = 4
     BLOCK_REWARD = 50.0
+    TARGET_BLOCK_TIME = 10.0
+    MINING_ROUND_DURATION = 12.0
 
 # Configure production-grade logging with file rotation
 try:
@@ -199,9 +209,9 @@ class MiningClient:
         self.worker_stop_event = threading.Event()
         self.core_affinity_enabled = self.config.enable_core_affinity
         
-        logger.info(f"💻 Multi-core mining initialized: {self.cpu_cores} cores detected, using {self.mining_workers} workers")
+        logger.info(f"[INIT] Multi-core mining initialized: {self.cpu_cores} cores detected, using {self.mining_workers} workers")
         if self.core_affinity_enabled:
-            logger.info("🔧 CPU core affinity enabled for optimal performance")
+            logger.info("[PERFORMANCE] CPU core affinity enabled for optimal performance")
         self._json_cache = {}
         
         logger.info(f"Enhanced mining client initialized for address: {self._sanitize_address(wallet_address)}")
@@ -218,13 +228,13 @@ class MiningClient:
                 import psutil
                 physical_cores = psutil.cpu_count(logical=False)
                 if physical_cores and physical_cores > 0:
-                    logger.info(f"💻 CPU detected: {physical_cores} physical cores, {logical_cores} logical cores")
+                    logger.info(f"[CPU] CPU detected: {physical_cores} physical cores, {logical_cores} logical cores")
                     # Use physical cores for mining to avoid hyperthreading contention
                     return physical_cores
             except ImportError:
                 logger.debug("psutil not available, using logical core count")
             
-            logger.info(f"💻 CPU detected: {logical_cores} logical cores")
+            logger.info(f"[CPU] CPU detected: {logical_cores} logical cores")
             return logical_cores
             
         except Exception as e:
@@ -271,14 +281,28 @@ class MiningClient:
                     mined_block['hash_rate'] = hash_rate
                     mined_block['worker_id'] = worker_id
                     
-                    # Preserve mining metadata
-                    if mining_metadata:
-                        mined_block['mining_metadata'] = mining_metadata
+                    # Enhanced mining metadata for database statistics
+                    current_time = time.time()
+                    enhanced_metadata = {
+                        'miner_address': self.wallet_address,
+                        'mining_node': mining_node or f"Worker-{worker_id}",
+                        'mining_client': f'ChainCore-Miner-{self.wallet_address[:8]}',
+                        'mining_duration': mining_time,
+                        'hash_attempts': worker_hash_count,
+                        'hash_rate': hash_rate,
+                        'mining_started_at': worker_start_time,
+                        'mining_completed_at': current_time,
+                        'worker_id': worker_id,
+                        **mining_metadata  # Preserve any existing metadata
+                    }
+                    
+                    mined_block['_mining_metadata'] = enhanced_metadata
+                    mined_block['mining_metadata'] = enhanced_metadata  # For backward compatibility
                     if mining_node:
                         mined_block['mining_node'] = mining_node
                     
-                    logger.info(f"🎉 Worker {worker_id} found solution! Hash: {block_hash[:32]}...")
-                    logger.info(f"   ⚡ Worker stats: {worker_hash_count:,} hashes in {mining_time:.2f}s ({hash_rate:.1f} H/s)")
+                    logger.info(f"[SUCCESS] Worker {worker_id} found solution! Hash: {block_hash[:32]}...")
+                    logger.info(f"   [STATS] Worker stats: {worker_hash_count:,} hashes in {mining_time:.2f}s ({hash_rate:.1f} H/s)")
                     
                     # Put result in queue and signal other workers to stop
                     result_queue.put(('success', mined_block, worker_id, worker_hash_count))
@@ -336,9 +360,9 @@ class MiningClient:
         """Enhanced multi-core mining implementation"""
         timeout = timeout or self.config.max_mining_timeout
         
-        logger.info(f"🚀 Starting multi-core mining with {self.mining_workers} workers")
-        logger.info(f"   🎯 Target: {'0' * difficulty} (difficulty {difficulty})")
-        logger.info(f"   📦 Block #{template['index']} with {len(template['transactions'])} transactions")
+        logger.info(f"[MINING] Starting multi-core mining with {self.mining_workers} workers")
+        logger.info(f"   [TARGET] Target: {'0' * difficulty} (difficulty {difficulty})")
+        logger.info(f"   [BLOCK] Block #{template['index']} with {len(template['transactions'])} transactions")
         
         # Calculate nonce ranges for each worker
         total_nonce_range = self.config.worker_nonce_range * self.mining_workers
@@ -375,7 +399,7 @@ class MiningClient:
                 )
                 worker_futures.append(future)
             
-            logger.info(f"   ⚡ {self.mining_workers} workers started, mining in progress...")
+            logger.info(f"   [WORKERS] {self.mining_workers} workers started, mining in progress...")
             
             # Monitor for results or timeout
             result = None
@@ -389,7 +413,7 @@ class MiningClient:
                     total_worker_hashes += hash_count
                     
                     if status == 'success':
-                        logger.info(f"✅ Block mined successfully by worker {worker_id}!")
+                        logger.info(f"[SUCCESS] Block mined successfully by worker {worker_id}!")
                         result = data
                         # Signal all workers to stop
                         self.worker_stop_event.set()
@@ -425,10 +449,10 @@ class MiningClient:
         combined_hash_rate = total_worker_hashes / mining_time if mining_time > 0 else 0
         
         if result:
-            logger.info(f"🎉 Multi-core mining successful!")
-            logger.info(f"   ⏱️  Total time: {mining_time:.2f}s")
-            logger.info(f"   🔢 Total hashes: {total_worker_hashes:,}")
-            logger.info(f"   ⚡ Combined hash rate: {combined_hash_rate:.1f} H/s")
+            logger.info(f"[SUCCESS] Multi-core mining successful!")
+            logger.info(f"   [TIME] Total time: {mining_time:.2f}s")
+            logger.info(f"   [HASHES] Total hashes: {total_worker_hashes:,}")
+            logger.info(f"   [RATE] Combined hash rate: {combined_hash_rate:.1f} H/s")
             
             # Update stats
             with self.stats._lock:
@@ -437,10 +461,10 @@ class MiningClient:
                 
         else:
             if completed_workers >= self.mining_workers:
-                logger.warning(f"⏰ Mining completed all ranges without solution")
+                logger.warning(f"[TIMEOUT] Mining completed all ranges without solution")
             else:
-                logger.warning(f"⏰ Mining timeout after {timeout}s")
-            logger.info(f"   🔢 Searched {total_worker_hashes:,} hashes at {combined_hash_rate:.1f} H/s")
+                logger.warning(f"[TIMEOUT] Mining timeout after {timeout}s")
+            logger.info(f"   [SEARCH] Searched {total_worker_hashes:,} hashes at {combined_hash_rate:.1f} H/s")
         
         return result
     
@@ -702,6 +726,20 @@ class MiningClient:
         logger.info(f"Session: {time.strftime('%Y-%m-%d %H:%M:%S')}")
         logger.info("-" * 60)
         
+        # Register with mining coordinator if available
+        mining_coordinator = None
+        miner_id = f"miner_{self.wallet_address[:8]}"
+        
+        if MINING_COORDINATION_AVAILABLE:
+            try:
+                mining_coordinator = get_mining_coordinator()
+                mining_coordinator.register_miner(miner_id)
+                print(f"[OK] Registered with mining coordinator as: {miner_id}")
+                logger.info(f"Mining coordination enabled: {miner_id}")
+            except Exception as e:
+                logger.warning(f"Mining coordination failed: {e}")
+                mining_coordinator = None
+        
         try:
             while self._is_mining_active():
                 # Enhanced network health check
@@ -715,6 +753,38 @@ class MiningClient:
                     time.sleep(10)
                     continue
                 
+                # Check mining coordination
+                should_mine = True
+                mining_status = {}
+                
+                if mining_coordinator:
+                    try:
+                        # Get current blockchain height
+                        node_status = requests.get(f"{self.node_url}/status", timeout=5).json()
+                        current_height = node_status.get('blockchain_length', 0)
+                        
+                        # Check if we should mine now
+                        mining_status = mining_coordinator.should_mine_now(miner_id, current_height)
+                        should_mine = mining_status.get('should_mine', True)
+                        
+                        if not should_mine:
+                            time_remaining = mining_status.get('time_remaining', 0)
+                            designated_miner = mining_status.get('designated_miner', 'unknown')
+                            
+                            if time_remaining > 1:
+                                print(f"⏳ Mining round: {designated_miner} has priority "
+                                     f"({time_remaining:.1f}s remaining)")
+                                time.sleep(min(time_remaining, 5.0))  # Wait but check periodically
+                                continue
+                        elif mining_status.get('is_designated', False):
+                            print(f"[MINER] Mining round: We are designated miner!")
+                        elif mining_status.get('is_backup', False):
+                            print(f"[BACKUP] Mining round: Backup mining activated")
+                            
+                    except Exception as e:
+                        logger.debug(f"Mining coordination check failed: {e}")
+                        # Continue with normal mining if coordination fails
+                
                 # Mine with enhanced retry logic
                 success = self.mine_with_enhanced_retry()
                 
@@ -723,6 +793,15 @@ class MiningClient:
                     session_time = time.time() - self.start_time
                     avg_time = session_time / self.blocks_mined
                     avg_hash_rate = self.get_average_hash_rate()
+                    
+                    # Report to mining coordinator
+                    if mining_coordinator:
+                        try:
+                            node_status = requests.get(f"{self.node_url}/status", timeout=5).json()
+                            current_height = node_status.get('blockchain_length', 0)
+                            mining_coordinator.report_block_mined(miner_id, current_height)
+                        except Exception as e:
+                            logger.debug(f"Failed to report block to coordinator: {e}")
                     
                     print("SUCCESS: BLOCK SUCCESSFULLY MINED!")
                     print(f"   Session Stats:")
@@ -907,10 +986,10 @@ class MiningClient:
         
         logger.info(f"Starting optimized mining - Block #{template['index']}, Difficulty: {difficulty}")
         print(f"MINING: Starting Multi-Core Proof-of-Work Mining...")
-        print(f"   💻 Using {self.mining_workers} CPU cores ({self.cpu_cores} available)")
-        print(f"   🎯 Target: {'0' * difficulty} (difficulty {difficulty})")
-        print(f"   📦 Block Size: {len(template['transactions'])} transactions")
-        print("   ⚡ Multi-core mining in progress...")
+        print(f"   [CPU] Using {self.mining_workers} CPU cores ({self.cpu_cores} available)")
+        print(f"   [TARGET] Target: {'0' * difficulty} (difficulty {difficulty})")
+        print(f"   [BLOCK] Block Size: {len(template['transactions'])} transactions")
+        print("   [MINING] Multi-core mining in progress...")
         
         # Use multi-core mining for better performance
         if self.mining_workers > 1:
@@ -992,9 +1071,26 @@ class MiningClient:
                 result['nonce'] = nonce
                 result['hash'] = block_hash
                 
-                # Ensure mining metadata is preserved in the final block
-                if mining_metadata:
-                    result['mining_metadata'] = mining_metadata
+                # Enhanced mining metadata for database statistics
+                current_time = time.time()
+                result['_mining_metadata'] = {
+                    'miner_address': self.wallet_address,
+                    'mining_node': mining_node,
+                    'mining_client': f'ChainCore-Miner-{self.wallet_address[:8]}',
+                    'mining_duration': mining_time,
+                    'hash_attempts': hash_count,
+                    'hash_rate': hash_rate,
+                    'mining_started_at': start_time,
+                    'mining_completed_at': current_time,
+                    'worker_id': 'single-core',
+                    **mining_metadata  # Preserve any existing metadata
+                }
+                
+                # For backward compatibility
+                result['mining_metadata'] = result['_mining_metadata']
+                
+                # Also set at top level for backward compatibility
+                result['miner_address'] = self.wallet_address
                 if mining_node != 'unknown':
                     result['mining_node'] = mining_node
                 
@@ -1338,8 +1434,8 @@ class MiningClient:
                             print(f"   Block prev_hash: {block_prev_hash[:32]}...")
                             return False
                         
-                        logger.info("✅ Pre-submission sync check passed - block is fresh")
-                        print("   ✅ Block is current with network state")
+                        logger.info("[SYNC] Pre-submission sync check passed - block is fresh")
+                        print("   [OK] Block is current with network state")
                         return True
                 
             except Exception as e:
@@ -1347,7 +1443,7 @@ class MiningClient:
                 # Continue with basic index check if detailed check fails
             
             # If we get here with matching index, consider it valid
-            logger.info("✅ Pre-submission sync check passed (basic)")
+            logger.info("[SYNC] Pre-submission sync check passed (basic)")
             return True
             
         except Exception as e:
@@ -1516,7 +1612,7 @@ Examples:
         if args.show_cores:
             temp_miner = MiningClient.__new__(MiningClient)
             cores = temp_miner._detect_cpu_cores()
-            print(f"💻 CPU Information:")
+            print(f"[CPU] CPU Information:")
             print(f"   Detected CPU cores: {cores}")
             print(f"   Default workers: {cores}")
             print(f"   Affinity support: {'Yes' if not args.disable_affinity else 'Disabled'}")

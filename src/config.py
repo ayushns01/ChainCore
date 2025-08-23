@@ -30,11 +30,11 @@ DEFAULT_API_PORT = 5000
 DEFAULT_P2P_PORT = 8000
 PEER_DISCOVERY_RANGE = (5000, 5100)  # Extended range for 100+ nodes
 
-# Enhanced peer management settings (supports unlimited miners)
-MIN_PEERS = 1          # Minimum peers to maintain (allow single node)
-TARGET_PEERS = 10      # Optimal number of peers  
-MAX_PEERS = 50         # Maximum peers (increased for better network)
-CONTINUOUS_DISCOVERY_INTERVAL = 30  # Faster discovery - every 30 seconds
+# Enhanced peer management settings (optimized for local multi-terminal)
+MIN_PEERS = 2          # Minimum peers to maintain for consensus
+TARGET_PEERS = 6       # Optimal for 3-8 terminal testing  
+MAX_PEERS = 12         # Prevent connection overload in local testing
+CONTINUOUS_DISCOVERY_INTERVAL = 10  # Fast discovery for local network
 
 # Peer discovery optimization
 DISCOVERY_TIMEOUT = 3.0          # Fast timeout for peer discovery
@@ -42,9 +42,11 @@ MAX_DISCOVERY_WORKERS = 20       # More concurrent workers
 PEER_HEALTH_CHECK_INTERVAL = 30  # Health check every 30 seconds
 PEER_FAILURE_THRESHOLD = 3       # Remove peer after 3 failures
 
-# Mining settings
-MINING_TIMEOUT = 60  # seconds
-MAX_BLOCK_SIZE = 1000  # max transactions per block
+# Mining settings (optimized for local testing)
+MINING_TIMEOUT = 20  # seconds (shorter for testing)
+MAX_BLOCK_SIZE = 100  # smaller blocks for testing
+TARGET_BLOCK_TIME = 10.0  # 10 seconds between blocks
+MINING_ROUND_DURATION = 12.0  # 12-second mining rounds
 
 # Thread safety settings
 LOCK_TIMEOUT = 10.0  # seconds

@@ -234,13 +234,13 @@ class ThreadSafePeerManager:
         }
         self._network_stats_lock = threading.RLock()
         
-        logger.info("🌐 ChainCore Peer Network Manager Initialized")
-        logger.info(f"   🎯 Target Peers: {self._target_peers} (Min: {self._min_peers}, Max: {self._max_peers})")
-        logger.info(f"   🔍 Peer Discovery: Every {self._peer_discovery_interval}s")
-        logger.info(f"   🔄 Blockchain Sync: Every {self._blockchain_sync_interval}s")
-        logger.info(f"   📝 Mempool Sync: Every {self._mempool_sync_interval}s")
-        logger.info(f"   📊 Network Stats: Every {self._network_stats_sync_interval}s")
-        logger.info("🚀 Ready for peer connections!")
+        logger.info("[NET] ChainCore Peer Network Manager Initialized")
+        logger.info(f"   [TARGET] Target Peers: {self._target_peers} (Min: {self._min_peers}, Max: {self._max_peers})")
+        logger.info(f"   [SEARCH] Peer Discovery: Every {self._peer_discovery_interval}s")
+        logger.info(f"   [SYNC] Blockchain Sync: Every {self._blockchain_sync_interval}s")
+        logger.info(f"   [MEMPOOL] Mempool Sync: Every {self._mempool_sync_interval}s")
+        logger.info(f"   [STATS] Network Stats: Every {self._network_stats_sync_interval}s")
+        logger.info("[READY] Ready for peer connections!")
     
     @synchronized("peer_registry", LockOrder.PEERS, mode='write')
     def add_peer(self, peer_url: str, peer_info: Optional[PeerInfo] = None) -> bool:
@@ -263,15 +263,15 @@ class ThreadSafePeerManager:
         except queue.Full:
             logger.warning("Discovery queue full, peer health check delayed")
         
-        logger.info(f"🔗 New Peer Added: {peer_url}")
-        logger.info(f"   📊 Total Peers: {len(self._peers)}")
-        logger.info(f"   ✅ Active Peers: {len(self._active_peers)}")
+        logger.info(f"[PEER] New Peer Added: {peer_url}")
+        logger.info(f"   [STATS] Total Peers: {len(self._peers)}")
+        logger.info(f"   [OK] Active Peers: {len(self._active_peers)}")
         
         # Show network status
         if len(self._active_peers) < self._min_peers:
-            logger.info("   ⚠️  Network Status: Under-connected (seeking more peers)")
+            logger.info("   [WARN]  Network Status: Under-connected (seeking more peers)")
         elif len(self._active_peers) >= self._target_peers:
-            logger.info("   🎯 Network Status: Well-connected")
+            logger.info("   [TARGET] Network Status: Well-connected")
         return True
     
     @synchronized("peer_registry", LockOrder.PEERS, mode='read')
@@ -384,18 +384,18 @@ class ThreadSafePeerManager:
     def _background_peer_discovery(self):
         """Background peer discovery when node is isolated"""
         try:
-            logger.info("🔍 Starting Automated Peer Discovery...")
-            logger.info(f"   🎯 Looking for peers in range {self._discovery_range}")
+            logger.info("[SEARCH] Starting Automated Peer Discovery...")
+            logger.info(f"   [TARGET] Looking for peers in range {self._discovery_range}")
             
             discovered_count = self.discover_peers()
             
             if discovered_count > 0:
                 logger.info(f"🎉 Peer Discovery Successful!")
                 logger.info(f"   ➕ Found {discovered_count} new peer(s)")
-                logger.info(f"   📊 Total Network: {len(self._active_peers)} active peers")
+                logger.info(f"   [STATS] Total Network: {len(self._active_peers)} active peers")
             else:
-                logger.info("🔍 Peer Discovery Complete - No new peers found")
-                logger.info(f"   📊 Current Network: {len(self._active_peers)} active peers")
+                logger.info("[SEARCH] Peer Discovery Complete - No new peers found")
+                logger.info(f"   [STATS] Current Network: {len(self._active_peers)} active peers")
                 
         except Exception as e:
             logger.error(f"Background peer discovery error: {e}")
@@ -409,9 +409,9 @@ class ThreadSafePeerManager:
             self._blockchain_sync_enabled and
             current_time - self._last_blockchain_sync > self._blockchain_sync_interval):
             
-            logger.info(f"🔄 Blockchain Synchronization Check Started")
-            logger.info(f"   🌐 Active Peers: {active_peer_count}")
-            logger.info("   🔍 Checking for longer chains...")
+            logger.info(f"[SYNC] Blockchain Synchronization Check Started")
+            logger.info(f"   [NET] Active Peers: {active_peer_count}")
+            logger.info("   [SEARCH] Checking for longer chains...")
             self._last_blockchain_sync = current_time
             
             # Run sync check in background
@@ -507,8 +507,8 @@ class ThreadSafePeerManager:
         """Configure automatic blockchain synchronization"""
         self._blockchain_sync_enabled = enabled
         self._blockchain_sync_interval = interval
-        logger.info(f"🔄 Blockchain Sync Configuration Updated:")
-        logger.info(f"   Status: {'✅ Enabled' if enabled else '❌ Disabled'}")
+        logger.info(f"[SYNC] Blockchain Sync Configuration Updated:")
+        logger.info(f"   Status: {'[OK] Enabled' if enabled else '[DISABLED] Disabled'}")
         logger.info(f"   Interval: {interval} seconds")
     
     def _check_and_trigger_mempool_sync(self, active_peer_count: int):
@@ -520,9 +520,9 @@ class ThreadSafePeerManager:
             self._mempool_sync_enabled and
             current_time - self._last_mempool_sync > self._mempool_sync_interval):
             
-            logger.info(f"📝 Mempool Synchronization Started")
-            logger.info(f"   🌐 Syncing with {active_peer_count} peer(s)")
-            logger.info("   🔍 Checking for new transactions...")
+            logger.info(f"[MEMPOOL] Mempool Synchronization Started")
+            logger.info(f"   [NET] Syncing with {active_peer_count} peer(s)")
+            logger.info("   [SEARCH] Checking for new transactions...")
             self._last_mempool_sync = current_time
             
             # Run mempool sync in background
@@ -553,9 +553,9 @@ class ThreadSafePeerManager:
                     logger.error(f"Mempool sync error with {peer_url}: {e}")
             
             self._stats['mempool_syncs'].increment()
-            logger.info(f"✅ Mempool Synchronization Complete")
-            logger.info(f"   🌐 Synced with {len(active_peers)} peer(s)")
-            logger.info(f"   📊 Sync Count: {self._stats['mempool_syncs'].value}")
+            logger.info(f"[OK] Mempool Synchronization Complete")
+            logger.info(f"   [NET] Synced with {len(active_peers)} peer(s)")
+            logger.info(f"   [STATS] Sync Count: {self._stats['mempool_syncs'].value}")
             
         except Exception as e:
             logger.error(f"Background mempool sync error: {e}")
@@ -588,7 +588,7 @@ class ThreadSafePeerManager:
                         
                 logger.info(f"➕ Added {len(new_transactions)} new transaction(s) from {peer_url}")
                 for tx in new_transactions[:3]:  # Show first 3
-                    logger.info(f"   📝 Transaction: {tx.get('tx_id', 'Unknown')[:16]}...")
+                    logger.info(f"   [MEMPOOL] Transaction: {tx.get('tx_id', 'Unknown')[:16]}...")
             
         except Exception as e:
             logger.error(f"Error syncing mempool with {peer_url}: {e}")
@@ -602,8 +602,8 @@ class ThreadSafePeerManager:
             self._network_stats_sync_enabled and
             current_time - self._last_network_stats_sync > self._network_stats_sync_interval):
             
-            logger.info(f"📊 Network Statistics Synchronization Started")
-            logger.info(f"   🌐 Collecting stats from {active_peer_count} peer(s)")
+            logger.info(f"[STATS] Network Statistics Synchronization Started")
+            logger.info(f"   [NET] Collecting stats from {active_peer_count} peer(s)")
             logger.info("   📈 Aggregating network performance data...")
             self._last_network_stats_sync = current_time
             
@@ -647,11 +647,11 @@ class ThreadSafePeerManager:
             self._update_network_wide_stats(network_stats)
             self._stats['network_stats_syncs'].increment()
             
-            logger.info(f"✅ Network Statistics Synchronization Complete")
-            logger.info(f"   🌐 Collected from {len(active_peers)} peer(s)")
-            logger.info(f"   📊 Total Network Nodes: {network_stats['total_nodes']}")
+            logger.info(f"[OK] Network Statistics Synchronization Complete")
+            logger.info(f"   [NET] Collected from {len(active_peers)} peer(s)")
+            logger.info(f"   [STATS] Total Network Nodes: {network_stats['total_nodes']}")
             logger.info(f"   📈 Chain Lengths: {min(network_stats['chain_lengths'])} - {max(network_stats['chain_lengths'])}" if network_stats['chain_lengths'] else "   📈 No chain data")
-            logger.info(f"   🔄 Sync Count: {self._stats['network_stats_syncs'].value}")
+            logger.info(f"   [SYNC] Sync Count: {self._stats['network_stats_syncs'].value}")
             
         except Exception as e:
             logger.error(f"Background network stats sync error: {e}")
@@ -700,16 +700,16 @@ class ThreadSafePeerManager:
         """Configure automatic mempool synchronization"""
         self._mempool_sync_enabled = enabled
         self._mempool_sync_interval = interval
-        logger.info(f"📝 Mempool Sync Configuration Updated:")
-        logger.info(f"   Status: {'✅ Enabled' if enabled else '❌ Disabled'}")
+        logger.info(f"[MEMPOOL] Mempool Sync Configuration Updated:")
+        logger.info(f"   Status: {'[OK] Enabled' if enabled else '[DISABLED] Disabled'}")
         logger.info(f"   Interval: {interval} seconds")
     
     def configure_network_stats_sync(self, enabled: bool = True, interval: float = 60.0):
         """Configure automatic network statistics synchronization"""
         self._network_stats_sync_enabled = enabled
         self._network_stats_sync_interval = interval
-        logger.info(f"📊 Network Stats Sync Configuration Updated:")
-        logger.info(f"   Status: {'✅ Enabled' if enabled else '❌ Disabled'}")
+        logger.info(f"[STATS] Network Stats Sync Configuration Updated:")
+        logger.info(f"   Status: {'[OK] Enabled' if enabled else '[DISABLED] Disabled'}")
         logger.info(f"   Interval: {interval} seconds")
     
     def set_mempool_callback(self, callback):
@@ -785,7 +785,7 @@ class ThreadSafePeerManager:
                 with self._active_lock.write_lock():
                     self._active_peers.add(peer_url)
                     
-                logger.debug(f"✅ Peer {peer_url} marked as healthy")
+                logger.debug(f"[OK] Peer {peer_url} marked as healthy")
                 
             else:
                 # Peer is unhealthy - increment failures and apply backoff
@@ -805,9 +805,9 @@ class ThreadSafePeerManager:
                     with self._active_lock.write_lock():
                         self._active_peers.discard(peer_url)
                     
-                    logger.info(f"❌ Peer {peer_url} marked as inactive (failures: {peer_info.failures})")
+                    logger.info(f"[DISABLED] Peer {peer_url} marked as inactive (failures: {peer_info.failures})")
                 else:
-                    logger.debug(f"⚠️  Peer {peer_url} health check failed (failures: {peer_info.failures}, backoff: {backoff_delay:.1f}s)")
+                    logger.debug(f"[WARN]  Peer {peer_url} health check failed (failures: {peer_info.failures}, backoff: {backoff_delay:.1f}s)")
     
     def _discovery_worker(self):
         """Background worker for peer discovery"""
@@ -842,9 +842,9 @@ class ThreadSafePeerManager:
         batch_size = PEER_DISCOVERY_BATCH_SIZE
         max_workers = min(PEER_DISCOVERY_PARALLEL_WORKERS, len(port_range))
         
-        logger.info(f"🔍 Starting Scalable Multi-Node Peer Discovery")
-        logger.info(f"   📊 Current: {current_active_peers} active peers")
-        logger.info(f"   🎯 Scanning: ports {port_range.start}-{port_range.stop-1} ({len(port_range)} total)")
+        logger.info(f"[SEARCH] Starting Scalable Multi-Node Peer Discovery")
+        logger.info(f"   [STATS] Current: {current_active_peers} active peers")
+        logger.info(f"   [TARGET] Scanning: ports {port_range.start}-{port_range.stop-1} ({len(port_range)} total)")
         logger.info(f"   📦 Batch size: {batch_size} ports per batch")
         logger.info(f"   ⚡ Workers: {max_workers}")
         
@@ -853,7 +853,7 @@ class ThreadSafePeerManager:
         for batch_start in range(0, len(port_list), batch_size):
             batch_ports = port_list[batch_start:batch_start + batch_size]
             
-            logger.debug(f"🔍 Processing batch: ports {batch_ports[0]}-{batch_ports[-1]}")
+            logger.debug(f"[SEARCH] Processing batch: ports {batch_ports[0]}-{batch_ports[-1]}")
             
             with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
                 # Submit discovery tasks for this batch
@@ -884,15 +884,15 @@ class ThreadSafePeerManager:
                             if peer_info:
                                 discovered_count += 1
                                 discovered_nodes.append((peer_url, peer_info))
-                                logger.info(f"   ✅ Found peer: {peer_url} (chain: {peer_info.chain_length})")
+                                logger.info(f"   [OK] Found peer: {peer_url} (chain: {peer_info.chain_length})")
                                 
                                 # Early exit if we have enough peers
                                 if len(self._peers) >= self._max_peers:
-                                    logger.info(f"   🎯 Reached max peers ({self._max_peers}), stopping discovery")
+                                    logger.info(f"   [TARGET] Reached max peers ({self._max_peers}), stopping discovery")
                                     return discovered_count  # Exit completely
                                     
                         except Exception as e:
-                            logger.debug(f"   ❌ Discovery failed for {peer_url}: {e}")
+                            logger.debug(f"   [DISABLED] Discovery failed for {peer_url}: {e}")
                             self._stats['failed_connections'].increment()
                 
                 except concurrent.futures.TimeoutError:
@@ -908,7 +908,7 @@ class ThreadSafePeerManager:
                 time.sleep(0.1)
             remaining_futures = [f for f in future_to_url.keys() if not f.done()]
             if remaining_futures:
-                logger.debug(f"   🔄 Cancelling {len(remaining_futures)} unfinished futures")
+                logger.debug(f"   [SYNC] Cancelling {len(remaining_futures)} unfinished futures")
                 for future in remaining_futures:
                     future.cancel()
         
@@ -918,7 +918,7 @@ class ThreadSafePeerManager:
         final_active_peers = len(self.get_active_peers())
         logger.info(f"🎉 Peer Discovery Complete!")
         logger.info(f"   📈 Discovered: {discovered_count} new peers")
-        logger.info(f"   📊 Active peers: {current_active_peers} → {final_active_peers}")
+        logger.info(f"   [STATS] Active peers: {current_active_peers} → {final_active_peers}")
         logger.info(f"   🏆 Main node: {'Yes' if self._is_main_node else 'No'}")
         
         return discovered_count
@@ -970,27 +970,40 @@ class ThreadSafePeerManager:
     
     def _determine_main_node(self, discovered_nodes: List[Tuple[str, PeerInfo]]):
         """Determine if this node should be the main coordinator node"""
-        if not discovered_nodes:
-            # No other nodes found - we are the main node
+        # FIXED: Only bootstrap node (port 5000) or nodes with no bootstrap should be main
+        current_port = self._extract_port(self._self_url) if self._self_url else 0
+        
+        # Bootstrap node (port 5000) is always main if it exists
+        if current_port == 5000:
             self._is_main_node = True
-            logger.info("🏆 This node is the MAIN NODE (first to start)")
+            logger.info("🏆 This node is the MAIN NODE (bootstrap node: port 5000)")
             return
         
-        # Find the node with the lowest port number (earliest started)
-        all_nodes = [(self._self_url, self._get_self_info())] + discovered_nodes
-        all_nodes = [node for node in all_nodes if node[0]]  # Filter out None URLs
+        # Check if bootstrap node exists in discovered nodes
+        bootstrap_exists = any(self._extract_port(node[0]) == 5000 for node in discovered_nodes)
         
-        if all_nodes:
-            # Sort by port number (assumes URL format http://host:port)
-            main_node_url = min(all_nodes, key=lambda x: self._extract_port(x[0]))[0]
+        if bootstrap_exists:
+            # Bootstrap exists, we are peer
+            self._is_main_node = False
+            logger.info("👥 This node is a PEER NODE (bootstrap node exists at port 5000)")
+        elif not discovered_nodes:
+            # No other nodes and we're not bootstrap - we become main
+            self._is_main_node = True
+            logger.info("🏆 This node is the MAIN NODE (no other nodes found)")
+        else:
+            # Use lowest port logic as fallback
+            all_nodes = [(self._self_url, self._get_self_info())] + discovered_nodes
+            all_nodes = [node for node in all_nodes if node[0]]  # Filter out None URLs
             
-            self._is_main_node = (main_node_url == self._self_url)
-            
-            if self._is_main_node:
-                logger.info(f"🏆 This node is the MAIN NODE (lowest port: {self._extract_port(self._self_url)})")
-            else:
-                main_port = self._extract_port(main_node_url)
-                logger.info(f"👥 This node is a PEER NODE (main node: port {main_port})")
+            if all_nodes:
+                main_node_url = min(all_nodes, key=lambda x: self._extract_port(x[0]))[0]
+                self._is_main_node = (main_node_url == self._self_url)
+                
+                if self._is_main_node:
+                    logger.info(f"🏆 This node is the MAIN NODE (lowest port: {self._extract_port(self._self_url)})")
+                else:
+                    main_port = self._extract_port(main_node_url)
+                    logger.info(f"👥 This node is a PEER NODE (main node: port {main_port})")
     
     def _extract_port(self, url: str) -> int:
         """Extract port number from URL"""
@@ -1064,7 +1077,7 @@ class ThreadSafePeerManager:
             else:
                 total_delay = base_delay
             
-            logger.info(f"🚀 Starting peer discovery in {total_delay:.1f} seconds (thundering herd prevention)...")
+            logger.info(f"[READY] Starting peer discovery in {total_delay:.1f} seconds (thundering herd prevention)...")
             time.sleep(total_delay)
             
             # Retry logic with exponential backoff
@@ -1073,7 +1086,7 @@ class ThreadSafePeerManager:
             
             for attempt in range(max_retries):
                 try:
-                    logger.info(f"🔍 Peer discovery attempt {attempt + 1}/{max_retries}...")
+                    logger.info(f"[SEARCH] Peer discovery attempt {attempt + 1}/{max_retries}...")
                     discovered = self.discover_peers()
                     
                     if discovered > 0:
@@ -1086,7 +1099,7 @@ class ThreadSafePeerManager:
                             time.sleep(retry_delay)
                             retry_delay *= 2  # Exponential backoff
                         else:
-                            logger.info("   🏁 This appears to be the first node in the network")
+                            logger.info("   [FIRST] This appears to be the first node in the network")
                     
                 except Exception as e:
                     logger.error(f"Discovery attempt {attempt + 1} failed: {e}")
@@ -1095,7 +1108,7 @@ class ThreadSafePeerManager:
                         time.sleep(retry_delay)
                         retry_delay *= 2
                     else:
-                        logger.error("   ❌ All discovery attempts failed")
+                        logger.error("   [DISABLED] All discovery attempts failed")
                         raise
                 
         except Exception as e:
@@ -1184,7 +1197,7 @@ class ThreadSafePeerManager:
         # ENHANCED: Scale worker count based on network size
         max_workers = min(len(active_peers), 20)  # Scale up to 20 workers for large networks
         
-        logger.info(f"🌐 Broadcasting to {len(active_peers)} peers with {max_workers} workers")
+        logger.info(f"[NET] Broadcasting to {len(active_peers)} peers with {max_workers} workers")
         
         # Use thread pool for concurrent broadcasting
         with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:

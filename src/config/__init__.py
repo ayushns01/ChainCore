@@ -44,6 +44,10 @@ MAX_TIMEOUT = 30.0  # Maximum timeout for large networks
 MAX_TRANSACTIONS_PER_BLOCK = 1000
 COINBASE_MATURITY = 100  # blocks before coinbase can be spent
 
+# Mining Coordination Configuration
+TARGET_BLOCK_TIME = 10.0  # seconds per block for local testing
+MINING_ROUND_DURATION = 12.0  # seconds per mining round
+
 def get_difficulty() -> int:
     """Get current blockchain difficulty"""
     return BLOCKCHAIN_DIFFICULTY

@@ -299,7 +299,19 @@ class Block:
                 'mining_reward': metadata.get('mining_reward', 0),
                 'attribution_preserved': metadata.get('attribution_preserved', True),
                 'sync_source': metadata.get('sync_source', 'unknown'),
-                'preserved_from_sync': metadata.get('preserved_from_sync', True)
+                'preserved_from_sync': metadata.get('preserved_from_sync', True),
+                # Mining statistics for database recording
+                'mining_duration': metadata.get('mining_duration', 0.0),
+                'hash_attempts': metadata.get('hash_attempts', 0),
+                'hash_rate': metadata.get('hash_rate', 0.0),
+                'mining_started_at': metadata.get('mining_started_at', block.timestamp),
+                'mining_completed_at': metadata.get('mining_completed_at', block.timestamp),
+                'worker_id': metadata.get('worker_id', 'unknown')
             })
+        
+        # Also check for _mining_metadata (our enhanced format)
+        if '_mining_metadata' in block_dict and isinstance(block_dict['_mining_metadata'], dict):
+            enhanced_metadata = block_dict['_mining_metadata']
+            block._mining_metadata.update(enhanced_metadata)
         
         return block

@@ -36,7 +36,8 @@ class DatabaseManager:
             try:
                 config = get_psycopg2_config()
                 
-                # Create connection pool
+                # Create connection pool with timeout
+                config['connect_timeout'] = 5  # 5 second timeout
                 self.connection_pool = psycopg2.pool.ThreadedConnectionPool(
                     minconn=1,
                     maxconn=DATABASE_CONFIG['pool_size'],
@@ -175,7 +176,7 @@ class DatabaseManager:
         """Close all database connections"""
         if self.connection_pool:
             self.connection_pool.closeall()
-            logger.info("🔄 All database connections closed")
+            logger.info("[SHUTDOWN] All database connections closed")
 
 class DatabaseConnectionError(Exception):
     """Raised when database connection fails"""

@@ -8,7 +8,7 @@ import logging
 from typing import List, Dict, Optional, Any
 from decimal import Decimal
 
-from .connection import get_db_manager
+from .simple_connection import get_simple_db_manager
 from ..blockchain.bitcoin_transaction import Transaction
 
 logger = logging.getLogger(__name__)
@@ -17,7 +17,7 @@ class TransactionDAO:
     """Data Access Object for transactions and UTXOs"""
     
     def __init__(self):
-        self.db = get_db_manager()
+        self.db = get_simple_db_manager()
     
     def add_transaction(self, transaction: Transaction, block_id: int, block_index: int) -> bool:
         """Add a transaction to the database"""
