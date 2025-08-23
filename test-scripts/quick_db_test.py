@@ -17,7 +17,7 @@ def test_connection():
         'port': 5432,
         'database': 'postgres',  # Connect to default database first
         'user': 'postgres',
-        'password': 'As01062005.'
+        'password': 'YOUR_PASSWORD'
     }
     
     try:
@@ -64,7 +64,7 @@ def test_connection():
             print("   🔧 Solution: Start PostgreSQL service")
         elif "authentication failed" in str(e):
             print("   💡 Wrong password")
-            print("   🔧 Solution: Check password is 'As01062005.'")
+            print("   🔧 Solution: Check password is 'YOUR_PASSWORD'")
         return False
         
     except Exception as e:
@@ -154,7 +154,7 @@ if __name__ == "__main__":
     print("\n🔧 Next steps:")
     if not basic_ok:
         print("   1. Start PostgreSQL service")
-        print("   2. Check password is 'As01062005.'")
+        print("   2. Check password is 'YOUR_PASSWORD'")
     elif not chaincore_ok:
         print("   1. Create chaincore_blockchain database")
         print("   2. Create chaincore_user")
