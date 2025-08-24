@@ -9,7 +9,7 @@ Centralized configuration for blockchain parameters
 # ==========================================
 
 # Mining difficulty - standardized across all nodes for competitive mining
-BLOCKCHAIN_DIFFICULTY = 4  # Consistent difficulty for fair competition
+BLOCKCHAIN_DIFFICULTY = 3  # Consistent difficulty for fair competition
 
 # Dynamic difficulty adjustment settings
 DIFFICULTY_ADJUSTMENT_ENABLED = True

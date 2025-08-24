@@ -17,7 +17,8 @@
       "Bash(pip install:*)",
       "Bash(./chaincore/Scripts/python.exe:*)",
       "Bash(rg:*)",
-      "Bash(taskkill:*)"
+      "Bash(taskkill:*)",
+      "Bash(chcp:*)"
     ],
     "defaultMode": "acceptEdits"
   }
