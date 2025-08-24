@@ -265,18 +265,12 @@ class Block:
     def from_dict(cls, block_dict: Dict) -> 'Block':
         """Create Block from dictionary with mining attribution preservation"""
         from .bitcoin_transaction import Transaction
-        
-        # Reconstruct transactions
+
+        # Reconstruct transactions first, as they are needed for the constructor
         transactions = [Transaction.from_dict(tx_data) for tx_data in block_dict.get('transactions', [])]
-        
-        # Extract mining node information - try multiple sources
-        mining_node = None
-        if 'mining_node' in block_dict:
-            mining_node = block_dict['mining_node']
-        elif 'mining_metadata' in block_dict and isinstance(block_dict['mining_metadata'], dict):
-            mining_node = block_dict['mining_metadata'].get('mining_node', 'unknown')
-        
-        # Create block with preserved mining attribution
+
+        # Create the block instance. The __init__ method will handle the
+        # basic setup, including deriving miner_address from the coinbase tx.
         block = cls(
             index=block_dict['index'],
             transactions=transactions,
@@ -284,34 +278,29 @@ class Block:
             timestamp=block_dict.get('timestamp', 0),
             nonce=block_dict.get('nonce', 0),
             target_difficulty=block_dict.get('target_difficulty', BLOCKCHAIN_DIFFICULTY),
-            mining_node=mining_node
+            mining_node=block_dict.get('mining_node') # Pass it if available
         )
-        
-        # Preserve original hash to maintain blockchain integrity
+
+        # The hash is externally calculated, so we must overwrite the one
+        # calculated in __init__ to maintain chain integrity.
         if 'hash' in block_dict:
             block.hash = block_dict['hash']
-        
-        # Restore mining metadata if available
-        if 'mining_metadata' in block_dict and isinstance(block_dict['mining_metadata'], dict):
-            metadata = block_dict['mining_metadata']
-            block._mining_metadata.update({
-                'miner_address': metadata.get('miner_address', 'unknown'),
-                'mining_reward': metadata.get('mining_reward', 0),
-                'attribution_preserved': metadata.get('attribution_preserved', True),
-                'sync_source': metadata.get('sync_source', 'unknown'),
-                'preserved_from_sync': metadata.get('preserved_from_sync', True),
-                # Mining statistics for database recording
-                'mining_duration': metadata.get('mining_duration', 0.0),
-                'hash_attempts': metadata.get('hash_attempts', 0),
-                'hash_rate': metadata.get('hash_rate', 0.0),
-                'mining_started_at': metadata.get('mining_started_at', block.timestamp),
-                'mining_completed_at': metadata.get('mining_completed_at', block.timestamp),
-                'worker_id': metadata.get('worker_id', 'unknown')
-            })
-        
-        # Also check for _mining_metadata (our enhanced format)
-        if '_mining_metadata' in block_dict and isinstance(block_dict['_mining_metadata'], dict):
-            enhanced_metadata = block_dict['_mining_metadata']
-            block._mining_metadata.update(enhanced_metadata)
-        
+
+        # Now, intelligently merge the metadata provided by the miner.
+        # The miner sends both for compatibility. We prefer '_mining_metadata'.
+        miner_metadata = block_dict.get('_mining_metadata') or block_dict.get('mining_metadata')
+
+        if miner_metadata and isinstance(miner_metadata, dict):
+            # We update our block's metadata with the miner's data.
+            # This adds fields like hash_rate, worker_id, etc.
+            block._mining_metadata.update(miner_metadata)
+
+            # As a final check, ensure the core 'mining_node' and 'miner_address'
+            # from the metadata are correctly set at the top level of the metadata dict,
+            # as the monitor script might look there.
+            if 'mining_node' in miner_metadata:
+                block._mining_metadata['mining_node'] = miner_metadata['mining_node']
+            if 'miner_address' in miner_metadata:
+                block._mining_metadata['miner_address'] = miner_metadata['miner_address']
+
         return block

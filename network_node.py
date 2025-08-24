@@ -43,7 +43,7 @@ from src.networking.connection_cleaner import start_connection_cleanup, stop_con
 
 # Import consensus mechanisms
 from src.consensus import (
-    get_fork_resolver, get_mining_coordinator
+    get_mining_coordinator
 )
 
 # Import original components
@@ -754,6 +754,16 @@ class ThreadSafeNetworkNode:
                 # Synchronize with network before creating mining template
                 print(f"[SYNC] SYNC CHECK: Ensuring latest blockchain state before mining")
                 sync_result = self._sync_with_network_before_mining()
+                
+                # MINING GUARD: Prevent mining if isolated from the network
+                if sync_result.get('error') == 'No peers available':
+                    logger.warning("Mining paused: No peers available for network synchronization.")
+                    return jsonify({
+                        'status': 'rejected',
+                        'reason': 'isolated_node',
+                        'error': 'Cannot mine a new block without active peer connections.'
+                    }), 409
+
                 if sync_result['blocks_added'] > 0:
                     print(f"   [SYNC] Synchronized: Added {sync_result['blocks_added']} blocks from network")
                     print(f"   [INFO] Updated chain length: {self.blockchain.get_chain_length()}")
@@ -856,49 +866,27 @@ class ThreadSafeNetworkNode:
                 # Multi-node consensus validation before acceptance
                 network_consensus_result = self._validate_multi_node_consensus(block, is_locally_mined)
                 
-                # CRITICAL FIX: Check for potential forks before block acceptance
-                current_length = self.blockchain.get_chain_length()
-                fork_resolver = get_fork_resolver()
-                
-                # Handle potential fork scenarios
-                if block.index < current_length:
-                    # This might be part of a longer competing chain
-                    logger.info(f"🍴 Potential fork detected: Block #{block.index} vs current chain #{current_length}")
-                    
-                    # Request the full chain from sender to evaluate fork
+                # UNIFIED CONSENSUS: Use BlockchainSync for all fork resolutions
+                if block.index <= self.blockchain.get_chain_length():
                     sender_url = request.headers.get('X-Peer-Origin')
                     if sender_url:
                         try:
-                            # Get the competing chain
+                            logger.info(f"🍴 Potential fork from {sender_url}, using enhanced sync for resolution")
+                            # Use the proper sync mechanism to handle the fork
                             response = requests.get(f"{sender_url}/blockchain", timeout=10)
                             if response.status_code == 200:
-                                competing_chain_data = response.json()
-                                competing_blocks = competing_chain_data.get('chain', [])
-                                
-                                if len(competing_blocks) > current_length:
-                                    logger.info(f"🔄 Found longer competing chain: {len(competing_blocks)} vs {current_length}")
-                                    # Add fork candidate for evaluation
-                                    fork_resolver.add_fork_candidate(
-                                        competing_blocks[block.index:], 
-                                        sender_url, 
-                                        block.index - 1
-                                    )
-                                    
-                                    # Try to resolve fork
-                                    current_chain = self.blockchain.get_chain()
-                                    resolved_chain = fork_resolver.resolve_fork(current_chain, block.index - 1)
-                                    
-                                    if resolved_chain:
-                                        logger.info("🎯 Fork resolved: Switching to heavier chain")
-                                        # Replace chain with resolved version
-                                        if self.blockchain.replace_chain_if_valid(resolved_chain):
-                                            return jsonify({
-                                                'status': 'accepted_fork_resolution',
-                                                'message': 'Switched to longer chain',
-                                                'new_chain_length': len(resolved_chain)
-                                            })
+                                competing_chain_data = response.json().get('chain', [])
+                                sync_result, _ = self.blockchain.synchronizer.sync_with_peer_chain(
+                                    peer_chain_data=competing_chain_data,
+                                    peer_url=sender_url
+                                )
+                                if sync_result == 'fork_resolved':
+                                    return jsonify({
+                                        'status': 'accepted_fork_resolution',
+                                        'message': 'Switched to heavier chain via sync'
+                                    })
                         except Exception as e:
-                            logger.warning(f"Fork resolution failed: {e}")
+                            logger.warning(f"Fork resolution sync failed: {e}")
                 
                 # Attempt to add block (this validates the block)
                 if self.blockchain.add_block(block):
@@ -1976,7 +1964,7 @@ class ThreadSafeNetworkNode:
                     continue
             
             # If we're more than 5 blocks behind, we're a late joiner
-            if max_peer_length > current_length + 5:
+            if max_peer_length > current_length:
                 logger.info(f"📊 Chain length comparison: Local={current_length}, Network={max_peer_length}")
                 return True
             

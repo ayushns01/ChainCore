@@ -61,7 +61,11 @@ class BlockDAO:
                 json.dumps(block_data)
             )
             
-            result = self.db.execute_query(query, params, fetch_one=True)
+                        result = self.db.execute_query(query, fetch_one=True)
+            
+            if result:
+                return result['length']
+            return 0
             block_id = result[0] if result else None
             
             if block_id:

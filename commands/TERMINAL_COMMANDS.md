@@ -6,7 +6,7 @@
 
 ## 🚀 **Multi-Node Network Setup (WORKING)**
 
-There are two correct ways to connect nodes to each other: using `--bootstrap-nodes` or `--add-peer`. Both achieve the same goal.
+The correct way to connect nodes to each other is by using the `--bootstrap-nodes` argument.
 
 ### **Approach 1: Using `--bootstrap-nodes` (Recommended)**
 
@@ -15,6 +15,7 @@ This is the recommended approach as you can specify multiple peers in one comman
 **Step 1: Bootstrap Node (Terminal 1)**
 
 Start the first node. It will act as the bootstrap server for the others.
+
 ```bash
 python network_node.py --node-id core0 --api-port 5000 --p2p-port 8000
 ```
@@ -24,6 +25,7 @@ python network_node.py --node-id core0 --api-port 5000 --p2p-port 8000
 **Step 2: Peer Nodes (Terminals 2-4)**
 
 Start the other nodes and tell them to connect to the bootstrap node.
+
 ```bash
 # Terminal 2
 python network_node.py --node-id core1 --api-port 5001 --p2p-port 8001 --bootstrap-nodes http://localhost:5000
@@ -35,17 +37,7 @@ python network_node.py --node-id core2 --api-port 5002 --p2p-port 8002 --bootstr
 python network_node.py --node-id core3 --api-port 5003 --p2p-port 8003 --bootstrap-nodes http://localhost:5000 http://localhost:5001
 ```
 
-### **Approach 2: Using `--add-peer`**
 
-This approach is also valid, but you can only add one peer at a time.
-
-```bash
-# Terminal 2
-python network_node.py --node-id core1 --api-port 5001 --p2p-port 8001 --add-peer http://localhost:5000
-
-# Terminal 3
-python network_node.py --node-id core2 --api-port 5002 --p2p-port 8002 --add-peer http://localhost:5000
-```
 
 **Status:** ✅ All nodes show identical chain length = 1 block
 
@@ -60,11 +52,13 @@ Here is how to set up a larger, 10-node network.
 Start the bootstrap node first, then start the 9 peer nodes, connecting them to the bootstrap node.
 
 **Terminal 1: Bootstrap Node**
+
 ```bash
 python network_node.py --node-id core0 --api-port 5000 --p2p-port 8000
 ```
 
 **Terminals 2-10: Peer Nodes**
+
 ```bash
 python network_node.py --node-id core1 --api-port 5001 --p2p-port 8001 --bootstrap-nodes http://localhost:5000
 python network_node.py --node-id core2 --api-port 5002 --p2p-port 8002 --bootstrap-nodes http://localhost:5000
@@ -77,27 +71,7 @@ python network_node.py --node-id core8 --api-port 5008 --p2p-port 8008 --bootstr
 python network_node.py --node-id core9 --api-port 5009 --p2p-port 8009 --bootstrap-nodes http://localhost:5000
 ```
 
-### **Approach 2: Using `--add-peer`**
 
-This approach is also valid.
-
-**Terminal 1: Bootstrap Node**
-```bash
-python network_node.py --node-id core0 --api-port 5000 --p2p-port 8000
-```
-
-**Terminals 2-10: Peer Nodes**
-```bash
-python network_node.py --node-id core1 --api-port 5001 --p2p-port 8001 --add-peer http://localhost:5000
-python network_node.py --node-id core2 --api-port 5002 --p2p-port 8002 --add-peer http://localhost:5000
-python network_node.py --node-id core3 --api-port 5003 --p2p-port 8003 --add-peer http://localhost:5000
-python network_node.py --node-id core4 --api-port 5004 --p2p-port 8004 --add-peer http://localhost:5000
-python network_node.py --node-id core5 --api-port 5005 --p2p-port 8005 --add-peer http://localhost:5000
-python network_node.py --node-id core6 --api-port 5006 --p2p-port 8006 --add-peer http://localhost:5000
-python network_node.py --node-id core7 --api-port 5007 --p2p-port 8007 --add-peer http://localhost:5000
-python network_node.py --node-id core8 --api-port 5008 --p2p-port 8008 --add-peer http://localhost:5000
-python network_node.py --node-id core9 --api-port 5009 --p2p-port 8009 --add-peer http://localhost:5000
-```
 
 ---
 

@@ -316,19 +316,29 @@ class EnhancedPeerManager:
             self._storage.save_peers(self._peers)
     
     def _bootstrap_network(self):
-        """Bootstrap with initial seed nodes"""
+        """Bootstrap with initial seed nodes with retry logic"""
         logger.info(f"Bootstrapping network with {len(self.bootstrap_nodes)} seed nodes")
-        
+
         for seed_url in self.bootstrap_nodes:
-            try:
-                self.add_peer(seed_url)
-                # Request peers from seed node
-                self._request_peers_from_node(seed_url)
-            except Exception as e:
-                logger.warning(f"Failed to bootstrap with {seed_url}: {e}")
+            max_attempts = 3
+            for attempt in range(max_attempts):
+                logger.info(f"Attempting to connect to bootstrap node {seed_url} (attempt {attempt + 1}/{max_attempts})")
+                try:
+                    if self.add_peer(seed_url):
+                        logger.info(f"Successfully connected to bootstrap node {seed_url}")
+                        # Request peers from seed node
+                        self._request_peers_from_node(seed_url)
+                        break  # Success, move to next seed node
+                except Exception as e:
+                    logger.warning(f"Error bootstrapping with {seed_url} on attempt {attempt + 1}: {e}")
+
+                if attempt < max_attempts - 1:
+                    time.sleep(3) # Wait 3 seconds before retrying
+            else:
+                logger.error(f"Failed to connect to bootstrap node {seed_url} after {max_attempts} attempts.")
     
     def add_peer(self, peer_url: str, peer_info: Optional[PeerInfo] = None) -> bool:
-        """Add a peer to the network"""
+        """Add a peer to the network and return True if successful"""
         if peer_url == f"http://localhost:{self.api_port}":
             return False  # Don't add ourselves
         
@@ -341,13 +351,14 @@ class EnhancedPeerManager:
                 logger.info(f"[PEER] Added new peer: {peer_url}")
             
             # Health check the peer
-            self._health_check_peer(peer_url)
+            health_check_ok = self._health_check_peer(peer_url)
+
+            if health_check_ok:
+                # Maintain outbound connections
+                if len(self._connection_manager.get_active_connections()) < self.target_outbound_connections:
+                    self._connection_manager.add_connection(peer_url)
             
-            # Maintain outbound connections
-            if len(self._connection_manager.get_active_connections()) < self.target_outbound_connections:
-                self._connection_manager.add_connection(peer_url)
-            
-            return True
+            return health_check_ok
     
     def _health_check_peer(self, peer_url: str):
         """Perform health check on a peer"""
@@ -404,7 +415,7 @@ class EnhancedPeerManager:
                 peer.failures += 1
                 peer.update_score()
                 
-                if peer.failures >= 3:
+                if peer.failures >= 5:
                     peer.is_active = False
                     self._active_peers.discard(peer_url)
                     self._connection_manager.remove_connection(peer_url)
