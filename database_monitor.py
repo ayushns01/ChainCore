@@ -32,25 +32,25 @@ class DatabaseMonitor:
     
     def start_monitoring(self, refresh_interval: float = 2.0):
         """Start real-time monitoring"""
-        print("🚀 ChainCore Database Monitor Starting...")
+        print("ChainCore Database Monitor Starting...")
         print("=" * 60)
         
         try:
             self.db_manager.initialize()
-            print("✅ Connected to PostgreSQL database")
+            print("Connected to PostgreSQL database")
             # FIXED: Show which database we're monitoring
-            print(f"📊 Monitoring database: chaincore (shared by all nodes)")
-            print(f"🔗 Connection: postgresql://chaincore:***@localhost:5432/chaincore")
+            print(f"Monitoring database: chaincore (shared by all nodes)")
+            print(f"Connection: postgresql://chaincore:***@localhost:5432/chaincore")
         except Exception as e:
-            print(f"❌ Database connection failed: {e}")
-            print("💡 Ensure PostgreSQL is running and chaincore database exists")
+            print(f"Database connection failed: {e}")
+            print("Ensure PostgreSQL is running and chaincore database exists")
             return
         
         self.running = True
         self.last_block_count = self.block_dao.get_blockchain_length()
         
-        print(f"📊 Initial blockchain length: {self.last_block_count}")
-        print(f"🔄 Monitoring every {refresh_interval}s (Press Ctrl+C to stop)")
+        print(f"Initial blockchain length: {self.last_block_count}")
+        print(f"Monitoring every {refresh_interval}s (Press Ctrl+C to stop)")
         print("=" * 60)
         
         try:
@@ -59,7 +59,7 @@ class DatabaseMonitor:
                 time.sleep(refresh_interval)
                 
         except KeyboardInterrupt:
-            print("\n🛑 Monitor stopped by user")
+            print("\nMonitor stopped by user")
             self.running = False
     
     def _check_for_updates(self):
@@ -72,7 +72,7 @@ class DatabaseMonitor:
             if current_block_count > self.last_block_count:
                 # New blocks detected!
                 new_blocks = current_block_count - self.last_block_count
-                print(f"\n🎉 [{current_time}] NEW BLOCK(S) DETECTED!")
+                print(f"\n[{current_time}] NEW BLOCK(S) DETECTED!")
                 
                 # Get details of new blocks
                 for i in range(self.last_block_count, current_block_count):
@@ -84,11 +84,11 @@ class DatabaseMonitor:
                 self._display_summary()
             else:
                 # FIXED: No new blocks, show network status
-                print(f"[{current_time}] 📊 Chain: {current_block_count} blocks | Monitoring...")
+                print(f"[{current_time}] Chain: {current_block_count} blocks | Monitoring...")
                 self._show_network_activity()
         
         except Exception as e:
-            print(f"❌ Monitor error: {e}")
+            print(f"Monitor error: {e}")
     
     def _show_network_activity(self):
         """Show which nodes are currently active"""
@@ -104,35 +104,35 @@ class DatabaseMonitor:
                     node_id = data.get('node_id', f'port-{port}')
                     chain_length = data.get('blockchain_length', 0)
                     peers = data.get('peers', 0)
-                    active_nodes.append(f"{node_id}({chain_length}📦,{peers}🔗)")
+                    active_nodes.append(f"{node_id}(chain: {chain_length}, peers: {peers})")
             except:
                 continue
         
         if active_nodes:
-            print(f"   🌐 Active nodes: {', '.join(active_nodes)}")
+            print(f"   Active nodes: {', '.join(active_nodes)}")
         else:
-            print(f"   ⚠️  No active nodes detected - database may not be updating")
+            print(f"   No active nodes detected - database may not be updating")
     
     def _display_new_block(self, block_data):
         """Display details of a new block"""
         try:
-            print(f"   📦 Block #{block_data['block_index']}")
-            print(f"      🏷️  Hash: {block_data['hash'][:16]}...{block_data['hash'][-8:]}")
-            print(f"      ⛏️  Miner: {block_data['miner_node']} ({block_data['miner_address'][:16]}...)")
-            print(f"      💎 Difficulty: {block_data['difficulty']}")
-            print(f"      📝 Transactions: {block_data.get('transaction_count', 0)}")
-            print(f"      ⏰ Time: {datetime.fromtimestamp(block_data['timestamp']).strftime('%H:%M:%S')}")
+            print(f"   Block #{block_data['block_index']}")
+            print(f"      Hash: {block_data['hash'][:16]}...{block_data['hash'][-8:]}")
+            print(f"      Miner: {block_data['miner_node']} ({block_data['miner_address'][:16]}...)")
+            print(f"      Difficulty: {block_data['difficulty']}")
+            print(f"      Transactions: {block_data.get('transaction_count', 0)}")
+            print(f"      Time: {datetime.fromtimestamp(block_data['timestamp']).strftime('%H:%M:%S')}")
             
             # Show transactions in this block
             transactions = self.tx_dao.get_transactions_by_block(block_data['block_index'])
             for tx in transactions:
                 if tx['is_coinbase']:
-                    print(f"         💰 Coinbase: +{tx['total_amount']:.2f} CC → {block_data['miner_address'][:16]}...")
+                    print(f"         Coinbase: +{tx['total_amount']:.2f} CC -> {block_data['miner_address'][:16]}...")
                 else:
-                    print(f"         💸 Transfer: {tx['total_amount']:.2f} CC")
+                    print(f"         Transfer: {tx['total_amount']:.2f} CC")
             
         except Exception as e:
-            print(f"      ❌ Error displaying block: {e}")
+            print(f"      Error displaying block: {e}")
     
     def _display_summary(self):
         """Display current blockchain summary"""
@@ -143,56 +143,56 @@ class DatabaseMonitor:
             runtime = time.time() - self.start_time
             runtime_str = f"{int(runtime//3600)}h {int((runtime%3600)//60)}m {int(runtime%60)}s"
             
-            print(f"\n📊 BLOCKCHAIN SUMMARY")
-            print(f"   ⛓️  Total Blocks: {stats.get('total_blocks', 0)}")
-            print(f"   ⛏️  Active Miners: {stats.get('unique_miners', 0)}")
-            print(f"   💰 Total UTXOs: {utxo_stats.get('unspent_utxos', 0)}")
-            print(f"   💵 Total Value: {utxo_stats.get('total_unspent_value', 0):.2f} CC")
-            print(f"   ⏰ Monitor Runtime: {runtime_str}")
+            print("\nBLOCKCHAIN SUMMARY")
+            print(f"   Total Blocks: {stats.get('total_blocks', 0)}")
+            print(f"   Active Miners: {stats.get('unique_miners', 0)}")
+            print(f"   Total UTXOs: {utxo_stats.get('unspent_utxos', 0)}")
+            print(f"   Total Value: {utxo_stats.get('total_unspent_value', 0):.2f} CC")
+            print(f"   Monitor Runtime: {runtime_str}")
             
             # Show mining distribution
             distribution = stats.get('mining_distribution', [])
             if distribution:
-                print(f"   🏆 Top Miners:")
+                print(f"   Top Miners:")
                 for i, miner in enumerate(distribution[:3], 1):
                     print(f"      #{i} {miner['miner_node']}: {miner['blocks_mined']} blocks")
             
             print("=" * 60)
             
         except Exception as e:
-            print(f"❌ Error displaying summary: {e}")
+            print(f"Error displaying summary: {e}")
     
     def display_current_state(self):
         """Display current database state"""
-        print("\n🗄️ CURRENT DATABASE STATE")
+        print("\nCURRENT DATABASE STATE")
         print("=" * 40)
         
         try:
             # Connection info
             conn_info = self.db_manager.get_connection_info()
-            print(f"📁 Database: {conn_info.get('database_name')}")
-            print(f"💾 Size: {conn_info.get('database_size_bytes', 0):,} bytes")
+            print(f"Database: {conn_info.get('database_name')}")
+            print(f"Size: {conn_info.get('database_size_bytes', 0):,} bytes")
             
             # Blockchain stats
             block_count = self.block_dao.get_blockchain_length()
-            print(f"⛓️  Blockchain: {block_count} blocks")
+            print(f"Blockchain: {block_count} blocks")
             
             if block_count > 0:
                 latest = self.block_dao.get_latest_block()
                 if latest:
-                    print(f"📦 Latest Block: #{latest['block_index']}")
+                    print(f"Latest Block: #{latest['block_index']}")
                     print(f"   Hash: {latest['hash'][:16]}...{latest['hash'][-8:]}")
                     print(f"   Miner: {latest['miner_node']}")
                     
             # Rich list
             rich_list = self.tx_dao.get_rich_list(3)
             if rich_list:
-                print(f"💰 Top Balances:")
+                print(f"Top Balances:")
                 for addr in rich_list:
                     print(f"   {addr['address'][:16]}...: {addr['balance']:.2f} CC")
             
         except Exception as e:
-            print(f"❌ Error displaying state: {e}")
+            print(f"Error displaying state: {e}")
 
 def main():
     """Main monitor function"""
@@ -209,7 +209,7 @@ def main():
     if args.status_only:
         monitor.display_current_state()
     else:
-        print("🔍 ChainCore PostgreSQL Database Monitor")
+        print("ChainCore PostgreSQL Database Monitor")
         print("   Watch blocks being stored in real-time!")
         print("   Start mining in another terminal to see live updates")
         print("")

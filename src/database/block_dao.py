@@ -63,9 +63,6 @@ class BlockDAO:
             
             result = self.db.execute_query(query, params, fetch_one=True)
             
-            if result:
-                return result['length']
-            return 0
             block_id = result[0] if result else None
             
             if block_id:
@@ -215,7 +212,7 @@ class BlockDAO:
             result = self.db.execute_query(query, fetch_one=True)
             
             if result:
-                return result[0]
+                return result['length']
             return 0
             
         except Exception as e:

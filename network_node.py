@@ -867,7 +867,7 @@ class ThreadSafeNetworkNode:
                 network_consensus_result = self._validate_multi_node_consensus(block, is_locally_mined)
                 
                 # UNIFIED CONSENSUS: Use BlockchainSync for all fork resolutions
-                if block.index <= self.blockchain.get_chain_length():
+                if block.index < self.blockchain.get_chain_length():
                     sender_url = request.headers.get('X-Peer-Origin')
                     if sender_url:
                         try:
