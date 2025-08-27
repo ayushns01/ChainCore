@@ -1,33 +1,62 @@
-# ChainCore Fixes
+# ChainCore Fixes Log
 
-This file documents the issues that have been fixed in the ChainCore project.
+## Fix: Peer Discovery, Connection Issues, and Code Clarity
 
-## 1. `database_monitor.py` UnicodeEncodeError
+**Date:** 2025-08-26
 
-*   **Issue:** The `database_monitor.py` script was crashing on Windows systems due to the presence of emojis in the console output. The Windows console, by default, uses a character encoding that does not support these emojis.
-*   **Solution:** Removed all emojis from the `print` statements in `database_monitor.py` to ensure cross-platform compatibility.
+### Issue
 
-## 2. `database_monitor.py` SyntaxError
+When starting multiple nodes, especially in a local test environment, nodes started after the initial group (e.g., a node on port 5003 started after 5000, 5001, 5002) would fail to show any connected peers. The new node would connect to a bootstrap node but would not register it as a valid peer, resulting in a peer count of zero.
 
-*   **Issue:** The `database_monitor.py` script had a `SyntaxError: unterminated f-string literal`. This was caused by a stray newline character that was introduced while editing the file.
-*   **Solution:** Corrected the malformed f-string by removing the newline character, resolving the syntax error.
+The root cause was a significant architectural flaw in `network_node.py` where two different peer manager implementations were being used simultaneously:
 
-## 3. `database_monitor.py` Unclear Active Node Display
+1.  An older `ThreadSafePeerManager` from `src/concurrency/network_safe.py`.
+2.  A newer, more feature-rich `EnhancedPeerManager` from `src/networking/peer_manager.py`.
 
-*   **Issue:** The active node display in `database_monitor.py` was not clearly labeling the chain length and peer count, making the output ambiguous.
-*   **Solution:** Modified the f-string in the `_show_network_activity` method to include labels for chain length and peers, e.g., `core0(chain: 1, peers: 0)`.
+The bootstrap logic was handled by the new manager, but all status reporting endpoints (`/status`, `/peers`, etc.) were reading their data from the old, unused manager. This created an inconsistent and non-functional state.
 
-## 4. `block_dao.py` Incorrect Blockchain Length
+### Solution
 
-*   **Issue:** The `get_blockchain_length` method in `src/database/block_dao.py` was incorrectly accessing the result of a SQL query. It was using `result[0]` instead of `result['length']`, which caused the method to always return 0.
-*   **Solution:** Modified the code to use `result['length']` to correctly access the `length` column from the SQL query result.
+The `network_node.py` file and associated modules were refactored to resolve the connectivity issues and improve code quality. The fix involved consolidating all peer-related operations to use a single, robust manager.
 
-## 5. `block_dao.py` Premature Return
+The following changes were made:
 
-*   **Issue:** The `add_block` method in `src/database/block_dao.py` had a premature `return` statement. This prevented the code from saving transactions and mining statistics to the database, leading to incomplete data.
-*   **Solution:** Removed the premature `return` statement to allow the `add_block` method to execute completely and save all the necessary data.
+1.  **Consolidated Peer Manager:** Removed the old `ThreadSafePeerManager` and routed all calls to the newer manager, ensuring that the component handling bootstrapping is the same one that reports network status.
+2.  **Compatibility & Correction:** Added a `get_active_peers()` method to the new manager for backward compatibility and corrected logic in all relevant functions (`_sync_with_network_before_mining`, `submit_block`, `/status`, `/peers`, etc.) to use the correct manager instance.
+3.  **Cleanup:** Removed obsolete configuration and startup logic related to the old manager from the `start()` method.
+4.  **Refactored Naming for Clarity:** Renamed the overly generic `EnhancedPeerManager` class to the more descriptive `PeerNetworkManager`. All instance variables were also renamed from `enhanced_peer_manager` to `peer_network_manager` to match. This code quality improvement makes the architecture clearer and fairer to maintain.
+5.  **Disabled Obsolete Endpoint:** The manual `/sync_now` endpoint, which was tied to the old manager's logic, was disabled to prevent errors, as the new manager handles synchronization automatically.
 
-## 6. Blockchain Not Advancing with a Single Miner
+---
 
-*   **Issue:** The blockchain length was not increasing, even with only one miner active. This was due to a logical error in the fork detection mechanism in `network_node.py`. The code was incorrectly identifying the next sequential block as a fork.
-*   **Solution:** Corrected the fork detection logic in the `/submit_block` endpoint of `network_node.py`. The condition was changed from `block.index <= self.blockchain.get_chain_length()` to `block.index < self.blockchain.get_chain_length()`, ensuring that only blocks with a lower index than the current chain length are treated as forks.
+## Fix: Node Status Endpoint (500 Internal Server Error)
+
+**Date:** 2025-08-26
+
+### Issue
+
+After the peer manager refactoring, the `network_node.py` crashed with a `500 Internal Server Error` when its `/status` endpoint was accessed. This was because the `get_status` function was still attempting to access attributes and methods from the old `ThreadSafePeerManager` (e.g., `self.peer_manager._min_peers`, `self.peer_manager.get_main_node_status()`) which no longer exist.
+
+### Solution
+
+The entire `get_status` function in `network_node.py` was rewritten. It now exclusively uses the `PeerNetworkManager` to retrieve all status information. This involved:
+*   Retrieving peer counts and status directly from `self.peer_network_manager.get_status()`.
+*   Simplifying network health determination, as the new manager handles peer limits differently.
+*   Removing references to the old `is_main_node` concept and related attributes.
+*   Streamlining the JSON response to only include information correctly available from the `PeerNetworkManager`.
+
+This ensures the node's status reporting is functional and consistent with the refactored peer management system.
+
+---
+
+## Fix: Missing `psutil` Dependency
+
+**Date:** 2025-08-26
+
+### Issue
+
+The `psutil` library, an optional but recommended dependency for optimal multi-core mining performance, was not listed in `requirements.txt`.
+
+### Solution
+
+The `psutil` dependency was added to `requirements.txt` with a comment indicating its optional nature and purpose.

@@ -30,8 +30,8 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
 
 # Import thread-safe components
 from src.concurrency import (
-    ThreadSafeBlockchain, ThreadSafePeerManager, ThreadSafeMiner,
-    synchronized, LockOrder, peer_manager, 
+    ThreadSafeBlockchain, ThreadSafeMiner,
+    synchronized, LockOrder, 
     mining_pool, lock_manager
 )
 
@@ -79,15 +79,16 @@ class ThreadSafeNetworkNode:
         # Thread-safe blockchain
         self.blockchain = ThreadSafeBlockchain()
         
-        # Thread-safe peer management (legacy)
-        self.peer_manager = ThreadSafePeerManager()
+        # REMOVED: Old peer manager is no longer used
+        # self.peer_manager = ThreadSafePeerManager()
         
         # Peer management with full P2P capabilities
         bootstrap_nodes = bootstrap_nodes or []
         self.peer_network_manager = initialize_peer_manager(node_id, api_port, bootstrap_nodes)
         
         # Enhanced peer manager (alias for backward compatibility)
-        self.enhanced_peer_manager = self.peer_network_manager
+        self.peer_network_manager = self.peer_network_manager
+        self.peer_manager = self.peer_network_manager
         
         # Flask app
         self.app = Flask(__name__)
@@ -120,7 +121,7 @@ class ThreadSafeNetworkNode:
         
         try:
             # Get active peers
-            peers = self.peer_manager.get_active_peers()
+            peers = self.peer_network_manager.get_active_peers()
             if not peers:
                 return {'blocks_added': 0, 'error': 'No peers available'}
             
@@ -198,7 +199,7 @@ class ThreadSafeNetworkNode:
                 batch_size = min(SYNC_BATCH_SIZE, max(10, missing_blocks // 10))  # Adaptive batch size
                 
                 # Calculate timeout based on network size and batch size
-                active_peer_count = len(self.peer_manager.get_active_peers())
+                active_peer_count = len(self.peer_network_manager.get_active_peers())
                 if NETWORK_TIMEOUT_SCALING:
                     sync_timeout = min(MAX_TIMEOUT, BASE_TIMEOUT + (active_peer_count * 0.5) + (batch_size * 0.1))
                 else:
@@ -264,8 +265,9 @@ class ThreadSafeNetworkNode:
             # Get current statistics
             blockchain_length = self.blockchain.get_chain_length()
             pending_txs = len(self.blockchain.get_transaction_pool_copy())
-            active_peers = self.peer_manager.get_active_peers()
-            peer_stats = self.peer_manager.get_stats()
+            peer_status = self.peer_network_manager.get_status()
+            active_peers = peer_status.get('active_peers', 0)
+            total_peers = peer_status.get('total_peers', 0)
             uptime_seconds = time.time() - self._stats['uptime_start']
             
             # Calculate uptime in human readable format
@@ -274,203 +276,43 @@ class ThreadSafeNetworkNode:
             uptime_readable = f"{uptime_hours}h {uptime_minutes}m" if uptime_hours > 0 else f"{uptime_minutes}m"
             
             # Determine network health status
-            if len(active_peers) == 0:
-                network_status = "isolated"
+            if active_peers == 0:
                 network_health = "Single Node Mode"
-            elif len(active_peers) < self.peer_manager._min_peers:
-                network_status = "under_connected"
+            elif active_peers < self.peer_network_manager.target_outbound_connections:
                 network_health = "Seeking More Peers"
-            elif len(active_peers) >= self.peer_manager._target_peers:
-                network_status = "well_connected"
+            else:
                 network_health = "Well Connected"
-            else:
-                network_status = "connecting"
-                network_health = "Building Network"
-            
-            # Determine blockchain status
-            if blockchain_length <= 1:
-                blockchain_status = "genesis"
-                blockchain_health = "Genesis Block Only"
-            elif pending_txs == 0:
-                blockchain_status = "idle"
-                blockchain_health = "No Pending Transactions"
-            else:
-                blockchain_status = "active"
-                blockchain_health = f"Processing {pending_txs} Transactions"
-            
-            # Determine node role
-            is_main_node = self.peer_manager.get_main_node_status()
-            node_role = "Main Coordinator" if is_main_node else "Peer Node"
-            
+
+            # Determine node role (simplified)
+            node_role = "Peer Node"
+
             # Get mining difficulty status
-            difficulty_status = "Very Hard" if self.blockchain.target_difficulty > 6 else \
-                              "Hard" if self.blockchain.target_difficulty > 4 else \
-                              "Moderate" if self.blockchain.target_difficulty > 2 else \
-                              "Easy"
-            
-            # Unified status display format for all nodes (ASCII only)
-            if is_main_node:
-                # Main node gets detailed display but still ASCII format
-                status_summary = f"""
-+======================================================================+
-|                    🏆 CHAINCORE MAIN NODE STATUS                    |
-+======================================================================+
-| Node: {self.node_id:<20} Port: {self.api_port:<20}              |
-| Status: ONLINE & OPERATIONAL      Uptime: {uptime_readable:<15}   |
-| Chain: {blockchain_length:,} blocks{' + ' + str(pending_txs) + ' pending' if pending_txs > 0 else '':20}   |
-| Peers: {len(active_peers)} connected (Main Coordinator)                |
-| Difficulty: {self.blockchain.target_difficulty} {difficulty_status:<30}   |
-| Sync: {blockchain_health:<45}   |
-+======================================================================+
-                """.strip()
-            else:
-                # Peer nodes get standard display
-                status_summary = f"""
+            difficulty_status = "Hard" if self.blockchain.target_difficulty > 4 else "Moderate"
+
+            status_summary = f"""
 +======================================================================+
 |                    CHAINCORE NODE STATUS                            |
 +======================================================================+
 | Node: {self.node_id:<20} Port: {self.api_port:<20}              |
 | Status: ONLINE & OPERATIONAL      Uptime: {uptime_readable:<15}   |
 | Chain: {blockchain_length:,} blocks{' + ' + str(pending_txs) + ' pending' if pending_txs > 0 else '':20}   |
-| Peers: {len(active_peers)} connected (Peer Node)                      |
+| Peers: {active_peers} connected ({total_peers} known)                      |
 | Difficulty: {self.blockchain.target_difficulty} {difficulty_status:<30}   |
-| Sync: {blockchain_health:<45}   |
 +======================================================================+
-                """.strip()
+            """.strip()
 
-            # Ensure ASCII-only status display
-            status_summary_clean = status_summary
-            # Remove common unicode characters that might appear
-            unicode_replacements = {
-                '╔': '+', '╗': '+', '╚': '+', '╝': '+', '║': '|', '═': '=',
-                '🚀': '[*]', '🆔': 'ID:', '🟢': '[OK]', '⏱️': 'Time:', 
-                '⛓️': 'Chain:', '🌐': 'Net:', '🎯': 'Diff:', '🔄': 'Sync:'
-            }
-            
-            for unicode_char, ascii_replacement in unicode_replacements.items():
-                status_summary_clean = status_summary_clean.replace(unicode_char, ascii_replacement)
-            
             return jsonify({
-                # === QUICK STATUS DISPLAY ===
-                'STATUS_DISPLAY': status_summary_clean,
-                'QUICK_OVERVIEW': {
-                    'NODE_ID': self.node_id,
-                    'PORT': self.api_port,
-                    'STATUS': 'ONLINE',
-                    'BLOCKCHAIN_LENGTH': f"{blockchain_length:,} blocks",
-                    'PENDING_TXS': pending_txs,
-                    'CONNECTED_PEERS': len(active_peers),
-                    'NODE_ROLE': 'MAIN' if is_main_node else 'PEER',
-                    'UPTIME': uptime_readable,
-                    'DIFFICULTY': f"{self.blockchain.target_difficulty} {difficulty_status}",
-                    'SYNC_STATUS': blockchain_health
-                },
-                
-                # Add status format version to detect inconsistencies  
-                'status_format_version': 'ascii-v2.0',
-                'display_consistent': True,
-                'format_enforcement': 'ascii-only',
-                'last_updated': time.time(),
-                
-                # === OVERVIEW SECTION ===
-                'status': 'online',
-                'summary': {
-                    'node_health': 'Operational',
-                    'network_status': network_health,
-                    'blockchain_status': blockchain_health,
-                    'node_role': node_role,
-                    'uptime': uptime_readable
-                },
-                
-                # === NODE INFORMATION ===
-                'node_info': {
-                    'node_id': self.node_id,
-                    'api_port': self.api_port,
-                    'api_url': f"http://localhost:{self.api_port}",
-                    'uptime_seconds': int(uptime_seconds),
-                    'uptime_readable': uptime_readable,
-                    'version': '1.0',
-                    'thread_safe': True,
-                    'api_calls_handled': self._stats['api_calls']
-                },
-                
-                # === BLOCKCHAIN STATUS ===
-                'blockchain': {
-                    'chain_length': blockchain_length,
-                    'status': blockchain_status,
-                    'status_message': blockchain_health,
-                    'latest_block_index': blockchain_length - 1 if blockchain_length > 0 else None,
-                    'pending_transactions': pending_txs,
-                    'mining_difficulty': self.blockchain.target_difficulty,
-                    'difficulty_status': difficulty_status,
-                    'genesis_initialized': blockchain_length > 0
-                },
-                
-                # === NETWORK STATUS ===
-                'network': {
-                    'status': network_status,
-                    'status_message': network_health,
-                    'active_peers': len(active_peers),
-                    'peer_urls': list(active_peers),
-                    'is_main_node': is_main_node,
-                    'peer_limits': {
-                        'minimum_peers': self.peer_manager._min_peers,
-                        'target_peers': self.peer_manager._target_peers,
-                        'maximum_peers': self.peer_manager._max_peers
-                    },
-                    'discovery': {
-                        'enabled': self.peer_manager._continuous_discovery_enabled,
-                        'interval_seconds': self.peer_manager._peer_discovery_interval,
-                        'scan_range': f"ports {self.peer_manager._discovery_range[0]}-{self.peer_manager._discovery_range[1]-1}",
-                        'total_discoveries': peer_stats.get('discovery_attempts', 0),
-                        'successful_connections': peer_stats.get('successful_connections', 0),
-                        'failed_connections': peer_stats.get('failed_connections', 0)
-                    }
-                },
-                
-                # === SYNCHRONIZATION STATUS ===
-                'sync_status': {
-                    'blockchain_sync': {
-                        'enabled': self.peer_manager._blockchain_sync_enabled,
-                        'interval_seconds': self.peer_manager._blockchain_sync_interval,
-                        'successful_syncs': self._stats.get('successful_syncs', 0)
-                    },
-                    'mempool_sync': {
-                        'enabled': self.peer_manager._mempool_sync_enabled,
-                        'interval_seconds': self.peer_manager._mempool_sync_interval
-                    }
-                },
-                
-                # === PERFORMANCE METRICS ===
-                'performance': {
-                    'blocks_processed': self._stats.get('blocks_processed', 0),
-                    'transactions_processed': self._stats.get('transactions_processed', 0),
-                    'average_response_time': '< 100ms',  # Placeholder - could be calculated
-                    'memory_usage': 'Normal',  # Placeholder - could use psutil
-                    'connection_pool_size': len(self.peer_manager._connection_pool._pools)
-                },
-                
-                # === QUICK ACTIONS ===
-                'actions': {
-                    'available_endpoints': {
-                        'mine_block': f"POST {self.api_port}/mine_block",
-                        'send_transaction': f"POST {self.api_port}/broadcast_transaction", 
-                        'get_blockchain': f"GET {self.api_port}/blockchain",
-                        'sync_blockchain': f"POST {self.api_port}/sync_blockchain",
-                        'discover_peers': f"POST {self.api_port}/discover_peers"
-                    },
-                    'health_check_url': f"http://localhost:{self.api_port}/status"
-                },
-                
-                # === LEGACY COMPATIBILITY ===
+                'STATUS_DISPLAY': status_summary,
                 'node_id': self.node_id,
                 'blockchain_length': blockchain_length,
                 'pending_transactions': pending_txs,
-                'peers': len(active_peers),
+                'peers': active_peers,
+                'total_peers': total_peers,
+                'node_role': node_role,
                 'target_difficulty': self.blockchain.target_difficulty,
+                'network_health': network_health,
                 'uptime': uptime_seconds,
-                'thread_safe': True,
-                'api_calls': self._stats['api_calls']
+                'version': '2.0' # Updated version
             })
         
         @self.app.route('/status/human', methods=['GET'])
@@ -656,7 +498,7 @@ class ThreadSafeNetworkNode:
                 
                 if self.blockchain.add_transaction(transaction):
                     # Broadcast to peers
-                    self.peer_manager.broadcast_to_peers(
+                    self.peer_network_manager.broadcast_to_peers(
                         '/receive_transaction', 
                         tx_data,
                         timeout=5.0
@@ -691,7 +533,7 @@ class ThreadSafeNetworkNode:
                 
                 if self.blockchain.add_transaction(transaction):
                     # Broadcast to peers
-                    self.peer_manager.broadcast_to_peers(
+                    self.peer_network_manager.broadcast_to_peers(
                         '/receive_transaction', 
                         tx_data,
                         timeout=5.0
@@ -857,7 +699,7 @@ class ThreadSafeNetworkNode:
                 if is_locally_mined:
                     # Local block - broadcast immediately to claim priority
                     print(f"[MINED] LOCAL BLOCK MINED: Broadcasting Block #{block.index} to network")
-                    self.peer_manager.broadcast_to_peers(
+                    self.peer_network_manager.broadcast_to_peers(
                         '/submit_block',
                         {'block': block_data},
                         timeout=5.0  # Fast broadcast for priority
@@ -910,14 +752,14 @@ class ThreadSafeNetworkNode:
                     print(f"[ACCEPTED] BLOCK ACCEPTED: #{block.index} ({mining_source})")
                     print(f"   [MINER] Mined by: {miner_address}")
                     print(f"   [CHAIN] Chain length: {self.blockchain.get_chain_length()}")
-                    print(f"   [NETWORK] Network peers: {len(self.peer_manager.get_active_peers())}")
+                    print(f"   [NETWORK] Network peers: {len(self.peer_network_manager.get_active_peers())}")
                     
                     # Smart broadcasting based on network size and consensus
                     if not is_locally_mined:
                         # Received from peer - broadcast to all other peers to maintain consensus
                         sender_url = request.headers.get('X-Peer-Origin', 'unknown')
                         # Adaptive timeout based on network size
-                        active_peers_count = len(self.peer_manager.get_active_peers())
+                        active_peers_count = len(self.peer_network_manager.get_active_peers())
                         if active_peers_count <= 10:
                             broadcast_timeout = 5.0
                         elif active_peers_count <= 50:
@@ -925,7 +767,7 @@ class ThreadSafeNetworkNode:
                         else:
                             broadcast_timeout = 12.0  # Longer timeout for large networks
                         
-                        broadcast_results = self.peer_manager.broadcast_to_peers(
+                        broadcast_results = self.peer_network_manager.broadcast_to_peers(
                             '/submit_block',
                             {'block': block_data},
                             timeout=broadcast_timeout,
@@ -941,7 +783,7 @@ class ThreadSafeNetworkNode:
                     else:
                         # Local mining - broadcast to all peers
                         # Adaptive timeout for local mining broadcasts in large networks
-                        active_peers_count = len(self.peer_manager.get_active_peers())
+                        active_peers_count = len(self.peer_network_manager.get_active_peers())
                         if active_peers_count <= 10:
                             broadcast_timeout = 5.0
                         elif active_peers_count <= 50:
@@ -949,7 +791,7 @@ class ThreadSafeNetworkNode:
                         else:
                             broadcast_timeout = 12.0
                         
-                        broadcast_results = self.peer_manager.broadcast_to_peers(
+                        broadcast_results = self.peer_network_manager.broadcast_to_peers(
                             '/submit_block',
                             {'block': block_data},
                             timeout=broadcast_timeout
@@ -1046,8 +888,8 @@ class ThreadSafeNetworkNode:
             """Thread-safe peer information"""
             self._increment_api_calls()
             
-            peer_info = self.peer_manager.get_all_peers()
-            active_peers = self.peer_manager.get_active_peers()
+            peer_info = self.peer_network_manager.get_all_peers()
+            active_peers = self.peer_network_manager.get_active_peers()
             
             return jsonify({
                 'peers': list(peer_info.keys()),
@@ -1073,7 +915,7 @@ class ThreadSafeNetworkNode:
                 port_end = data.get('port_end', 5012)
                 host = data.get('host', 'localhost')
                 
-                discovered = self.peer_manager.discover_peers(
+                discovered = self.peer_network_manager.discover_peers(
                     port_range=range(port_start, port_end),
                     host=host
                 )
@@ -1081,7 +923,7 @@ class ThreadSafeNetworkNode:
                 return jsonify({
                     'status': 'completed',
                     'discovered_peers': discovered,
-                    'active_peers': len(self.peer_manager.get_active_peers())
+                    'active_peers': len(self.peer_network_manager.get_active_peers())
                 })
                 
             except Exception as e:
@@ -1096,54 +938,7 @@ class ThreadSafeNetworkNode:
             """Thread-safe blockchain synchronization"""
             self._increment_api_calls()
             
-            try:
-                sync_result = self.peer_manager.sync_with_best_peer()
-                
-                if sync_result:
-                    peer_url, chain_data = sync_result
-                    
-                    # Convert chain data to blocks
-                    new_chain = []
-                    for block_data in chain_data:
-                        transactions = [Transaction.from_dict(tx) for tx in block_data['transactions']]
-                        block = Block(
-                            block_data['index'],
-                            transactions,
-                            block_data['previous_hash'],
-                            block_data['timestamp'],
-                            block_data.get('nonce', 0),
-                            block_data.get('target_difficulty', BLOCKCHAIN_DIFFICULTY)
-                        )
-                        new_chain.append(block)
-                    
-                    # Use industry-standard smart sync instead of destructive replace_chain
-                    current_length = self.blockchain.get_chain_length()
-                    if self.blockchain.smart_sync_with_peer_chain(chain_data, peer_url):
-                        new_length = self.blockchain.get_chain_length()
-                        return jsonify({
-                            'status': 'synced',
-                            'peer': peer_url,
-                            'old_length': current_length,
-                            'new_length': new_length,
-                            'mining_history': 'preserved'
-                        })
-                    else:
-                        return jsonify({
-                            'status': 'sync_failed',
-                            'error': 'Smart sync validation failed'
-                        }), 400
-                else:
-                    return jsonify({
-                        'status': 'no_peers',
-                        'error': 'No suitable peers found for sync'
-                    }), 400
-                    
-            except Exception as e:
-                logger.error(f"Sync error: {e}")
-                return jsonify({
-                    'status': 'error',
-                    'error': str(e)
-                }), 500
+            return jsonify({'status': 'disabled', 'message': 'Manual sync is handled automatically by the peer manager.'}), 501
         
         @self.app.route('/transactions/<address>', methods=['GET'])
         @synchronized("api_transactions", LockOrder.NETWORK, mode='read')
@@ -1161,7 +956,7 @@ class ThreadSafeNetworkNode:
             self._increment_api_calls()
             
             blockchain_stats = self.blockchain.get_stats()
-            peer_stats = self.peer_manager.get_stats()
+            peer_stats = self.peer_network_manager.get_status()
             
             return jsonify({
                 'node_stats': {
@@ -1393,8 +1188,8 @@ class ThreadSafeNetworkNode:
                 message = data.get('message', {})
                 timeout = data.get('timeout', 5)
                 
-                if hasattr(self, 'enhanced_peer_manager') and self.enhanced_peer_manager:
-                    result = self.enhanced_peer_manager.broadcast_to_peers(endpoint, message, timeout)
+                if hasattr(self, 'peer_network_manager') and self.peer_network_manager:
+                    result = self.peer_network_manager.broadcast_to_peers(endpoint, message, timeout)
                 else:
                     # Basic broadcast to active peers
                     active_peers = self.peer_manager.get_active_peers()
@@ -1730,8 +1525,8 @@ class ThreadSafeNetworkNode:
         logger.info(f"Starting thread-safe network node: {self.node_id}")
         
         # Start enhanced peer manager
-        if self.enhanced_peer_manager:
-            self.enhanced_peer_manager.start()
+        if self.peer_network_manager:
+            self.peer_network_manager.start()
             logger.info("P2P network manager started")
         
         # Start connection cleanup system
@@ -1741,28 +1536,6 @@ class ThreadSafeNetworkNode:
         except Exception as e:
             logger.warning(f"Failed to start connection cleanup: {e}")
         
-        # Configure continuous peer discovery with proper settings
-        from src.config import CONTINUOUS_DISCOVERY_INTERVAL
-        self.peer_manager.configure_continuous_discovery(
-            enabled=True, 
-            interval=CONTINUOUS_DISCOVERY_INTERVAL
-        )
-        
-        # Configure enhanced automatic blockchain synchronization for late-joining nodes
-        self.peer_manager.configure_blockchain_sync(enabled=True, interval=15.0)  # More frequent sync
-        self.peer_manager.set_blockchain_reference(self.blockchain)
-        self.peer_manager.set_sync_callback(self._perform_enhanced_automatic_sync)
-        
-        # Configure aggressive initial sync for late-joining nodes
-        self._configure_late_joiner_support()
-        
-        # Configure mempool synchronization
-        self.peer_manager.configure_mempool_sync(enabled=True, interval=15.0)
-        self.peer_manager.set_mempool_callback(self._add_synced_transaction)
-        
-        # Configure network statistics synchronization
-        self.peer_manager.configure_network_stats_sync(enabled=True, interval=60.0)
-        
         # Start API server in background first (fix race condition)
         import threading
         self._start_api_server_background()
@@ -1770,32 +1543,6 @@ class ThreadSafeNetworkNode:
         # Wait briefly for API server to initialize
         import time
         time.sleep(1.0)
-        
-        # Configure self-awareness for enhanced peer discovery  
-        self_url = f"http://localhost:{self.api_port}"
-        
-        # Peer discovery with main node detection
-        if discover_peers:
-            logger.info("🔍 Starting Peer Discovery...")
-            logger.info(f"   🆔 This node: {self_url}")
-            logger.info("   🌐 Scanning for existing nodes...")
-            
-            # Add small delay before discovery to prevent thundering herd
-            startup_delay = __import__('random').uniform(1.0, 4.0)
-            time.sleep(startup_delay)
-            
-            self.peer_manager.set_self_url(self_url)
-            discovered = self.peer_manager.discover_peers()
-            
-            if discovered > 0:
-                logger.info(f"🎉 Successfully connected to {discovered} existing nodes!")
-                main_status = "MAIN NODE" if self.peer_manager.get_main_node_status() else "PEER NODE"
-                logger.info(f"   🏆 Node role: {main_status}")
-            else:
-                logger.info("📡 No existing nodes found - this is the first node in the network!")
-                logger.info("   🏆 Node role: MAIN NODE (bootstrap)")
-        else:
-            self.peer_manager.set_self_url(self_url)
         
         # API server already started in background - just keep main thread alive
         logger.info("🚀 Starting ChainCore Network Node...")
@@ -1817,8 +1564,8 @@ class ThreadSafeNetworkNode:
             logger.info("🧹 Starting node cleanup...")
             
             # Stop enhanced peer manager
-            if hasattr(self, 'enhanced_peer_manager') and self.enhanced_peer_manager:
-                self.enhanced_peer_manager.stop()
+            if hasattr(self, 'peer_network_manager') and self.peer_network_manager:
+                self.peer_network_manager.stop()
                 logger.info("Peer manager stopped")
             
             # Stop connection cleanup

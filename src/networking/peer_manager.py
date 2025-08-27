@@ -227,7 +227,7 @@ class OutboundConnectionManager:
                 logger.error(f"Connection health check error: {e}")
                 time.sleep(10)
 
-class EnhancedPeerManager:
+class PeerNetworkManager:
     """Enhanced P2P network manager with gossiping and full-mesh connectivity"""
     
     def __init__(self, node_id: str, api_port: int, bootstrap_nodes: List[str] = None):
@@ -638,6 +638,11 @@ class EnhancedPeerManager:
             # Share our best peers
             peers = sorted(self._peers.values(), key=lambda p: p.peer_score, reverse=True)
             return [peer.to_dict() for peer in peers[:self.peer_exchange_batch_size]]
+
+    def get_active_peers(self) -> Set[str]:
+        """Get set of active peers for backward compatibility"""
+        with self._lock:
+            return self._active_peers.copy()
     
     def get_status(self) -> Dict:
         """Get peer manager status"""
@@ -697,14 +702,14 @@ class EnhancedPeerManager:
         }
 
 # Global instance (will be initialized by network node)
-peer_manager: Optional[EnhancedPeerManager] = None
+peer_manager: Optional[PeerNetworkManager] = None
 
 def initialize_peer_manager(node_id: str, api_port: int, bootstrap_nodes: List[str] = None):
     """Initialize the global peer manager"""
     global peer_manager
-    peer_manager = EnhancedPeerManager(node_id, api_port, bootstrap_nodes)
+    peer_manager = PeerNetworkManager(node_id, api_port, bootstrap_nodes)
     return peer_manager
 
-def get_peer_manager() -> Optional[EnhancedPeerManager]:
+def get_peer_manager() -> Optional[PeerNetworkManager]:
     """Get the global peer manager instance"""
     return peer_manager

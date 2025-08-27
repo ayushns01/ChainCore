@@ -5,7 +5,7 @@ Enhanced P2P networking with full-mesh connectivity, gossiping, and persistent p
 """
 
 from .peer_manager import (
-    EnhancedPeerManager,
+    PeerNetworkManager,
     PeerInfo,
     PeerStorage,
     OutboundConnectionManager,
@@ -14,10 +14,10 @@ from .peer_manager import (
 )
 
 # Alias for backward compatibility
-PeerManager = EnhancedPeerManager
+PeerManager = PeerNetworkManager
 
 __all__ = [
-    'EnhancedPeerManager',
+    'PeerNetworkManager',
     'PeerManager',
     'PeerInfo', 
     'PeerStorage',
