@@ -644,6 +644,57 @@ class PeerNetworkManager:
         with self._lock:
             return self._active_peers.copy()
     
+    def get_peer_blockchain_info(self, peer_url: str, timeout: int = 10) -> Optional[Dict]:
+        """Get blockchain information from a specific peer"""
+        try:
+            # Get connection for the peer
+            connection = self.get_connection(peer_url)
+            if not connection:
+                logger.warning(f"No connection available for peer: {peer_url}")
+                return None
+            
+            # Request blockchain data from peer
+            response = connection.get(f"{peer_url}/api/blockchain", timeout=timeout)
+            
+            if response.status_code == 200:
+                blockchain_data = response.json()
+                
+                # Update peer info with current chain length
+                with self._lock:
+                    if peer_url in self._peers:
+                        if 'chain' in blockchain_data:
+                            self._peers[peer_url].chain_length = len(blockchain_data['chain'])
+                        self._peers[peer_url].last_seen = time.time()
+                        self._peers[peer_url].successes += 1
+                
+                logger.info(f"Retrieved blockchain info from {peer_url}: {len(blockchain_data.get('chain', []))} blocks")
+                return blockchain_data
+            else:
+                logger.warning(f"Failed to get blockchain info from {peer_url}: HTTP {response.status_code}")
+                with self._lock:
+                    if peer_url in self._peers:
+                        self._peers[peer_url].failures += 1
+                return None
+                
+        except requests.exceptions.Timeout:
+            logger.warning(f"Timeout getting blockchain info from {peer_url}")
+            with self._lock:
+                if peer_url in self._peers:
+                    self._peers[peer_url].failures += 1
+            return None
+        except requests.exceptions.ConnectionError:
+            logger.warning(f"Connection error getting blockchain info from {peer_url}")
+            with self._lock:
+                if peer_url in self._peers:
+                    self._peers[peer_url].failures += 1
+            return None
+        except Exception as e:
+            logger.error(f"Error getting blockchain info from {peer_url}: {e}")
+            with self._lock:
+                if peer_url in self._peers:
+                    self._peers[peer_url].failures += 1
+            return None
+
     def get_status(self) -> Dict:
         """Get peer manager status"""
         with self._lock:

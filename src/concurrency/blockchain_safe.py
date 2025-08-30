@@ -810,9 +810,10 @@ class ThreadSafeBlockchain:
                 logger.warning(f"Block {block.index} previous hash mismatch")
                 return False
             
-            # Check index sequence
-            if block.index != len(self._chain):
-                logger.warning(f"Block {block.index} index mismatch")
+            # Check index sequence - block should be the next block in sequence
+            expected_index = len(self._chain)
+            if block.index != expected_index:
+                logger.warning(f"Block index mismatch: got {block.index}, expected {expected_index} (chain length: {len(self._chain)})")
                 return False
             
             # Validate all transactions in block

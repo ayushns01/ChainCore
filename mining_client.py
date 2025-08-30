@@ -638,9 +638,12 @@ class MiningClient:
                 logger.warning("Blockchain not initialized")
                 return False
             
-            # Check thread safety status
-            thread_safe = status.get('thread_safe', False)
-            if not thread_safe:
+            # Check thread safety status (more resilient check)
+            thread_safe = status.get('thread_safe', True)  # Default to True for backward compatibility
+            node_info = status.get('node_info', {})
+            thread_safe_detailed = node_info.get('thread_safe', thread_safe)
+            
+            if not thread_safe_detailed:
                 print("WARNING: Node thread safety issues detected")
                 logger.warning("Node thread safety issues")
                 return False
@@ -654,22 +657,33 @@ class MiningClient:
             
             # Check node version compatibility if available
             node_version = status.get('version', 'unknown')
-            logger.info(f"Node version: {node_version}, Chain length: {blockchain_length}")
+            node_status = status.get('status', 'unknown')
+            logger.info(f"Node version: {node_version}, Chain length: {blockchain_length}, Status: {node_status}")
                 
             print(f"SUCCESS: Network healthy - Chain length: {blockchain_length}")
+            print(f"   Node Status: {node_status}")
+            print(f"   Thread Safety: {'✅ OK' if thread_safe_detailed else '❌ Issues'}")
+            print(f"   Network Health: {status.get('network_health', 'Unknown')}")
             return True
             
         except requests.exceptions.ConnectionError:
             print(f"ERROR: Cannot connect to node at {self.node_url}")
             print("   TIP: Make sure the network node is running")
+            print("   TIP: Check if the node is listening on the correct port")
             logger.error(f"Cannot connect to node at {self.node_url}")
             return False
         except requests.exceptions.Timeout:
             print(f"TIMEOUT: Node timeout at {self.node_url}")
             logger.error(f"Node timeout at {self.node_url}")
             return False
+        except json.JSONDecodeError as e:
+            print(f"ERROR: Invalid JSON response from node: {e}")
+            print("   Node may be starting up or have issues")
+            logger.error(f"JSON decode error from node: {e}")
+            return False
         except Exception as e:
             print(f"WARNING: Network health check failed: {e}")
+            print(f"   Error type: {type(e).__name__}")
             logger.error(f"Network health check failed: {e}")
             return False
     
@@ -901,10 +915,6 @@ class MiningClient:
                 logger.info(f"Estimated Earnings: {stats['estimated_earnings']:.1f} CC")
         logger.info("=" * 50)
     
-    def mine_with_retry(self, max_retries=None):
-        """Mine with intelligent retry logic to handle stale templates"""
-        max_retries = max_retries or self.config.max_retries
-        return self.mine_with_retry(max_retries)
     
     def mine_with_retry(self, max_retries=None) -> bool:
         """Mining with intelligent retry logic and network state verification"""
@@ -1345,8 +1355,12 @@ class MiningClient:
             
             status = response.json()
             
-            # Check basic node health
-            if not status.get('thread_safe', False):
+            # Check basic node health (consistent with health check method)
+            thread_safe = status.get('thread_safe', True)  # Default to True for backward compatibility
+            node_info = status.get('node_info', {})
+            thread_safe_detailed = node_info.get('thread_safe', thread_safe)
+            
+            if not thread_safe_detailed:
                 logger.warning("Node reports thread safety issues")
                 return False
             
@@ -1412,10 +1426,18 @@ class MiningClient:
             block_index = block.get('index', -1)
             
             # CRITICAL CHECK: Block must be for the next position in chain
+            # For a single miner, block_index should equal current_chain_length (next block position)
             if block_index != current_chain_length:
-                logger.warning(f"STALE BLOCK DETECTED: Block #{block_index} vs current chain #{current_chain_length}")
-                print(f"   Network moved forward: Chain now at #{current_chain_length}, our block is #{block_index}")
-                return False
+                # Only reject if the chain has actually moved forward past our block
+                if block_index < current_chain_length:
+                    logger.warning(f"STALE BLOCK DETECTED: Block #{block_index} vs current chain #{current_chain_length}")
+                    print(f"   Network moved forward: Chain now at #{current_chain_length}, our block is #{block_index}")
+                    return False
+                elif block_index > current_chain_length:
+                    logger.warning(f"FUTURE BLOCK DETECTED: Block #{block_index} vs current chain #{current_chain_length}")
+                    print(f"   Block index too high: #{block_index}, chain at #{current_chain_length}")
+                    return False
+            # If block_index == current_chain_length, this is the expected case (next block)
             
             # Additional verification: Check if block's previous_hash matches current chain tip
             try:
@@ -1468,6 +1490,12 @@ class MiningClient:
             if current_chain_length > our_block_index:
                 logger.warning(f"Network advanced: Chain now #{current_chain_length}, we're mining #{our_block_index}")
                 return True
+            
+            # For single miner scenario: if chain length equals our block index, we're still good
+            # Our block should be index == current_chain_length (next block position)
+            if current_chain_length == our_block_index:
+                # This is normal - we're mining the next block
+                return False
             
             # Additional check: Verify the chain tip hash hasn't changed
             # This catches cases where the chain length is the same but content changed

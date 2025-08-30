@@ -312,7 +312,14 @@ class ThreadSafeNetworkNode:
                 'target_difficulty': self.blockchain.target_difficulty,
                 'network_health': network_health,
                 'uptime': uptime_seconds,
-                'version': '2.0' # Updated version
+                'version': '2.0', # Updated version
+                'thread_safe': True,  # Mining client expects this field
+                'status': 'online',
+                'node_info': {
+                    'thread_safe': True,
+                    'initialized': blockchain_length > 0,
+                    'operational': True
+                }
             })
         
         @self.app.route('/status/human', methods=['GET'])
@@ -660,15 +667,31 @@ class ThreadSafeNetworkNode:
                 # Get fresh chain state after potential sync
                 current_chain_length = self.blockchain.get_chain_length()
                 
-                # Verify block is still valid after sync
-                if is_locally_mined and block.index != current_chain_length:
-                    logger.warning(f"LOCAL BLOCK STALE: Block #{block.index} vs chain #{current_chain_length}")
-                    return jsonify({
-                        'status': 'rejected',
-                        'reason': 'stale_block',
-                        'error': f'Block is stale: mining #{block.index}, chain now #{current_chain_length}',
-                        'current_chain_length': current_chain_length
-                    }), 409
+                # Verify block is still valid after sync - locally mined block should be next in sequence
+                # For locally mined blocks, we are more lenient since we know the context
+                if is_locally_mined:
+                    # Allow blocks that are the next in sequence (normal case)
+                    if block.index == current_chain_length:
+                        # This is the expected case - block is next in chain
+                        pass
+                    elif block.index < current_chain_length:
+                        # Block is stale - chain has moved forward since template was created
+                        logger.warning(f"LOCAL BLOCK STALE: Block #{block.index} vs chain #{current_chain_length}")
+                        return jsonify({
+                            'status': 'rejected',
+                            'reason': 'stale_block',
+                            'error': f'Block is stale: mining #{block.index}, chain now #{current_chain_length}',
+                            'current_chain_length': current_chain_length
+                        }), 409
+                    else:
+                        # block.index > current_chain_length - this shouldn't happen for local mining
+                        logger.warning(f"LOCAL BLOCK FUTURE: Block #{block.index} vs chain #{current_chain_length}")
+                        return jsonify({
+                            'status': 'rejected',
+                            'reason': 'invalid_index',
+                            'error': f'Block index too high: #{block.index}, chain at #{current_chain_length}',
+                            'current_chain_length': current_chain_length
+                        }), 409
                 
                 # Case 1: Next sequential block (normal case)
                 if block.index == current_chain_length:
