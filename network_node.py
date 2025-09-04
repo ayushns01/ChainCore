@@ -22,6 +22,7 @@ import time
 import threading
 import argparse
 import logging
+import requests
 from typing import Dict, List, Set, Optional
 from flask import Flask, request, jsonify
 
@@ -87,11 +88,20 @@ class ThreadSafeNetworkNode:
         
         # Peer management with full P2P capabilities
         bootstrap_nodes = bootstrap_nodes or []
+        self.bootstrap_nodes = bootstrap_nodes
         self.peer_network_manager = initialize_peer_manager(node_id, api_port, bootstrap_nodes)
         
         # Enhanced peer manager (alias for backward compatibility)
         self.peer_network_manager = self.peer_network_manager
         self.peer_manager = self.peer_network_manager
+        
+        # BOOTSTRAP CHAIN VALIDATION: Industry-standard immediate sync for late joiners
+        if self.bootstrap_nodes:
+            logger.info(f"[BOOTSTRAP] Bootstrap nodes detected: {len(self.bootstrap_nodes)}")
+            # Schedule immediate chain validation after initialization completes
+            self._bootstrap_validation_required = True
+        else:
+            self._bootstrap_validation_required = False
         
         # Flask app
         self.app = Flask(__name__)
@@ -166,8 +176,12 @@ class ThreadSafeNetworkNode:
             # Phase 2: Sort by chain length and check top candidates only
             if peer_candidates:
                 peer_candidates.sort(key=lambda x: x[1], reverse=True)  # Sort by length desc
-                # Only check top 5 peers for full blockchain to save bandwidth
-                top_peers = peer_candidates[:5]
+                # Enhanced peer sampling: More peers for bootstrap scenarios (late joiners)
+                if hasattr(self, '_bootstrap_validation_required') and self._bootstrap_validation_required:
+                    top_peers = peer_candidates[:min(10, len(peer_candidates))]  # More peers for bootstrap
+                    logger.info(f"[BOOTSTRAP] Enhanced peer sampling: checking {len(top_peers)} peers")
+                else:
+                    top_peers = peer_candidates[:5]  # Normal operation
                 
                 for peer_url, peer_length in top_peers:
                     try:
@@ -754,11 +768,11 @@ class ThreadSafeNetworkNode:
                             response = requests.get(f"{sender_url}/blockchain", timeout=10)
                             if response.status_code == 200:
                                 competing_chain_data = response.json().get('chain', [])
-                                sync_result, _ = self.blockchain.synchronizer.sync_with_peer_chain(
+                                sync_success = self.blockchain.smart_sync_with_peer_chain(
                                     peer_chain_data=competing_chain_data,
                                     peer_url=sender_url
                                 )
-                                if sync_result == 'fork_resolved':
+                                if sync_success:
                                     return jsonify({
                                         'status': 'accepted_fork_resolution',
                                         'message': 'Switched to heavier chain via sync'
@@ -1631,10 +1645,26 @@ class ThreadSafeNetworkNode:
         import time
         time.sleep(1.0)
         
+        # BOOTSTRAP CHAIN VALIDATION: Immediate sync for late joiners
+        if hasattr(self, '_bootstrap_validation_required') and self._bootstrap_validation_required:
+            logger.info("🔗 Bootstrap nodes detected - performing immediate chain validation...")
+            print("🔗 Late joiner detection: Validating blockchain state with network...")
+            
+            # Run bootstrap validation in a separate thread to avoid blocking startup
+            def bootstrap_validation_thread():
+                time.sleep(2)  # Give services time to fully start
+                self._perform_bootstrap_chain_validation()
+            
+            bootstrap_thread = threading.Thread(target=bootstrap_validation_thread, daemon=True, name="Bootstrap-Validation")
+            bootstrap_thread.start()
+            logger.info("🚀 Bootstrap chain validation initiated")
+        
         # API server already started in background - just keep main thread alive
         logger.info("🚀 Starting ChainCore Network Node...")
         logger.info(f"   🌐 API Server running on port {self.api_port}")
         logger.info("   🔄 All sync mechanisms activated")
+        if hasattr(self, '_bootstrap_validation_required') and self._bootstrap_validation_required:
+            logger.info("   🔗 Bootstrap chain validation in progress...")
         logger.info("   🎯 Ready to accept connections!")
         
         # Keep main thread alive to prevent daemon threads from exiting
@@ -1916,6 +1946,165 @@ class ThreadSafeNetworkNode:
                 
         except Exception as e:
             logger.error(f"Error adding synced transaction from {peer_url}: {e}")
+
+    def _perform_bootstrap_chain_validation(self):
+        """
+        Industry-standard immediate chain validation after bootstrap connection
+        Follows Bitcoin Core IBD and Ethereum fast sync patterns
+        """
+        logger.info("[BOOTSTRAP] Performing immediate chain validation with bootstrap peers...")
+        print("[BOOTSTRAP] Validating blockchain state with network...")
+        
+        try:
+            # Wait briefly for initial peer connections to establish
+            import time
+            time.sleep(3)
+            
+            # Use existing sync mechanism with enhanced validation for bootstrap
+            logger.info("[BOOTSTRAP] Checking chain synchronization with network...")
+            sync_result = self._sync_with_network_before_mining()
+            
+            if sync_result.get('blocks_added', 0) > 0:
+                blocks_added = sync_result['blocks_added']
+                logger.info(f"[BOOTSTRAP] Late joiner sync successful: Added {blocks_added} blocks")
+                print(f"[BOOTSTRAP] Synchronized {blocks_added} blocks during bootstrap")
+                print(f"[BOOTSTRAP] Chain length: {self.blockchain.get_chain_length()}")
+            else:
+                logger.info("[BOOTSTRAP] Chain validation complete - already synchronized")
+                print("[BOOTSTRAP] Blockchain state verified - node is synchronized")
+            
+            # Additional comprehensive validation for critical cases
+            self._validate_bootstrap_chain_consensus()
+            
+            # Mark bootstrap validation as complete
+            self._bootstrap_validation_required = False
+            logger.info("[BOOTSTRAP] Bootstrap chain validation completed successfully")
+            
+        except Exception as e:
+            logger.error(f"[BOOTSTRAP] Chain validation failed: {e}")
+            print(f"[BOOTSTRAP] Warning: Chain validation encountered issues: {e}")
+            # Don't fail startup, but log the issue for investigation
+    
+    def _validate_bootstrap_chain_consensus(self):
+        """
+        Validate chain consensus with bootstrap peers using industry-standard approach
+        Similar to Bitcoin Core's consensus validation and Ethereum's chain weight checks
+        """
+        try:
+            peers = self.peer_network_manager.get_active_peers()
+            if not peers:
+                logger.info("[BOOTSTRAP] No peers available for consensus validation")
+                return
+            
+            current_length = self.blockchain.get_chain_length()
+            max_peer_length = 0
+            peer_lengths = []
+            
+            logger.info(f"[BOOTSTRAP] Validating consensus with {len(peers)} peers")
+            
+            # Check ALL available peers for comprehensive bootstrap validation
+            # Similar to Bitcoin Core's initial block download peer selection
+            for peer_url in peers[:15]:  # Check up to 15 peers for thorough bootstrap validation
+                try:
+                    response = requests.get(f"{peer_url}/status", timeout=8)
+                    if response.status_code == 200:
+                        peer_status = response.json()
+                        peer_length = peer_status.get('blockchain_length', 0)
+                        peer_lengths.append(peer_length)
+                        max_peer_length = max(max_peer_length, peer_length)
+                        logger.debug(f"[BOOTSTRAP] Peer {peer_url}: {peer_length} blocks")
+                except Exception as e:
+                    logger.debug(f"[BOOTSTRAP] Could not reach peer {peer_url}: {e}")
+                    continue
+            
+            if not peer_lengths:
+                logger.warning("[BOOTSTRAP] Could not validate with any peers")
+                return
+            
+            # Analyze network consensus (similar to Bitcoin's longest chain rule)
+            network_consensus_length = max(peer_lengths) if peer_lengths else 0
+            chain_gap = network_consensus_length - current_length
+            
+            logger.info(f"[BOOTSTRAP] Consensus analysis: Local={current_length}, Network={network_consensus_length}")
+            
+            # If we're significantly behind, trigger comprehensive sync
+            if chain_gap > 1:  # More than 1 block behind
+                logger.warning(f"[BOOTSTRAP] Significant chain gap detected: {chain_gap} blocks behind")
+                print(f"[BOOTSTRAP] Chain gap detected: Local={current_length}, Network={network_consensus_length}")
+                print("[BOOTSTRAP] Triggering comprehensive blockchain synchronization...")
+                
+                # Use existing comprehensive sync infrastructure  
+                success = self._perform_comprehensive_bootstrap_sync(network_consensus_length, peers)
+                
+                if success:
+                    new_length = self.blockchain.get_chain_length()
+                    logger.info(f"[BOOTSTRAP] Comprehensive sync successful: {current_length} → {new_length}")
+                    print(f"[BOOTSTRAP] Sync completed: Chain length now {new_length}")
+                else:
+                    logger.warning("[BOOTSTRAP] Comprehensive sync had issues - manual verification recommended")
+                    print("[BOOTSTRAP] Warning: Sync completed with some issues")
+            else:
+                logger.info("[BOOTSTRAP] Chain consensus validated - node is properly synchronized")
+                print("[BOOTSTRAP] Chain consensus validated successfully")
+        
+        except Exception as e:
+            logger.error(f"[BOOTSTRAP] Consensus validation error: {e}")
+    
+    def _perform_comprehensive_bootstrap_sync(self, target_length: int, available_peers: List[str]) -> bool:
+        """
+        Perform comprehensive sync using existing blockchain sync infrastructure
+        Leverages the existing BlockchainSync class (industry-standard approach)
+        """
+        try:
+            logger.info(f"[BOOTSTRAP] Starting comprehensive sync to reach {target_length} blocks")
+            
+            # Try multiple peers for redundancy (Bitcoin Core approach)
+            for peer_url in available_peers[:5]:  # Try top 5 peers
+                try:
+                    logger.info(f"[BOOTSTRAP] Attempting sync with {peer_url}")
+                    
+                    # Get peer's complete chain data
+                    response = requests.get(f"{peer_url}/blockchain", timeout=20)
+                    if response.status_code == 200:
+                        peer_data = response.json()
+                        peer_chain = peer_data.get('chain', [])
+                        
+                        if len(peer_chain) >= target_length:
+                            logger.info(f"[BOOTSTRAP] Using peer chain with {len(peer_chain)} blocks")
+                            
+                            # Use existing enhanced sync mechanism from blockchain_sync.py
+                            # This preserves mining attribution and follows industry standards
+                            sync_success = self.blockchain.smart_sync_with_peer_chain(
+                                peer_chain_data=peer_chain,
+                                peer_url=peer_url
+                            )
+                            
+                            if sync_success:
+                                new_length = self.blockchain.get_chain_length()
+                                logger.info(f"[BOOTSTRAP] Sync successful via smart_sync_with_peer_chain: {new_length} blocks")
+                                logger.info(f"[BOOTSTRAP] Successfully synchronized with {peer_url}")
+                                return True
+                            else:
+                                logger.warning(f"[BOOTSTRAP] Sync failed with {peer_url}")
+                                
+                except Exception as e:
+                    logger.warning(f"[BOOTSTRAP] Sync failed with {peer_url}: {e}")
+                    continue
+            
+            # If all peers failed, try the existing sync method as fallback
+            logger.info("[BOOTSTRAP] Trying fallback sync method...")
+            sync_result = self._sync_with_network_before_mining()
+            
+            if sync_result.get('blocks_added', 0) > 0:
+                logger.info(f"[BOOTSTRAP] Fallback sync added {sync_result['blocks_added']} blocks")
+                return True
+            
+            logger.warning("[BOOTSTRAP] All sync attempts completed - manual verification recommended")
+            return False
+            
+        except Exception as e:
+            logger.error(f"[BOOTSTRAP] Comprehensive sync error: {e}")
+            return False
 
     def cleanup(self):
         """Cleanup node resources"""

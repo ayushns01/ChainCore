@@ -18,7 +18,15 @@
       "Bash(./chaincore/Scripts/python.exe:*)",
       "Bash(rg:*)",
       "Bash(taskkill:*)",
-      "Bash(chcp:*)"
+      "Bash(chcp:*)",
+      "Read(/D:\\ChainCore/**)",
+      "Read(/D:\\ChainCore/**)",
+      "Read(/D:\\ChainCore/**)",
+      "Read(/D:\\ChainCore/**)",
+      "Read(/D:\\ChainCore/**)",
+      "Read(/D:\\ChainCore/**)",
+      "Read(/D:\\ChainCore/**)",
+      "Read(/D:\\ChainCore/**)"
     ],
     "defaultMode": "acceptEdits"
   }
