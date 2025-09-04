@@ -64,8 +64,8 @@ def get_mining_target(difficulty: int = None) -> str:
     return "0" * difficulty
 
 def validate_difficulty(difficulty: int) -> bool:
-    """Validate difficulty setting"""
-    return 1 <= difficulty <= 10  # Reasonable range
+    """Validate difficulty setting - CONSISTENT with MAX_DIFFICULTY"""
+    return MIN_DIFFICULTY <= difficulty <= MAX_DIFFICULTY  # Use config constants
 
 def get_all_config() -> dict:
     """Get all configuration as dictionary"""

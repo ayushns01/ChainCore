@@ -152,8 +152,9 @@ class Block:
             if calculated_hash != self.hash:
                 return False
             
-            # 3. Validate difficulty is reasonable (prevent difficulty manipulation)
-            if self.target_difficulty < 1 or self.target_difficulty > 10:
+            # 3. Validate difficulty is reasonable (use config limits)
+            from ..config import MIN_DIFFICULTY, MAX_DIFFICULTY
+            if not (MIN_DIFFICULTY <= self.target_difficulty <= MAX_DIFFICULTY):
                 return False
             
             # 4. Validate nonce range (prevent negative nonce attacks)

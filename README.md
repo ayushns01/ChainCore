@@ -1,246 +1,341 @@
-# ChainCore - Enterprise Blockchain Platform
+# ChainCore
 
-A complete, enterprise-grade blockchain platform with Bitcoin-compatible features, thread-safe operations, and scalable peer-to-peer networking.
+A comprehensive, production-ready blockchain implementation built in Python with advanced features including thread-safe operations, multi-core mining, P2P networking, and distributed consensus mechanisms.
 
-## 🏗️ **Enterprise Architecture**
+## =� Project Overview
+
+ChainCore is a full-featured blockchain platform that implements a complete cryptocurrency system with:
+
+- **Secure Blockchain Architecture**: Bitcoin-style UTXO model with ECDSA cryptographic signatures
+- **Thread-Safe Operations**: Comprehensive concurrency control with reader-writer locks and MVCC
+- **Multi-Core Mining**: Optimized proof-of-work mining with parallel processing and CPU affinity
+- **P2P Network Layer**: Robust peer discovery, connection management, and network synchronization
+- **Distributed Consensus**: Fork resolution, chain reorganization, and network-wide consensus
+- **Database Integration**: PostgreSQL support with connection pooling and transaction management
+- **RESTful API**: Complete HTTP API for blockchain interaction and monitoring
+- **Advanced Monitoring**: Real-time blockchain tracking, statistics, and network analysis
+
+## <� Architecture
 
 ### Core Components
 
-- **🖥️ Network Nodes**: Thread-safe blockchain processors with enterprise-grade locking
-- **💼 Wallet Clients**: ECDSA-secured private key management
-- **⛏️ Mining Clients**: Multi-core Proof-of-Work miners with CPU affinity
-- **🌐 P2P Network**: Full-mesh networking with gossip protocol
-- **🔒 Thread Safety**: Bitcoin Core-inspired lock hierarchy system
-- **🗄️ Database**: PostgreSQL integration with materialized views
+#### 1. Network Node (`network_node.py`)
+The main blockchain node that handles:
+- **Thread-safe blockchain operations** with deadlock detection
+- **P2P network management** with automatic peer discovery
+- **API server** with comprehensive REST endpoints
+- **Mining coordination** and block validation
+- **Real-time synchronization** with network consensus
 
-### Security & Performance Features
+#### 2. Mining Client (`mining_client.py`)
+High-performance mining implementation featuring:
+- **Multi-core mining** with worker thread pools
+- **CPU core affinity** for optimal performance
+- **Intelligent template refresh** and network state monitoring
+- **Exponential backoff** and retry mechanisms
+- **Mining coordination** to prevent conflicts
 
-- **Thread Safety**: Enterprise lock hierarchy (`BLOCKCHAIN → UTXO_SET → MEMPOOL → PEERS → MINING → NETWORK`)
-- **Deadlock Prevention**: Advanced detection and prevention system
-- **ECDSA Cryptography**: Industry-standard secp256k1 signatures
-- **Multi-Core Mining**: CPU affinity and parallel processing
-- **Connection Pooling**: Persistent peer connections with quality scoring
-- **Late-Joiner Sync**: Automatic blockchain synchronization for new nodes
+#### 3. Blockchain Core (`src/blockchain/`)
+- **Block structure** with Merkle trees and metadata preservation
+- **UTXO management** with snapshot isolation
+- **Transaction validation** with ECDSA verification
+- **Chain synchronization** with fork resolution
+- **Mining attribution** tracking and statistics
 
-## 📁 **Project Structure**
+#### 4. Cryptography (`src/crypto/`)
+- **ECDSA signatures** for transaction security
+- **Double SHA-256 hashing** for proof-of-work
+- **Address validation** with Bitcoin-style format
+- **Secure random number generation**
 
-```
-ChainCore/
-├── network_node.py              # Main blockchain node (Thread-safe)
-├── mining_client.py             # Multi-core PoW miner
-├── wallet_client.py             # ECDSA wallet management
-├── start_network.py             # Multi-node network launcher
-├── fixes.md                     # Production issue fixes log
-├── src/
-│   ├── concurrency/             # Enterprise thread safety
-│   │   ├── thread_safety.py     # Lock hierarchy system
-│   │   ├── blockchain_safe.py   # Thread-safe blockchain ops
-│   │   ├── mining_safe.py       # Thread-safe mining coordination
-│   │   └── network_safe.py      # Thread-safe networking
-│   ├── crypto/
-│   │   └── ecdsa_crypto.py      # ECDSA secp256k1 implementation
-│   ├── blockchain/
-│   │   └── bitcoin_transaction.py # Bitcoin-compatible transactions
-│   └── networking/
-│       └── peer_manager.py      # P2P network management
-└── documentation/
-    └── AI_CONTEXT.md            # Technical architecture guide
-```
+#### 5. P2P Networking (`src/networking/`)
+- **Peer discovery** with configurable port scanning
+- **Connection management** with health monitoring
+- **Broadcast protocols** for transaction and block propagation
+- **Network-wide statistics** collection and sharing
 
-## 🚀 **Production Deployment**
+#### 6. Concurrency Control (`src/concurrency/`)
+- **Thread-safe wrappers** for all blockchain operations
+- **Reader-writer locks** with priority handling
+- **Deadlock detection** and prevention
+- **MVCC for UTXOs** with transaction isolation
 
-### **Step 1: Environment Setup**
+### Database Layer (`src/database/`)
+- **PostgreSQL integration** with SQLAlchemy ORM
+- **Connection pooling** for high-performance access
+- **Block and transaction storage** with indexing
+- **Mining statistics** tracking and analysis
+
+## =� Getting Started
+
+### Prerequisites
+
+- Python 3.8+
+- PostgreSQL (optional, for persistent storage)
+- Required Python packages (see `requirements.txt`)
+
+### Installation
+
+1. **Clone the repository:**
+   ```bash
+   git clone <repository-url>
+   cd ChainCore
+   ```
+
+2. **Install dependencies:**
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+3. **Optional - Set up PostgreSQL:**
+   ```bash
+   # Create database
+   createdb chaincore
+   
+   # Configure connection in src/database/config.py
+   ```
+
+### Quick Start
+
+1. **Start a blockchain node:**
+   ```bash
+   python network_node.py --node-id core1 --api-port 5001
+   ```
+
+2. **Start additional nodes for P2P network:**
+   ```bash
+   python network_node.py --node-id core2 --api-port 5002
+   python network_node.py --node-id core3 --api-port 5003
+   ```
+
+3. **Start mining:**
+   ```bash
+   python mining_client.py --wallet 1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa --node http://localhost:5001
+   ```
+
+4. **Monitor the blockchain:**
+   ```bash
+   python blockchain_monitor.py --nodes http://localhost:5001,http://localhost:5002
+   ```
+
+## =' Configuration
+
+### Node Configuration
+Key configuration options in `src/config.py`:
+- **BLOCKCHAIN_DIFFICULTY**: Mining difficulty (default: 3)
+- **BLOCK_REWARD**: Mining reward (default: 50.0)
+- **TARGET_BLOCK_TIME**: Target time between blocks (default: 10s)
+- **PEER_DISCOVERY_RANGE**: Port range for peer discovery
+
+### Mining Configuration
+Configure mining parameters:
+- **Multi-core workers**: Auto-detected CPU cores
+- **CPU affinity**: Enabled for optimal performance  
+- **Mining timeout**: Configurable per-attempt timeout
+- **Template refresh**: Automatic stale template detection
+
+### Network Configuration
+P2P networking settings:
+- **MIN_PEERS**: Minimum peer connections (default: 2)
+- **TARGET_PEERS**: Optimal peer count (default: 6)
+- **MAX_PEERS**: Maximum connections (default: 12)
+
+## < API Reference
+
+### Node Endpoints
+
+#### Status and Information
+- `GET /status` - Node status and blockchain info
+- `GET /` - Human-readable status page (browser-friendly)
+- `GET /blockchain` - Complete blockchain data
+- `GET /stats` - Detailed node statistics
+
+#### Transactions
+- `POST /add_transaction` - Submit new transaction
+- `GET /transaction_pool` - View pending transactions
+- `GET /balance/<address>` - Check address balance
+- `GET /utxos/<address>` - Get UTXOs for address
+
+#### Mining
+- `POST /mine_block` - Get mining template
+- `POST /submit_block` - Submit mined block
+- `GET /blocks/range?start=X&end=Y` - Get block range
+
+#### P2P Network
+- `GET /peers` - List connected peers
+- `POST /discover_peers` - Trigger peer discovery
+- `POST /addpeer` - Manually add peer
+- `GET /getpeers` - Get peers for sharing
+
+### Example Usage
 
 ```bash
-# Create virtual environment
-python -m venv chaincore
-source chaincore/bin/activate  # Linux/Mac
-# OR
-chaincore\Scripts\activate     # Windows
-
-# Install dependencies
-pip install -r requirements.txt
-```
-
-### **Step 2: Start Network Nodes**
-
-```bash
-# Terminal 1: Bootstrap Node
-python network_node.py --port 5000
-
-# Terminal 2: Peer Node
-python network_node.py --port 5001 --bootstrap http://localhost:5000
-
-# Terminal 3: Additional Peer
-python network_node.py --port 5002 --bootstrap http://localhost:5000
-```
-
-### **Step 3: Create Wallets**
-
-```bash
-# Create mining wallet
-python wallet_client.py create --wallet miner.json
-
-# Create user wallet
-python wallet_client.py create --wallet alice.json
-```
-
-### **Step 4: Start Mining**
-
-```bash
-# Get miner address from wallet
-python wallet_client.py address --wallet miner.json
-
-# Start multi-core mining
-python mining_client.py --wallet [MINER_ADDRESS] --node http://localhost:5000
-```
-
-### **Step 5: Network Operations**
-
-```bash
-# Check network status across nodes
-curl http://localhost:5000/status
+# Check node status
 curl http://localhost:5001/status
-curl http://localhost:5002/status
 
-# Check blockchain synchronization
-curl http://localhost:5000/blockchain/length
-curl http://localhost:5001/blockchain/length
+# Get blockchain data
+curl http://localhost:5001/blockchain
 
-# Monitor peer connections
-curl http://localhost:5000/peers
+# Check balance
+curl http://localhost:5001/balance/1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa
+
+# Get mining template
+curl -X POST http://localhost:5001/mine_block \
+  -H "Content-Type: application/json" \
+  -d '{"miner_address":"1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa"}'
 ```
 
-## 🔧 **Latest Fixes & Improvements**
+## =� Monitoring and Analytics
 
-### Recent Production Fixes (v2.0)
+### Blockchain Monitor (`blockchain_monitor.py`)
+Real-time monitoring dashboard with:
+- **Live blockchain statistics**
+- **Mining activity tracking**
+- **Network health monitoring**
+- **Transaction flow analysis**
+- **Multi-node comparison**
 
-- ✅ **Mining Client Health Check Loop**: Fixed missing `thread_safe` field in node status API
-- ✅ **Late-Joiner Sync Issue**: Implemented missing `get_peer_blockchain_info()` method
-- ✅ **Block Validation Race Conditions**: Improved validation logic for multi-node scenarios
-- ✅ **Thread Safety Enhancement**: Added comprehensive error handling and diagnostics
+### Database Monitor (`database_monitor.py`)
+Database-level monitoring including:
+- **Block and transaction counts**
+- **Mining statistics and attribution**
+- **Performance metrics**
+- **Chain integrity verification**
 
-> **📋 Full Fix History**: See `fixes.md` for complete problem-solution-impact documentation
+### Network Analysis (`blockchain_tracker_with_json.py`)
+Comprehensive network analysis:
+- **Chain exploration and validation**
+- **Mining distribution analysis**
+- **Transaction pattern analysis**
+- **JSON export for external analysis**
 
-## 🎯 **Enterprise Features**
+## = Security Features
 
-### Thread Safety (9/10 Rating)
+### Cryptographic Security
+- **ECDSA signatures** for all transactions
+- **Double SHA-256** hashing for blocks
+- **Secure random nonce** generation
+- **Address validation** and checksum verification
 
-- **Lock Hierarchy**: Prevents deadlocks through ordered acquisition
-- **Reader-Writer Locks**: API endpoints support concurrent reads
-- **Event Coordination**: Mining workers synchronized via threading events
-- **Atomic Operations**: Database and blockchain operations are ACID compliant
+### Network Security
+- **Input validation** on all API endpoints
+- **Rate limiting** and connection management
+- **Peer authentication** and validation
+- **Protection against common attacks**
 
-### Network Scalability
+### Thread Safety
+- **Comprehensive locking** mechanisms
+- **Deadlock detection** and prevention
+- **Atomic operations** for critical sections
+- **MVCC isolation** for concurrent access
 
-- **P2P Mesh Network**: Full connectivity between all nodes
-- **Gossip Protocol**: Efficient transaction and block propagation
-- **Peer Discovery**: Automatic bootstrap and peer sharing
-- **Connection Quality**: Peer scoring and health monitoring
+## =� Performance Optimization
 
-### Mining Performance
+### Multi-Core Mining
+- **Automatic CPU detection** and optimal worker allocation
+- **CPU core affinity** for reduced context switching
+- **Parallel proof-of-work** computation
+- **Intelligent work distribution**
 
-- **Multi-Core Processing**: Utilizes all available CPU cores
-- **CPU Affinity**: Workers pinned to specific cores
-- **Template Optimization**: Precomputed block data for efficiency
-- **Exponential Backoff**: Smart retry logic with fresh templates
+### Network Optimization
+- **Connection pooling** for database access
+- **Efficient peer discovery** with concurrent scanning
+- **Adaptive timeouts** based on network size
+- **Smart caching** and template management
 
-## 📊 **Network Health Monitoring**
+### Memory Management
+- **Bounded data structures** to prevent memory leaks
+- **Efficient serialization** and caching
+- **Resource cleanup** on shutdown
+- **Configurable limits** and thresholds
 
-### Status Endpoints
+## >� Development and Testing
 
+### Running Tests
 ```bash
-# Detailed node status
-curl http://localhost:5000/status
+# Run all tests
+python -m pytest tests/
 
-# Blockchain information
-curl http://localhost:5000/blockchain
-
-# Peer network status
-curl http://localhost:5000/peers
-
-# Transaction pool
-curl http://localhost:5000/mempool
+# Run specific test categories
+python -m pytest tests/test_blockchain.py
+python -m pytest tests/test_mining.py
+python -m pytest tests/test_networking.py
 ```
 
-### Health Check Indicators
-
-- ✅ **Thread Safety**: All locks operational
-- ✅ **Network Health**: Peer connectivity status
-- ✅ **Chain Sync**: Blockchain length consistency
-- ✅ **Mining Active**: Block production rate
-- ✅ **Database**: PostgreSQL connection health
-
-## 🛠️ **Development & Testing**
-
-### Run Complete System Test
-
+### Development Setup
 ```bash
-# Automated multi-node demo
-python api_demo.py
+# Install development dependencies
+pip install -r requirements-dev.txt
 
-# Basic functionality validation
-python simple_test.py
+# Enable verbose logging
+python network_node.py --debug --verbose
+
+# Single-core mining for testing
+python mining_client.py --wallet <address> --single-core
 ```
 
-### Debugging & Logs
+### Configuration Files
+The project includes example configuration files:
+- `alice.json` - Example wallet configuration
+- `bob.json` - Example wallet configuration  
+- `miner1.json`, `miner2.json` - Mining configurations
 
-- **Node Logs**: Detailed thread safety and networking logs
-- **Mining Logs**: Hash rate, difficulty, and block discovery
-- **Peer Logs**: Connection status and sync progress
-- **Error Handling**: Comprehensive exception tracking
+## =� Use Cases
 
-## 🌐 **Network Protocols**
+### Educational
+- **Blockchain learning** and experimentation
+- **Cryptocurrency concepts** demonstration
+- **Distributed systems** research
+- **Consensus algorithms** study
 
-### Transaction Broadcasting
+### Development
+- **Blockchain application** development
+- **Smart contract** platform foundation
+- **Cryptocurrency** implementation
+- **P2P network** research
 
-- **UTXO Model**: Prevents double-spending
-- **Signature Verification**: ECDSA secp256k1 validation
-- **Mempool Management**: Thread-safe transaction pooling
-- **Fee Calculation**: Dynamic fee estimation
+### Production
+- **Private blockchain** networks
+- **Consortium chains** for organizations
+- **Testing environments** for blockchain applications
+- **Research platforms** for academic institutions
 
-### Block Consensus
+## > Contributing
 
-- **Proof-of-Work**: SHA-256 based mining
-- **Difficulty Adjustment**: Automatic target recalculation
-- **Fork Resolution**: Longest chain rule implementation
-- **Block Validation**: Comprehensive integrity checks
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Add tests for new functionality
+5. Ensure all tests pass
+6. Submit a pull request
 
-## 💰 **ChainCoin (CC) Economics**
+## =� License
 
-- **Native Currency**: ChainCoin (CC) powers all transactions
-- **Mining Rewards**: Block rewards distributed to miners
-- **Transaction Fees**: Network fee structure
-- **Supply Management**: Controlled issuance schedule
+This project is open source and available under the [MIT License](LICENSE).
 
-## 📖 **Documentation**
+## =. Future Roadmap
 
-- **`documentation/AI_CONTEXT.md`**: Technical architecture details
-- **`fixes.md`**: Production issue resolution log
-- **`src/concurrency/THREAD_SAFETY_GUIDE.md`**: Thread safety implementation
+### Planned Features
+- **Smart contracts** with virtual machine
+- **WebSocket support** for real-time updates
+- **GraphQL API** for advanced querying
+- **Mobile wallet** integration
+- **Lightning Network** style payment channels
 
-## 🚨 **Production Readiness**
+### Performance Improvements
+- **GPU mining** support
+- **Advanced caching** mechanisms
+- **Database sharding** for scalability
+- **Network protocol** optimization
 
-### Current Rating: 7.5/10 (Advanced Production)
+## =� Support
 
-- **✅ Thread Safety**: Enterprise-grade locking system
-- **✅ Network Scaling**: Late-joiner sync and peer discovery
-- **✅ Mining Stability**: Multi-core processing with error recovery
-- **✅ API Reliability**: Comprehensive endpoint protection
-- **⚠️ Monitoring**: Basic health checks (can be enhanced)
-- **⚠️ Load Testing**: Stress testing recommended for high-volume deployment
-
-## 🤝 **Contributing**
-
-1. **Issue Reporting**: Use GitHub issues for bug reports
-2. **Code Standards**: Follow existing thread safety patterns
-3. **Testing**: Ensure multi-node compatibility
-4. **Documentation**: Update relevant guides and fixes.md
-
-## 📄 **License**
-
-MIT License - See LICENSE file for details
+For questions, issues, or contributions:
+- **GitHub Issues**: Report bugs and request features
+- **Documentation**: Comprehensive code documentation
+- **Examples**: Working examples in the repository
+- **Community**: Join discussions and share experiences
 
 ---
 
-**🎉 ChainCore: Enterprise Blockchain - Ready for Production! 🚀**
+**ChainCore** - A modern, secure, and scalable blockchain platform built for education, development, and production use.

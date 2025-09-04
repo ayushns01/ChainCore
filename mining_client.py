@@ -35,15 +35,60 @@ except ImportError:
     MINING_COORDINATION_AVAILABLE = False
     print("Mining coordination not available, using independent mining")
 
-# Safe config import with fallbacks
+# Safe config import with validation and proper error handling
+CONFIG_IMPORT_SUCCESS = False
+CONFIG_ERRORS = []
+
 try:
     from src.config import BLOCKCHAIN_DIFFICULTY, BLOCK_REWARD, TARGET_BLOCK_TIME, MINING_ROUND_DURATION
-except ImportError:
-    print("Could not import config, using default values")
+    
+    # Validate imported config values
+    if not isinstance(BLOCKCHAIN_DIFFICULTY, int) or not (1 <= BLOCKCHAIN_DIFFICULTY <= 20):
+        raise ValueError(f"Invalid BLOCKCHAIN_DIFFICULTY: {BLOCKCHAIN_DIFFICULTY}")
+    if not isinstance(BLOCK_REWARD, (int, float)) or BLOCK_REWARD <= 0:
+        raise ValueError(f"Invalid BLOCK_REWARD: {BLOCK_REWARD}")
+    if not isinstance(TARGET_BLOCK_TIME, (int, float)) or TARGET_BLOCK_TIME <= 0:
+        raise ValueError(f"Invalid TARGET_BLOCK_TIME: {TARGET_BLOCK_TIME}")
+    if not isinstance(MINING_ROUND_DURATION, (int, float)) or MINING_ROUND_DURATION <= 0:
+        raise ValueError(f"Invalid MINING_ROUND_DURATION: {MINING_ROUND_DURATION}")
+    
+    CONFIG_IMPORT_SUCCESS = True
+    print("[OK] Configuration imported and validated successfully")
+    
+except ImportError as e:
+    CONFIG_ERRORS.append(f"Config import failed: {e}")
+    print(f"[WARNING] Could not import configuration from src.config: {e}")
+    print("   Using fallback values - this may cause network incompatibility!")
+    
+    # Safe fallback values that match default blockchain config
     BLOCKCHAIN_DIFFICULTY = 4
     BLOCK_REWARD = 50.0
     TARGET_BLOCK_TIME = 10.0
     MINING_ROUND_DURATION = 12.0
+    
+except (ValueError, AttributeError) as e:
+    CONFIG_ERRORS.append(f"Config validation failed: {e}")
+    print(f"[ERROR] Configuration validation failed: {e}")
+    print("   Using fallback values - please check your configuration!")
+    
+    # Safe fallback values
+    BLOCKCHAIN_DIFFICULTY = 4
+    BLOCK_REWARD = 50.0
+    TARGET_BLOCK_TIME = 10.0
+    MINING_ROUND_DURATION = 12.0
+
+def get_config_status():
+    """Get configuration import status for diagnostics"""
+    return {
+        'import_success': CONFIG_IMPORT_SUCCESS,
+        'errors': CONFIG_ERRORS,
+        'values': {
+            'difficulty': BLOCKCHAIN_DIFFICULTY,
+            'block_reward': BLOCK_REWARD,
+            'target_block_time': TARGET_BLOCK_TIME,
+            'mining_round_duration': MINING_ROUND_DURATION
+        }
+    }
 
 # Configure logging with file rotation
 try:
@@ -183,11 +228,12 @@ class MiningClient:
         self.total_hashes = 0
         self.start_time = 0
         
-        # Template caching with staleness detection
+        # Template caching with staleness detection and performance optimization
         self._last_template = None
         self._last_template_time = 0
         self._template_max_age = self.config.template_refresh_interval
-        self._template_lock = threading.Lock()
+        self._template_lock = threading.RLock()  # Allow recursive locking for nested calls
+        self._template_refresh_in_progress = False  # Prevent multiple concurrent refreshes
         
         # Nonce optimization with randomization
         self._nonce_start = secrets.randbits(32)
@@ -311,19 +357,24 @@ class MiningClient:
                     
                 nonce += 1
                 
-                # Periodic progress check
+                # Periodic progress check with thread-safe template validation
                 if worker_hash_count % 10000 == 0:
-                    # Check if template became stale during mining
-                    if self._is_template_stale():
-                        logger.debug(f"Worker {worker_id}: Template stale, stopping")
-                        stop_event.set()
+                    # Check stop event first (fastest check)
+                    if stop_event.is_set():
                         break
                         
-                    # Check network advancement
-                    if self._check_network_advancement_during_mining(template):
-                        logger.debug(f"Worker {worker_id}: Network advanced, stopping")
-                        stop_event.set()
-                        break
+                    # Thread-safe template staleness check
+                    with self._template_lock:
+                        if self._is_template_stale():
+                            logger.debug(f"Worker {worker_id}: Template stale, stopping")
+                            stop_event.set()
+                            break
+                        
+                        # Check network advancement with cached template data
+                        if self._check_network_advancement_during_mining(template):
+                            logger.debug(f"Worker {worker_id}: Network advanced, stopping")
+                            stop_event.set()
+                            break
             
             # Worker completed range without finding solution
             mining_time = time.time() - worker_start_time
@@ -333,8 +384,11 @@ class MiningClient:
             result_queue.put(('completed', None, worker_id, worker_hash_count))
             
         except Exception as e:
-            logger.error(f"Worker {worker_id} error: {e}")
+            logger.error(f"Worker {worker_id} critical error: {e}")
+            logger.exception(f"Worker {worker_id} stack trace:")
             result_queue.put(('error', str(e), worker_id, 0))
+            # Signal other workers to stop on critical errors
+            stop_event.set()
     
     def _set_worker_affinity(self, worker_id: int) -> None:
         """Set CPU affinity for mining worker"""
@@ -352,9 +406,17 @@ class MiningClient:
             logger.debug(f"Worker {worker_id} pinned to CPU core {target_core}")
             
         except ImportError:
-            logger.debug("psutil not available, skipping CPU affinity")
+            logger.debug("psutil not available, CPU affinity disabled")
+            # Disable affinity for future workers to avoid repeated warnings
+            self.core_affinity_enabled = False
+        except (PermissionError, OSError) as e:
+            logger.warning(f"CPU affinity failed for worker {worker_id} - insufficient permissions: {e}")
+            # Continue without affinity but don't retry
+            self.core_affinity_enabled = False
         except Exception as e:
-            logger.debug(f"Failed to set CPU affinity for worker {worker_id}: {e}")
+            logger.warning(f"Unexpected CPU affinity error for worker {worker_id}: {e}")
+            # Disable to prevent cascading failures
+            self.core_affinity_enabled = False
     
     def mine_block_multicore(self, template: Dict, difficulty: int, timeout: int = None) -> Optional[Dict]:
         """Multi-core mining implementation"""
@@ -371,12 +433,13 @@ class MiningClient:
         # Random starting point to avoid collisions with other miners
         base_start_nonce = secrets.randbits(32)
         
-        # Clear any previous results
-        while not self.mining_result_queue.empty():
-            try:
-                self.mining_result_queue.get_nowait()
-            except Empty:
-                break
+        # Clear any previous results with proper synchronization
+        with threading.Lock():
+            while not self.mining_result_queue.empty():
+                try:
+                    self.mining_result_queue.get_nowait()
+                except Empty:
+                    break
         
         # Reset worker stop event
         self.worker_stop_event.clear()
@@ -424,6 +487,11 @@ class MiningClient:
                     elif status == 'error':
                         logger.error(f"Worker {worker_id} error: {data}")
                         completed_workers += 1
+                        # Check if this is a critical error that should stop all mining
+                        if "critical" in str(data).lower() or "memory" in str(data).lower():
+                            logger.critical("Critical worker error detected, stopping all mining")
+                            self.worker_stop_event.set()
+                            break
                         
                 except Empty:
                     # Check if mining should stop
@@ -436,14 +504,21 @@ class MiningClient:
             # Ensure all workers are stopped
             self.worker_stop_event.set()
             
-            # Wait for all workers to complete
-            for future in worker_futures:
+            # Wait for all workers to complete with proper timeout handling
+            shutdown_timeout = max(5.0, len(worker_futures) * 0.5)  # Dynamic timeout based on worker count
+            for i, future in enumerate(worker_futures):
                 try:
-                    future.result(timeout=2.0)
+                    future.result(timeout=shutdown_timeout)
+                    logger.debug(f"Worker {i} shutdown successfully")
                 except concurrent.futures.TimeoutError:
-                    logger.warning("Worker timeout during shutdown")
+                    logger.warning(f"Worker {i} timeout during shutdown after {shutdown_timeout}s")
+                    # Force cancel if possible
+                    future.cancel()
                 except Exception as e:
-                    logger.debug(f"Worker shutdown error: {e}")
+                    logger.debug(f"Worker {i} shutdown error: {e}")
+                    
+            # Memory cleanup
+            worker_futures.clear()
         
         mining_time = time.time() - start_time
         combined_hash_rate = total_worker_hashes / mining_time if mining_time > 0 else 0
@@ -528,67 +603,109 @@ class MiningClient:
     
     def get_block_template_with_auth(self) -> Optional[Dict]:
         """Get block template with authentication and validation"""
-        for attempt in range(self.config.max_retries):
-            try:
-                # Authentication headers
-                headers = {
-                    'Content-Type': 'application/json',
-                    'User-Agent': 'ChainCore-MiningClient/2.0',
-                    'X-Mining-Client': 'chaincore',
-                    'X-Client-Version': '2.0'
-                }
-                
-                payload = {
-                    'miner_address': self.wallet_address,
-                    'client_version': '2.0',
-                    'timestamp': time.time()
-                }
-                
-                response = requests.post(
-                    f"{self.node_url}/mine_block",
-                    json=payload,
-                    headers=headers,
-                    timeout=10
-                )
-                
-                if response.status_code == 200:
-                    data = response.json()
-                    
-                    # Validate response structure
-                    if not self._validate_template_response(data):
-                        logger.error("Invalid template response structure")
-                        return None
-                    
-                    # Validate difficulty
-                    difficulty = data.get('target_difficulty', 0)
-                    if not self._validate_difficulty(difficulty):
-                        logger.error(f"Invalid difficulty: {difficulty}")
-                        return None
-                    
-                    # Cache template with timestamp
-                    with self._template_lock:
-                        self._last_template = data
-                        self._last_template_time = time.time()
-                    
-                    logger.debug("Block template retrieved successfully")
-                    return data
-                else:
-                    logger.warning(f"Template request failed: HTTP {response.status_code}")
-                    
-            except requests.exceptions.Timeout:
-                logger.warning(f"Template request timeout (attempt {attempt + 1})")
-            except requests.exceptions.ConnectionError:
-                logger.error(f"Connection error to node (attempt {attempt + 1})")
-            except Exception as e:
-                logger.error(f"Template request error: {e}")
-            
-            # Exponential backoff between attempts
-            if attempt < self.config.max_retries - 1:
-                delay = self._exponential_backoff(attempt)
-                logger.info(f"Retrying template request in {delay:.1f} seconds...")
-                time.sleep(delay)
+        last_error = None
         
-        return None
+        # Mark refresh as in progress to prevent concurrent calls
+        with self._template_lock:
+            if self._template_refresh_in_progress:
+                logger.debug("Template refresh already in progress, waiting...")
+                return self._last_template  # Return cached template
+            self._template_refresh_in_progress = True
+        
+        try:
+            for attempt in range(self.config.max_retries):
+                try:
+                    # Authentication headers
+                    headers = {
+                        'Content-Type': 'application/json',
+                        'User-Agent': 'ChainCore-MiningClient/2.0',
+                        'X-Mining-Client': 'chaincore',
+                        'X-Client-Version': '2.0'
+                    }
+                
+                    payload = {
+                        'miner_address': self.wallet_address,
+                        'client_version': '2.0',
+                        'timestamp': time.time()
+                    }
+                
+                    # Dynamic timeout based on attempt (progressive increase)
+                    timeout = min(10 + (attempt * 5), 30)
+                
+                    response = requests.post(
+                        f"{self.node_url}/mine_block",
+                        json=payload,
+                        headers=headers,
+                        timeout=timeout,
+                        verify=True if self.config.require_tls else None  # Certificate verification
+                    )
+                
+                    if response.status_code == 200:
+                        data = response.json()
+                        
+                        # Validate response structure
+                        if not self._validate_template_response(data):
+                            logger.error("Invalid template response structure")
+                            return None
+                        
+                        # Validate difficulty
+                        difficulty = data.get('target_difficulty', 0)
+                        if not self._validate_difficulty(difficulty):
+                            logger.error(f"Invalid difficulty: {difficulty}")
+                            return None
+                        
+                        # Cache template with timestamp and mark refresh complete
+                        with self._template_lock:
+                            self._last_template = data
+                            self._last_template_time = time.time()
+                            self._template_refresh_in_progress = False
+                        
+                        logger.debug("Block template retrieved successfully")
+                        return data
+                    else:
+                        last_error = f"HTTP {response.status_code}: {response.text[:200]}"
+                        logger.warning(f"Template request failed: {last_error}")
+                        
+                        # Handle specific error codes
+                        if response.status_code == 503:  # Service unavailable
+                            logger.info("Node temporarily unavailable, will retry with backoff")
+                        elif response.status_code == 401:  # Unauthorized
+                            logger.error("Authentication failed - check wallet address")
+                            return None  # Don't retry auth failures
+                        elif response.status_code >= 500:  # Server errors
+                            logger.warning("Server error, retrying...")
+                    
+                except requests.exceptions.Timeout as e:
+                    last_error = f"Request timeout after {timeout}s"
+                    logger.warning(f"Template request timeout (attempt {attempt + 1}/{self.config.max_retries}): {timeout}s")
+                except requests.exceptions.ConnectionError as e:
+                    last_error = f"Connection error: {str(e)[:100]}"
+                    logger.error(f"Connection error to node (attempt {attempt + 1}/{self.config.max_retries}): {e}")
+                except requests.exceptions.SSLError as e:
+                    last_error = f"SSL/TLS error: {str(e)[:100]}"
+                    logger.error(f"SSL/TLS error (attempt {attempt + 1}/{self.config.max_retries}): {e}")
+                    if self.config.require_tls:
+                        logger.error("TLS required but SSL verification failed")
+                        return None  # Don't retry TLS failures when TLS is required
+                except Exception as e:
+                    last_error = f"Unexpected error: {str(e)[:100]}"
+                    logger.error(f"Template request error (attempt {attempt + 1}/{self.config.max_retries}): {e}")
+                
+                # Exponential backoff between attempts
+                if attempt < self.config.max_retries - 1:
+                    delay = self._exponential_backoff(attempt)
+                    logger.info(f"Retrying template request in {delay:.1f} seconds...")
+                    time.sleep(delay)
+        
+            # Log final failure with last error
+            logger.error(f"Template request failed after {self.config.max_retries} attempts")
+            if last_error:
+                logger.error(f"Last error: {last_error}")
+            return None
+        finally:
+            # Always clear the refresh in progress flag
+            with self._template_lock:
+                self._template_refresh_in_progress = False
     
     def _validate_template_response(self, data: Dict) -> bool:
         """Validate block template response structure"""
@@ -1280,14 +1397,24 @@ class MiningClient:
             return False
     
     def _is_template_stale(self) -> bool:
-        """Check if current template is stale"""
+        """Check if current template is stale (assumes lock is held)"""
+        if self._last_template is None:
+            return True
         return time.time() - self._last_template_time > self._template_max_age
+    
+    def should_refresh_template(self) -> bool:
+        """Non-blocking check if template should be refreshed"""
+        with self._template_lock:
+            if self._template_refresh_in_progress:
+                return False  # Refresh already in progress
+            return self._is_template_stale()
     
     def _update_hash_rate(self, hash_count: int, elapsed_time: float):
         """Update hash rate statistics with thread safety and proper accounting"""
         if elapsed_time <= 0:
             return
-        
+            
+        # Thread-safe hash rate statistics update
         with self._stats_lock:
             # Calculate current hash rate
             current_rate = hash_count / elapsed_time

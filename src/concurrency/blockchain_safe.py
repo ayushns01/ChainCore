@@ -175,7 +175,11 @@ class ThreadSafeBlockchain:
                 TARGET_BLOCK_TIME, DIFFICULTY_ADJUSTMENT_INTERVAL, MAX_DIFFICULTY_CHANGE,
                 MIN_DIFFICULTY, MAX_DIFFICULTY
             )
-        self.target_difficulty = BLOCKCHAIN_DIFFICULTY
+        # BETTER APPROACH: Separate genesis and mining difficulty
+        self.genesis_difficulty = 2  # ← Immutable (network consensus)
+        self.mining_difficulty = BLOCKCHAIN_DIFFICULTY  # ← From config (your control) 
+        self.target_difficulty = self.mining_difficulty  # ← Active mining difficulty
+        
         self.block_reward = BLOCK_REWARD
         self.difficulty_adjustment_enabled = DIFFICULTY_ADJUSTMENT_ENABLED
         self.target_block_time = TARGET_BLOCK_TIME
@@ -491,9 +495,16 @@ class ThreadSafeBlockchain:
             return False
     
     def _calculate_new_difficulty(self) -> int:
-        """Calculate new difficulty based on recent block times"""
+        """Calculate new difficulty while respecting config baseline"""
+        from ..config import (
+            BLOCKCHAIN_DIFFICULTY, MIN_DIFFICULTY, MAX_DIFFICULTY
+        )
+        
         if not self.difficulty_adjustment_enabled:
-            return self.target_difficulty
+            # ALWAYS return to config baseline when adjustment is disabled
+            self.target_difficulty = BLOCKCHAIN_DIFFICULTY
+            logger.info(f"🔧 Difficulty reset to config baseline: {BLOCKCHAIN_DIFFICULTY}")
+            return BLOCKCHAIN_DIFFICULTY
         
         chain_length = len(self._chain)
         if chain_length < self.difficulty_adjustment_interval:
@@ -536,12 +547,16 @@ class ThreadSafeBlockchain:
         else:
             new_difficulty = current_difficulty  # No change needed
         
+        # Ensure stays within config-defined bounds
+        new_difficulty = max(MIN_DIFFICULTY, min(new_difficulty, MAX_DIFFICULTY))
+        
         if new_difficulty != current_difficulty:
             logger.info(f"[ADJUST] Dynamic Difficulty Adjustment Triggered!")
             logger.info(f"   [DIFF] Old Difficulty: {current_difficulty} -> New Difficulty: {new_difficulty}")
             logger.info(f"   [TIME] Block Time Ratio: {ratio:.2f} (Actual: {actual_time:.1f}s, Expected: {expected_time:.1f}s)")
             logger.info(f"   [TARGET] Target: {'Faster' if ratio < 1.0 else 'Slower'} block times detected")
             logger.info(f"   🔧 Mining difficulty {'increased' if new_difficulty > current_difficulty else 'decreased'} to maintain {self.target_block_time}s target")
+            logger.info(f"   [BOUNDS] Constrained to range [{MIN_DIFFICULTY}, {MAX_DIFFICULTY}]")
             
             # Update our target difficulty
             self.target_difficulty = new_difficulty
@@ -1414,11 +1429,14 @@ class ThreadSafeBlockchain:
                 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
                 from src.blockchain.block import Block
             
+            # Use current mining difficulty (from config), not genesis difficulty
+            current_mining_difficulty = self._get_current_mining_difficulty()
+            
             new_block = Block(
                 len(self._chain),
                 all_transactions,
                 self._chain[-1].hash if self._chain else "0" * 64,
-                target_difficulty=self.target_difficulty,
+                target_difficulty=current_mining_difficulty,  # ← Uses config value
                 mining_node=mining_node
             )
         
@@ -1435,6 +1453,55 @@ class ThreadSafeBlockchain:
         
         logger.info(f"Block template created: index={new_block.index}, txs={len(all_transactions)}, fees={total_fees}, state_v{template_state['state_version']}")
         return new_block
+    
+    def _get_current_mining_difficulty(self) -> int:
+        """Get current mining difficulty from config with dynamic adjustment"""
+        from ..config import BLOCKCHAIN_DIFFICULTY
+        
+        if not self.difficulty_adjustment_enabled:
+            # Always use config when adjustment disabled
+            return BLOCKCHAIN_DIFFICULTY
+        
+        # Use adjusted difficulty but respect config bounds
+        return self.target_difficulty
+    
+    def refresh_config_settings(self):
+        """Refresh difficulty settings from config (hot reload)"""
+        try:
+            from ..config import BLOCKCHAIN_DIFFICULTY, DIFFICULTY_ADJUSTMENT_ENABLED
+            
+            old_difficulty = self.mining_difficulty
+            self.mining_difficulty = BLOCKCHAIN_DIFFICULTY
+            
+            if not DIFFICULTY_ADJUSTMENT_ENABLED:
+                # Reset to config value when adjustment disabled
+                self.target_difficulty = BLOCKCHAIN_DIFFICULTY
+            
+            if old_difficulty != BLOCKCHAIN_DIFFICULTY:
+                logger.info(f"🔄 Config reloaded: Mining difficulty {old_difficulty} → {BLOCKCHAIN_DIFFICULTY}")
+            
+            return True
+        except Exception as e:
+            logger.error(f"Config refresh failed: {e}")
+            return False
+    
+    def set_mining_difficulty(self, new_difficulty: int, force: bool = False) -> bool:
+        """Set target difficulty with validation"""
+        from ..config import validate_difficulty
+        
+        if not validate_difficulty(new_difficulty):
+            logger.error(f"Invalid difficulty: {new_difficulty}")
+            return False
+        
+        if not force and self.difficulty_adjustment_enabled:
+            logger.warning("Dynamic adjustment enabled - use force=True to override")
+            return False
+        
+        old_difficulty = self.target_difficulty
+        self.target_difficulty = new_difficulty
+        
+        logger.info(f"🔧 Difficulty manually set: {old_difficulty} → {new_difficulty}")
+        return True
     
     def _store_block_in_database(self, block):
         """Store block in PostgreSQL database (non-blocking, preserves all functionality)"""

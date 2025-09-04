@@ -79,6 +79,9 @@ class ThreadSafeNetworkNode:
         # Thread-safe blockchain
         self.blockchain = ThreadSafeBlockchain()
         
+        # IMMEDIATE WORKAROUND: Apply config difficulty at startup
+        self._apply_config_difficulty_override()
+        
         # REMOVED: Old peer manager is no longer used
         # self.peer_manager = ThreadSafePeerManager()
         
@@ -113,6 +116,16 @@ class ThreadSafeNetworkNode:
         logger.info(f"   [API] API Server: http://localhost:{self.api_port}")
         logger.info(f"   [P2P] P2P Port: {self.p2p_port}")
         logger.info("   [READY] All systems ready!")
+    
+    def _apply_config_difficulty_override(self):
+        """Apply config difficulty setting at startup"""
+        try:
+            from src.config import BLOCKCHAIN_DIFFICULTY
+            if hasattr(self.blockchain, 'set_mining_difficulty'):
+                self.blockchain.set_mining_difficulty(BLOCKCHAIN_DIFFICULTY, force=True)
+                logger.info(f"🔧 Forced difficulty to config value: {BLOCKCHAIN_DIFFICULTY}")
+        except Exception as e:
+            logger.warning(f"Could not apply config difficulty override: {e}")
     
     def _sync_with_network_before_mining(self) -> Dict:
         """Synchronization with chain validation"""
@@ -1027,6 +1040,57 @@ class ThreadSafeNetworkNode:
             })
             
             return jsonify(config)
+        
+        @self.app.route('/config/refresh', methods=['POST'])
+        @synchronized("api_config_refresh", LockOrder.NETWORK, mode='write')
+        def refresh_config():
+            """Refresh config settings from file"""
+            self._increment_api_calls()
+            
+            if self.blockchain.refresh_config_settings():
+                return jsonify({
+                    'status': 'success',
+                    'current_difficulty': self.blockchain.target_difficulty,
+                    'mining_difficulty': self.blockchain.mining_difficulty,
+                    'genesis_difficulty': self.blockchain.genesis_difficulty
+                })
+            else:
+                return jsonify({'status': 'error'}), 500
+        
+        @self.app.route('/difficulty/set', methods=['POST'])
+        @synchronized("api_difficulty_set", LockOrder.NETWORK, mode='write')
+        def set_difficulty():
+            """Manually override mining difficulty"""
+            self._increment_api_calls()
+            
+            data = request.get_json()
+            new_difficulty = data.get('difficulty')
+            force = data.get('force', False)
+            
+            if self.blockchain.set_mining_difficulty(new_difficulty, force):
+                return jsonify({
+                    'status': 'success',
+                    'old_difficulty': self.blockchain.target_difficulty,
+                    'new_difficulty': new_difficulty
+                })
+            else:
+                return jsonify({'status': 'error', 'message': 'Invalid difficulty'}), 400
+        
+        @self.app.route('/status/detailed', methods=['GET'])
+        @synchronized("api_status_detailed", LockOrder.NETWORK, mode='read')
+        def detailed_status():
+            """Enhanced status showing both genesis and mining difficulty"""
+            self._increment_api_calls()
+            
+            return jsonify({
+                'genesis_difficulty': self.blockchain.genesis_difficulty,
+                'mining_difficulty': self.blockchain.mining_difficulty,
+                'current_target_difficulty': self.blockchain.target_difficulty,
+                'config_in_sync': self.blockchain.mining_difficulty == self.blockchain.target_difficulty,
+                'difficulty_adjustment_enabled': self.blockchain.difficulty_adjustment_enabled,
+                'chain_length': self.blockchain.get_chain_length(),
+                'pending_transactions': len(self.blockchain.transaction_pool)
+            })
         
         @self.app.route('/sync_mempool', methods=['POST'])
         @synchronized("api_sync_mempool", LockOrder.NETWORK, mode='write')
