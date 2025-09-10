@@ -24,9 +24,9 @@ logger = logging.getLogger(__name__)
 
 # Database integration
 try:
-    from ..database.simple_connection import get_simple_db_manager
-    from ..database.block_dao import BlockDAO
-    from ..database.transaction_dao import TransactionDAO
+    from ..data.simple_connection import get_simple_db_manager
+    from ..data.block_dao import BlockDAO
+    from ..data.transaction_dao import TransactionDAO
     DATABASE_AVAILABLE = True
 except ImportError:
     DATABASE_AVAILABLE = False
@@ -356,14 +356,14 @@ class ThreadSafeBlockchain:
     def _create_genesis_block(self):
         """Create hardcoded genesis block for network consensus"""
         try:
-            from ..blockchain.bitcoin_transaction import Transaction
-            from ..blockchain.block import Block
+            from ..core.bitcoin_transaction import Transaction
+            from ..core.block import Block
             from ..config.genesis_block import get_genesis_block, GENESIS_BLOCK_HASH
         except ImportError:
             import sys, os
             sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
-            from src.blockchain.bitcoin_transaction import Transaction
-            from src.blockchain.block import Block
+            from src.core.bitcoin_transaction import Transaction
+            from src.core.block import Block
             from src.config.genesis_block import get_genesis_block, GENESIS_BLOCK_HASH
         
         with self._chain_lock.write_lock():
@@ -1007,7 +1007,7 @@ class ThreadSafeBlockchain:
         """
         try:
             # Import the new sync module
-            from ..blockchain.blockchain_sync import BlockchainSync, SyncResult
+            from ..core.blockchain_sync import BlockchainSync, SyncResult
             
             logger.info(f"🔄 Starting smart sync with {peer_url}")
             
@@ -1287,7 +1287,7 @@ class ThreadSafeBlockchain:
     def get_fork_info(self) -> Dict:
         """Get information about any orphaned blocks (preserved mining history)"""
         try:
-            from ..blockchain.blockchain_sync import BlockchainSync
+            from ..core.blockchain_sync import BlockchainSync
             sync_engine = BlockchainSync(self)
             orphaned_blocks = sync_engine.get_orphaned_blocks()
             
@@ -1406,11 +1406,11 @@ class ThreadSafeBlockchain:
         
         # Create coinbase transaction
         try:
-            from ..blockchain.bitcoin_transaction import Transaction
+            from ..core.bitcoin_transaction import Transaction
         except ImportError:
             import sys, os
             sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
-            from src.blockchain.bitcoin_transaction import Transaction
+            from src.core.bitcoin_transaction import Transaction
         coinbase_tx = Transaction.create_coinbase_transaction(
             miner_address, 
             self.block_reward + total_fees,
@@ -1423,11 +1423,11 @@ class ThreadSafeBlockchain:
             
             # Import Block from proper module
             try:
-                from ..blockchain.block import Block
+                from ..core.block import Block
             except ImportError:
                 import sys, os
                 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
-                from src.blockchain.block import Block
+                from src.core.block import Block
             
             # Use current mining difficulty (from config), not genesis difficulty
             current_mining_difficulty = self._get_current_mining_difficulty()

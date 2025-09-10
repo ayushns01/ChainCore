@@ -191,13 +191,13 @@ class ThreadSafePeerManager:
         
         # Peer count management and discovery configuration
         try:
-            from ..config import MIN_PEERS, TARGET_PEERS, MAX_PEERS, PEER_DISCOVERY_RANGE
+            from config import MIN_PEERS, TARGET_PEERS, MAX_PEERS, PEER_DISCOVERY_RANGE
         except ImportError:
             # Fallback for direct script execution
             import sys
             import os
             sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
-            from src.config import MIN_PEERS, TARGET_PEERS, MAX_PEERS, PEER_DISCOVERY_RANGE
+            from config import MIN_PEERS, TARGET_PEERS, MAX_PEERS, PEER_DISCOVERY_RANGE
         self._min_peers = MIN_PEERS
         self._target_peers = TARGET_PEERS  
         self._max_peers = MAX_PEERS
