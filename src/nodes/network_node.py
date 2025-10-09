@@ -48,6 +48,9 @@ from src.services import (
     get_mining_coordinator
 )
 
+# Import data access objects
+from src.data.node_dao import NodeDAO
+
 # Import original components
 from src.core.bitcoin_transaction import Transaction
 from src.crypto.ecdsa_crypto import hash_data, double_sha256
@@ -121,6 +124,9 @@ class ThreadSafeNetworkNode:
         }
         self._stats_lock = threading.Lock()
         
+        # Register node in database
+        self.node_dao = NodeDAO()
+        self._register_node_in_database()
         
         logger.info("[INIT] ChainCore Network Node Successfully Initialized!")
         logger.info(f"   [ID] Node ID: {self.node_id}")
@@ -137,6 +143,91 @@ class ThreadSafeNetworkNode:
                 logger.info(f"🔧 Forced difficulty to config value: {BLOCKCHAIN_DIFFICULTY}")
         except Exception as e:
             logger.warning(f"Could not apply config difficulty override: {e}")
+    
+    def _register_node_in_database(self):
+        """Register this node in the database on startup"""
+        try:
+            success = self.node_dao.register_node(
+                node_id=self.node_id,
+                api_port=self.api_port,
+                p2p_port=self.p2p_port
+            )
+            if success:
+                logger.info(f"🗄️  Node {self.node_id} registered in database")
+            else:
+                logger.warning(f"⚠️  Failed to register node {self.node_id} in database")
+        except Exception as e:
+            logger.error(f"❌ Error registering node in database: {e}")
+    
+    def _deregister_node_from_database(self):
+        """Deregister this node from database on shutdown"""
+        try:
+            success = self.node_dao.deregister_node(self.node_id)
+            if success:
+                logger.info(f"🗄️  Node {self.node_id} deregistered from database")
+        except Exception as e:
+            logger.error(f"❌ Error deregistering node from database: {e}")
+    
+    def _update_node_heartbeat(self):
+        """Update node heartbeat in database"""
+        try:
+            self.node_dao.update_node_heartbeat(self.node_id)
+        except Exception as e:
+            logger.debug(f"Error updating node heartbeat: {e}")  # Debug level since this runs frequently
+    
+    def _update_node_status(self, status: str) -> bool:
+        """Update node status in database"""
+        try:
+            # Valid statuses: 'active', 'inactive', 'mining'
+            if status not in ['active', 'inactive', 'mining']:
+                logger.warning(f"Invalid node status: {status}")
+                return False
+            
+            query = """
+                UPDATE nodes 
+                SET status = %s, last_seen = CURRENT_TIMESTAMP
+                WHERE node_id = %s
+            """
+            self.node_dao.db.execute_query(query, (status, self.node_id))
+            logger.info(f"✅ Updated node {self.node_id} status to: {status}")
+            return True
+            
+        except Exception as e:
+            logger.error(f"❌ Error updating node status to {status}: {e}")
+            return False
+    
+    def _set_mining_status(self, is_mining: bool) -> bool:
+        """Set node mining status in database"""
+        try:
+            new_status = 'mining' if is_mining else 'active'
+            return self._update_node_status(new_status)
+        except Exception as e:
+            logger.error(f"❌ Error setting mining status: {e}")
+            return False
+    
+    def start_mining_session(self) -> bool:
+        """Called when a mining session starts (continuous mining)"""
+        try:
+            return self._update_node_status('mining')
+        except Exception as e:
+            logger.error(f"❌ Error starting mining session: {e}")
+            return False
+    
+    def stop_mining_session(self) -> bool:
+        """Called when a mining session ends (continuous mining stops)"""
+        try:
+            return self._update_node_status('active')
+        except Exception as e:
+            logger.error(f"❌ Error stopping mining session: {e}")
+            return False
+    
+    def pause_mining_session(self) -> bool:
+        """Called when mining is temporarily paused (e.g., network sync)"""
+        try:
+            return self._update_node_status('active')
+        except Exception as e:
+            logger.error(f"❌ Error pausing mining session: {e}")
+            return False
     
     def _sync_with_network_before_mining(self) -> Dict:
         """Synchronization with chain validation"""
@@ -651,6 +742,9 @@ class ThreadSafeNetworkNode:
                 mining_node = f"Node-{self.api_port}"
                 block_template = self.blockchain.create_block_template(miner_address, mining_node)
                 
+                # Update node status to 'mining' when template is created for mining
+                self._set_mining_status(True)
+                
                 return jsonify({
                     'status': 'template_created',
                     'block_template': block_template.to_dict(),
@@ -856,6 +950,31 @@ class ThreadSafeNetworkNode:
                     with self._stats_lock:
                         self._stats['blocks_processed'] += 1
                     
+                    # Update node mining statistics in database for locally mined blocks
+                    if is_locally_mined:
+                        try:
+                            # Get block reward from config
+                            from src.config import BLOCK_REWARD
+                            reward_amount = float(BLOCK_REWARD)
+                            
+                            # Update mining stats in database
+                            success = self.node_dao.update_mining_stats(
+                                node_id=self.node_id,
+                                blocks_mined_increment=1,
+                                reward_amount=reward_amount
+                            )
+                            
+                            if success:
+                                logger.info(f"✅ Updated mining stats for node {self.node_id}: +1 block, +{reward_amount} reward")
+                            else:
+                                logger.warning(f"⚠️ Failed to update mining stats for node {self.node_id}")
+                            
+                            # Note: Mining status will be managed by mining client lifecycle
+
+                                
+                        except Exception as stats_error:
+                            logger.error(f"❌ Error updating mining stats: {stats_error}")
+                    
                     return jsonify({
                         'status': 'accepted',
                         'block_hash': block.hash,
@@ -1027,6 +1146,63 @@ class ThreadSafeNetworkNode:
                 'lock_stats': lock_manager.get_all_stats(),
                 'network_wide_stats': 'Not available in this version' # Placeholder for now
             })
+        
+        @self.app.route('/nodes', methods=['GET'])
+        @synchronized("api_nodes", LockOrder.NETWORK, mode='read')
+        def get_all_nodes():
+            """Get all registered nodes"""
+            self._increment_api_calls()
+            
+            # Update heartbeat for this node
+            self._update_node_heartbeat()
+            
+            try:
+                all_nodes = self.node_dao.get_all_nodes()
+                active_nodes = self.node_dao.get_active_nodes()
+                node_stats = self.node_dao.get_node_statistics()
+                
+                return jsonify({
+                    'nodes': all_nodes,
+                    'active_nodes': active_nodes,
+                    'statistics': node_stats,
+                    'current_node': self.node_id
+                })
+            except Exception as e:
+                logger.error(f"Error getting nodes: {e}")
+                return jsonify({'error': str(e)}), 500
+        
+        @self.app.route('/nodes/active', methods=['GET'])
+        @synchronized("api_nodes_active", LockOrder.NETWORK, mode='read')
+        def get_active_nodes():
+            """Get only active nodes"""
+            self._increment_api_calls()
+            
+            # Update heartbeat for this node
+            self._update_node_heartbeat()
+            
+            try:
+                active_nodes = self.node_dao.get_active_nodes()
+                return jsonify({
+                    'active_nodes': active_nodes,
+                    'count': len(active_nodes),
+                    'current_node': self.node_id
+                })
+            except Exception as e:
+                logger.error(f"Error getting active nodes: {e}")
+                return jsonify({'error': str(e)}), 500
+        
+        @self.app.route('/nodes/stats', methods=['GET'])
+        @synchronized("api_nodes_stats", LockOrder.NETWORK, mode='read')
+        def get_node_statistics():
+            """Get comprehensive node statistics"""
+            self._increment_api_calls()
+            
+            try:
+                stats = self.node_dao.get_node_statistics()
+                return jsonify(stats)
+            except Exception as e:
+                logger.error(f"Error getting node statistics: {e}")
+                return jsonify({'error': str(e)}), 500
         
         @self.app.route('/orphaned_blocks', methods=['GET'])
         @synchronized("api_orphaned_blocks", LockOrder.NETWORK, mode='read')
@@ -1680,6 +1856,9 @@ class ThreadSafeNetworkNode:
         """Clean up resources on node shutdown"""
         try:
             logger.info("🧹 Starting node cleanup...")
+            
+            # Deregister node from database
+            self._deregister_node_from_database()
             
             # Stop enhanced peer manager
             if hasattr(self, 'peer_network_manager') and self.peer_network_manager:

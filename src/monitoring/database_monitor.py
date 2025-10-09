@@ -38,9 +38,12 @@ class DatabaseMonitor:
         try:
             self.db_manager.initialize()
             print("Connected to PostgreSQL database")
-            # FIXED: Show which database we're monitoring
-            print(f"Monitoring database: chaincore (shared by all nodes)")
-            print(f"Connection: postgresql://chaincore:***@localhost:5432/chaincore")
+            # Show which database we're monitoring using actual config
+            conn_info = self.db_manager.get_connection_info()
+            db_name = conn_info.get('database_name', 'unknown')
+            user_name = conn_info.get('user_name', 'unknown')
+            print(f"Monitoring database: {db_name} (shared by all nodes)")
+            print(f"Connection: postgresql://{user_name}:***@{self.db_manager.config['host']}:{self.db_manager.config['port']}/{db_name}")
         except Exception as e:
             print(f"Database connection failed: {e}")
             print("Ensure PostgreSQL is running and chaincore database exists")

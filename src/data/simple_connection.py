@@ -9,21 +9,18 @@ import logging
 from typing import Optional, Dict, Any
 from contextlib import contextmanager
 
+from .config import get_psycopg2_config, DATABASE_CONFIG
+
 logger = logging.getLogger(__name__)
 
 class SimpleDBManager:
     """Simple database manager without connection pooling"""
     
     def __init__(self):
-        self.config = {
-            'host': 'localhost',
-            'port': 5432,
-            'database': 'chaincore_blockchain',
-            'user': 'chaincore_user',
-            'password': 'chaincore_secure_2024',
-            'connect_timeout': 5,
-            'sslmode': 'prefer'
-        }
+        # Use configuration from config.py with environment variable support
+        self.config = get_psycopg2_config()
+        # Add connection timeout for simple connections
+        self.config['connect_timeout'] = 5
         self._initialized = False
     
     def initialize(self):
@@ -32,14 +29,15 @@ class SimpleDBManager:
             return
             
         try:
-            # Test connection
-            with self.get_connection() as conn:
-                cursor = conn.cursor()
-                cursor.execute("SELECT 1")
-                result = cursor.fetchone()
-                if result[0] != 1:
-                    raise Exception("Database test query failed")
-                cursor.close()
+            # Test connection using the same cursor type as execute_query
+            result = self.execute_query("SELECT 1", fetch_one=True)
+            # For RealDictCursor, access by column name or get first value
+            if hasattr(result, 'values'):
+                test_value = list(result.values())[0]
+            else:
+                test_value = result[0]
+            if test_value != 1:
+                raise Exception("Database test query failed")
             
             self._initialized = True
             logger.info("✅ Simple database connection initialized")
@@ -101,7 +99,14 @@ class SimpleDBManager:
         """Test if database connection is healthy"""
         try:
             result = self.execute_query("SELECT 1", fetch_one=True)
-            return result is not None and result[0] == 1
+            if result is None:
+                return False
+            # For RealDictCursor, access by column name or get first value
+            if hasattr(result, 'values'):
+                test_value = list(result.values())[0]
+            else:
+                test_value = result[0]
+            return test_value == 1
         except Exception:
             return False
     

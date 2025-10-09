@@ -168,7 +168,12 @@ class TransactionDAO:
             result = self.db.execute_query(query, (address,), fetch_one=True)
             
             if result:
-                return float(result[0])
+                # For RealDictCursor, access by column name
+                if hasattr(result, 'get'):
+                    balance = result.get('balance', 0.0)
+                else:
+                    balance = result[0]
+                return float(balance)
             return 0.0
             
         except Exception as e:

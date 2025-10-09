@@ -66,7 +66,16 @@ class BlockDAO:
             
             result = self.db.execute_query(query, params, fetch_one=True)
             
-            block_id = result[0] if result else None
+            # Get block_id from the result - stored function returns single column 
+            block_id = None
+            if result:
+                # Try to get the first (and only) value from the result
+                if hasattr(result, 'values'):
+                    values = list(result.values())
+                    block_id = values[0] if values else None
+                else:
+                    # Fallback for other cursor types
+                    block_id = result[0]
             
             if block_id:
                 # Add transactions for this block
@@ -204,7 +213,7 @@ class BlockDAO:
             """
             table_exists = self.db.execute_query(table_check_query, fetch_one=True)
             
-            if not table_exists or not table_exists[0]:
+            if not table_exists or not table_exists['exists']:
                 logger.warning("Blocks table does not exist - database not initialized properly")
                 return 0
             

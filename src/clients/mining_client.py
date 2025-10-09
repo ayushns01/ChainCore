@@ -321,8 +321,9 @@ class MiningClient:
                     mining_time = time.time() - worker_start_time
                     hash_rate = worker_hash_count / mining_time if mining_time > 0 else 0
                     
-                    # Create mined block with preserved metadata
-                    mined_block = json.loads(block_json)
+                    # Create mined block with preserved template data (including transactions!)
+                    mined_block = template.copy()  # FIX: Preserve original template with transactions
+                    mined_block['nonce'] = nonce
                     mined_block['hash'] = block_hash
                     mined_block['mining_time'] = mining_time
                     mined_block['hash_rate'] = hash_rate
