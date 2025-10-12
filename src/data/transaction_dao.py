@@ -76,6 +76,40 @@ class TransactionDAO:
                         WHERE utxo_key = %s
                     """
                     self.db.execute_query(query, (transaction.tx_id, utxo_key))
+
+                    # Also decrement address_balances for the owner of the spent UTXO
+                    try:
+                        # Find the recipient of the spent utxo
+                        owner = self.db.execute_query(
+                            "SELECT recipient_address, amount FROM utxos WHERE utxo_key = %s",
+                            (utxo_key,), fetch_one=True
+                        )
+                        if owner:
+                            recipient = owner['recipient_address']
+                            amount = float(owner['amount'])
+
+                            # Ensure sender address exists in address_balances (UPSERT with zero if new)
+                            ensure_query = """
+                                INSERT INTO address_balances (address, balance, utxo_count, last_activity_block, updated_at)
+                                VALUES (%s, 0, 0, %s, CURRENT_TIMESTAMP)
+                                ON CONFLICT (address) DO UPDATE SET
+                                    last_activity_block = GREATEST(COALESCE(address_balances.last_activity_block, 0), EXCLUDED.last_activity_block),
+                                    updated_at = CURRENT_TIMESTAMP
+                            """
+                            self.db.execute_query(ensure_query, (recipient, block_index))
+
+                            # Decrement balance and utxo_count safely
+                            dec_query = """
+                                UPDATE address_balances
+                                SET balance = GREATEST(balance - %s, 0),
+                                    utxo_count = GREATEST(utxo_count - 1, 0),
+                                    updated_at = CURRENT_TIMESTAMP
+                                WHERE address = %s
+                            """
+                            self.db.execute_query(dec_query, (amount, recipient))
+                    except Exception:
+                        # Non-fatal: keep UTXO update even if balance table update fails
+                        logger.debug("Warning: failed to decrement address_balances for spent utxo")
             
             # Add new UTXOs (from outputs)
             for i, output in enumerate(transaction.outputs):
@@ -97,6 +131,21 @@ class TransactionDAO:
                 )
                 
                 self.db.execute_query(query, params)
+                
+                # Upsert into address_balances: add balance and increment utxo_count
+                try:
+                    upsert_query = """
+                        INSERT INTO address_balances (address, balance, utxo_count, last_activity_block, updated_at)
+                        VALUES (%s, %s, 1, %s, CURRENT_TIMESTAMP)
+                        ON CONFLICT (address) DO UPDATE SET
+                            balance = address_balances.balance + EXCLUDED.balance,
+                            utxo_count = address_balances.utxo_count + 1,
+                            last_activity_block = GREATEST(COALESCE(address_balances.last_activity_block, 0), EXCLUDED.last_activity_block),
+                            updated_at = CURRENT_TIMESTAMP
+                    """
+                    self.db.execute_query(upsert_query, (output.recipient_address, float(output.amount), block_index))
+                except Exception:
+                    logger.debug("Warning: failed to upsert address_balances for new utxo")
                 
         except Exception as e:
             logger.error(f"Error updating UTXOs for transaction {transaction.tx_id}: {e}")
@@ -263,9 +312,10 @@ class TransactionDAO:
     def refresh_address_balances(self):
         """Refresh the materialized view for address balances"""
         try:
-            query = "REFRESH MATERIALIZED VIEW address_balances"
+            # Populate the persistent address_balances table
+            query = "SELECT refresh_address_balances()"
             self.db.execute_query(query)
-            logger.info("✅ Address balances materialized view refreshed")
+            logger.info("✅ Address balances table refreshed via refresh_address_balances()")
             
         except Exception as e:
             logger.error(f"Error refreshing address balances: {e}")
@@ -277,7 +327,8 @@ class TransactionDAO:
             self.refresh_address_balances()
             
             query = """
-                SELECT * FROM address_balances
+                SELECT address, balance, utxo_count, last_activity_block, updated_at
+                FROM address_balances
                 ORDER BY balance DESC
                 LIMIT %s
             """

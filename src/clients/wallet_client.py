@@ -9,6 +9,7 @@ import os
 import json
 import argparse
 import requests
+import logging
 from typing import List, Dict, Optional
 
 # Add src to path
@@ -17,6 +18,10 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(__file__))))
 
 from src.crypto.ecdsa_crypto import ECDSAKeyPair, validate_address
 from src.core.bitcoin_transaction import Transaction, TransactionInput, TransactionOutput
+from src.data.address_balance_dao import AddressBalanceDAO
+from src.data.simple_connection import init_simple_database
+
+logger = logging.getLogger(__name__)
 
 class WalletClient:
     def __init__(self, wallet_file: str = None, node_url: str = "http://localhost:5000"):
@@ -24,6 +29,16 @@ class WalletClient:
         self.wallet_file = wallet_file
         self.keypair: Optional[ECDSAKeyPair] = None
         self.address: Optional[str] = None
+        
+        # Initialize database connection for address balance tracking
+        try:
+            init_simple_database()
+            self.address_dao = AddressBalanceDAO()
+            self.db_available = True
+        except Exception as e:
+            logger.warning(f"⚠️ Database connection failed, wallet will work without address tracking: {e}")
+            self.address_dao = None
+            self.db_available = False
         
         if wallet_file:
             # Check if wallet exists at specified path or in src/wallets
@@ -63,6 +78,20 @@ class WalletClient:
         with open(filename, 'w') as f:
             json.dump(wallet_data, f, indent=2)
         
+        # Add wallet address to address_balances table
+        if self.db_available and self.address_dao:
+            try:
+                success = self.address_dao.insert_new_address(self.address, 0.0)
+                if success:
+                    print(f"💾 Address registered in blockchain database")
+                else:
+                    print(f"⚠️ Failed to register address in database (wallet still functional)")
+            except Exception as e:
+                logger.warning(f"Database registration failed: {e}")
+                print(f"⚠️ Database registration failed (wallet still functional)")
+        else:
+            print(f"⚠️ Database not available - address tracking disabled")
+        
         print(f"✅ Wallet created: {filename}")
         print(f"📍 Address: {self.address}")
         print(f"🔑 Public Key: {self.keypair.get_public_key_hex()[:32]}...")
@@ -83,6 +112,13 @@ class WalletClient:
             self.keypair = ECDSAKeyPair.from_dict(wallet_data['keypair'])
             self.address = wallet_data['address']
             self.wallet_file = filename
+            
+            # Ensure wallet address is tracked in database
+            if self.db_available and self.address_dao:
+                try:
+                    self.address_dao.ensure_address_tracked(self.address, 0.0)
+                except Exception as e:
+                    logger.warning(f"Address tracking update failed: {e}")
             
             print(f"✅ Wallet loaded: {filename}")
             print(f"📍 Address: {self.address}")

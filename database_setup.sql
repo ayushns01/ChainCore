@@ -70,23 +70,20 @@ CREATE INDEX IF NOT EXISTS idx_mining_stats_duration ON mining_stats (mining_dur
 CREATE INDEX IF NOT EXISTS idx_mining_stats_hash_rate ON mining_stats (hash_rate);
 
 -- ================================
--- 4. ADDRESS_BALANCES MATERIALIZED VIEW
+-- 4. ADDRESS_BALANCES TABLE
+-- Persistent table to store balances for all seen addresses
 -- ================================
-CREATE MATERIALIZED VIEW IF NOT EXISTS address_balances AS
-SELECT 
-    recipient_address AS address,
-    SUM(amount) AS balance,
-    COUNT(*) AS utxo_count,
-    MAX(block_index) AS last_activity_block
-FROM utxos 
-WHERE is_spent = FALSE 
-GROUP BY recipient_address
-HAVING SUM(amount) > 0
-ORDER BY balance DESC;
+CREATE TABLE IF NOT EXISTS address_balances (
+    address VARCHAR(255) PRIMARY KEY,
+    balance DECIMAL(20,8) NOT NULL DEFAULT 0,
+    utxo_count INTEGER NOT NULL DEFAULT 0,
+    last_activity_block INTEGER,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
 
--- Create indexes on materialized view
-CREATE UNIQUE INDEX IF NOT EXISTS idx_address_balances_address ON address_balances (address);
+-- Indexes for fast lookups and rich-list queries
 CREATE INDEX IF NOT EXISTS idx_address_balances_balance ON address_balances (balance DESC);
+CREATE INDEX IF NOT EXISTS idx_address_balances_updated ON address_balances (updated_at);
 
 -- ================================
 -- 5. UPDATE BLOCKS TABLE (add missing columns if needed)
@@ -163,7 +160,59 @@ $$ LANGUAGE plpgsql;
 CREATE OR REPLACE FUNCTION refresh_address_balances() 
 RETURNS VOID AS $$
 BEGIN
-    REFRESH MATERIALIZED VIEW address_balances;
+    -- Rebuild the address_balances persistent table from utxos
+    -- This will replace contents with aggregated current unspent UTXOs
+    TRUNCATE TABLE address_balances;
+
+    -- Build a set of all addresses that have ever appeared in transactions or utxos
+    WITH seen_addresses AS (
+        -- Addresses from UTXO recipients (both spent and unspent)
+        SELECT DISTINCT recipient_address AS address FROM utxos
+        UNION
+        -- Addresses from transaction outputs (recipients)
+        SELECT DISTINCT (elem->>'recipient_address') AS address
+        FROM transactions, jsonb_array_elements(outputs_json) AS elem
+        WHERE outputs_json IS NOT NULL AND elem->>'recipient_address' IS NOT NULL
+        UNION
+        -- Addresses from transaction inputs (senders) - extract from input addresses
+        SELECT DISTINCT (elem->>'address') AS address
+        FROM transactions, jsonb_array_elements(inputs_json) AS elem
+        WHERE inputs_json IS NOT NULL AND elem->>'address' IS NOT NULL
+    ),
+    balances AS (
+        SELECT recipient_address,
+               SUM(amount) AS balance,
+               COUNT(*) AS utxo_count,
+               MAX(block_index) AS last_activity_block
+        FROM utxos
+        WHERE is_spent = FALSE
+        GROUP BY recipient_address
+    ),
+    all_activity AS (
+        -- Get last activity block for each address from all sources
+        SELECT address,
+               MAX(activity_block) AS last_activity_block
+        FROM (
+            -- Activity from UTXOs (both spent and unspent)
+            SELECT recipient_address AS address, block_index AS activity_block FROM utxos
+            UNION ALL
+            -- Activity from transactions
+            SELECT (elem->>'recipient_address') AS address, t.block_index AS activity_block
+            FROM transactions t, jsonb_array_elements(t.outputs_json) AS elem
+            WHERE t.outputs_json IS NOT NULL AND elem->>'recipient_address' IS NOT NULL
+        ) activities
+        GROUP BY address
+    )
+    INSERT INTO address_balances (address, balance, utxo_count, last_activity_block, updated_at)
+    SELECT
+        s.address,
+        COALESCE(b.balance, 0) AS balance,
+        COALESCE(b.utxo_count, 0) AS utxo_count,
+        COALESCE(a.last_activity_block, b.last_activity_block) AS last_activity_block,
+        CURRENT_TIMESTAMP
+    FROM seen_addresses s
+    LEFT JOIN balances b ON s.address = b.recipient_address
+    LEFT JOIN all_activity a ON s.address = a.address;
 END;
 $$ LANGUAGE plpgsql;
 
@@ -171,7 +220,8 @@ $$ LANGUAGE plpgsql;
 -- INITIAL DATA SETUP
 -- ================================
 -- Refresh the materialized view initially (will be empty)
-REFRESH MATERIALIZED VIEW address_balances;
+-- Populate address_balances table initially
+SELECT refresh_address_balances();
 
 -- ================================
 -- SETUP COMPLETE - VERIFICATION

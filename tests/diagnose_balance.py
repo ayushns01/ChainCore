@@ -149,11 +149,11 @@ def diagnose_mining_balance_issue():
         else:
             print("   Address balances view is empty")
             
-        # Try refreshing the view
-        print("   Refreshing materialized view...")
-        db.execute_query("REFRESH MATERIALIZED VIEW address_balances")
-        print("   ✅ View refreshed")
-        
+        # Try refreshing the persistent address_balances table
+        print("   Refreshing address_balances table via function...")
+        db.execute_query("SELECT refresh_address_balances()")
+        print("   ✅ address_balances refreshed")
+
     except Exception as e:
         print(f"   ❌ Error with address_balances view: {e}")
     
