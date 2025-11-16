@@ -7,7 +7,7 @@ Complete step-by-step testing protocol to verify all blockchain functionality.
 ### 1. Environment Preparation
 ```bash
 cd /Users/ayush/Desktop/ChainCore
-source venv/bin/activate
+source .venv/bin/activate
 
 # Clean slate - kill any running processes
 pkill -f network_node.py

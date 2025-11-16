@@ -173,13 +173,13 @@ class ThreadSafeNetworkNode:
         try:
             self.node_dao.update_node_heartbeat(self.node_id)
         except Exception as e:
-            logger.debug(f"Error updating node heartbeat: {e}")  # Debug level since this runs frequently
+            logger.debug(f"Error updating node heartbeat: {e}")
     
     def _update_node_status(self, status: str) -> bool:
         """Update node status in database"""
         try:
-            # Valid statuses: 'active', 'inactive', 'mining'
-            if status not in ['active', 'inactive', 'mining']:
+            # Valid statuses: 'active', 'inactive'
+            if status not in ['active', 'inactive']:
                 logger.warning(f"Invalid node status: {status}")
                 return False
             
@@ -197,7 +197,9 @@ class ThreadSafeNetworkNode:
             return False
     
     def _set_mining_status(self, is_mining: bool) -> bool:
-        """Set node mining status in database"""
+        """Set node mining status in database (placeholder for compatibility)"""
+        # This method now does nothing but keeps compatibility
+        return True
         try:
             new_status = 'mining' if is_mining else 'active'
             return self._update_node_status(new_status)
@@ -585,11 +587,34 @@ class ThreadSafeNetworkNode:
         @self.app.route('/balance/<address>', methods=['GET'])
         @synchronized("api_balance", LockOrder.NETWORK, mode='read')
         def get_balance(address: str):
-            """Thread-safe balance lookup"""
+            """Thread-safe balance lookup with database integration"""
             self._increment_api_calls()
             
+            # Try to get balance from database first (consistent across nodes)
+            if self.blockchain.database_enabled:
+                try:
+                    from ..data.address_balance_dao import AddressBalanceDAO
+                    balance_dao = AddressBalanceDAO()
+                    balance_info = balance_dao.get_address_balance(address)
+                    
+                    if balance_info:
+                        return jsonify({
+                            'balance': balance_info['balance'],
+                            'address': address,
+                            'source': 'database',
+                            'utxo_count': balance_info['utxo_count'],
+                            'last_activity_block': balance_info['last_activity_block']
+                        })
+                except Exception as e:
+                    logger.warning(f"Database balance query failed, falling back to UTXO calculation: {e}")
+            
+            # Fallback to UTXO set calculation (for addresses not yet in database)
             balance = self.blockchain.utxo_set.get_balance(address)
-            return jsonify({'balance': balance, 'address': address})
+            return jsonify({
+                'balance': balance,
+                'address': address,
+                'source': 'utxo_calculation'
+            })
         
         @self.app.route('/utxos/<address>', methods=['GET'])
         @synchronized("api_utxos", LockOrder.NETWORK, mode='read')
@@ -741,9 +766,6 @@ class ThreadSafeNetworkNode:
                 # Create mining template with latest chain state
                 mining_node = f"Node-{self.api_port}"
                 block_template = self.blockchain.create_block_template(miner_address, mining_node)
-                
-                # Update node status to 'mining' when template is created for mining
-                self._set_mining_status(True)
                 
                 return jsonify({
                     'status': 'template_created',
@@ -968,8 +990,6 @@ class ThreadSafeNetworkNode:
                                 logger.info(f"✅ Updated mining stats for node {self.node_id}: +1 block, +{reward_amount} reward")
                             else:
                                 logger.warning(f"⚠️ Failed to update mining stats for node {self.node_id}")
-                            
-                            # Note: Mining status will be managed by mining client lifecycle
 
                                 
                         except Exception as stats_error:

@@ -9,7 +9,7 @@ Complete step-by-step guide to run the ChainCore blockchain with **enterprise-gr
 ```bash
 cd /Users/ayush/Desktop/ChainCore
 python3 -m venv venv
-source venv/bin/activate
+source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
@@ -21,7 +21,7 @@ pip install -r requirements.txt
 
 ```bash
 cd /Users/ayush/Desktop/ChainCore
-source venv/bin/activate
+source .venv/bin/activate
 python3 src/nodes/network_node.py --node-id core0 --api-port 5000 --p2p-port 8000
 ```
 
@@ -29,7 +29,7 @@ python3 src/nodes/network_node.py --node-id core0 --api-port 5000 --p2p-port 800
 
 ```bash
 cd /Users/ayush/Desktop/ChainCore
-source venv/bin/activate
+source .venv/bin/activate
 python3 src/nodes/network_node.py --node-id core1 --api-port 5001 --p2p-port 8001
 ```
 
@@ -37,7 +37,7 @@ python3 src/nodes/network_node.py --node-id core1 --api-port 5001 --p2p-port 800
 
 ```bash
 cd /Users/ayush/Desktop/ChainCore
-source venv/bin/activate
+source .venv/bin/activate
 python3 src/nodes/network_node.py --node-id core2 --api-port 5002 --p2p-port 8002
 ```
 
@@ -71,7 +71,7 @@ python3 src/nodes/network_node.py --node-id core1 --api-port 5000 --p2p-port 800
 
 ```bash
 cd /Users/ayush/Desktop/ChainCore
-source venv/bin/activate
+source .venv/bin/activate
 
 # Create wallet files (if they don't exist)
 python3 src/clients/wallet_client.py create --wallet alice.json
@@ -111,7 +111,7 @@ python3 src/clients/wallet_client.py history --wallet alice.json --node http://l
 
 ```bash
 cd /Users/ayush/Desktop/ChainCore
-source venv/bin/activate
+source .venv/bin/activate
 
 # Wait for network node to start, then start mining client
 python3 src/clients/mining_client.py --wallet 1CcUyVAiHT2dGP4ESxWqsDKFzazkQ2UW3n --node http://localhost:5001
@@ -355,23 +355,23 @@ python3 src/clients/mining_client.py --wallet 1GukayKD1hRAXnQaJYKVwQcwCvVzsUbcJj
 
 ```bash
 # Node status (clean JSON output)
-curl.exe http://localhost:5000/status | python -m json.tool
-curl.exe http://localhost:5001/status | python -m json.tool
-curl.exe http://localhost:5002/status | python -m json.tool
+curl http://localhost:5000/status | python3 -m json.tool
+curl http://localhost:5001/status | python3 -m json.tool
+curl http://localhost:5002/status | python3 -m json.tool
 
 # OR use PowerShell (Windows)
 (Invoke-WebRequest http://localhost:5000/status).Content | ConvertFrom-Json | ConvertTo-Json
 (Invoke-WebRequest http://localhost:5001/status).Content | ConvertFrom-Json | ConvertTo-Json
 
-# OR simple PowerShell
-Invoke-RestMethod http://localhost:5000/status
-Invoke-RestMethod http://localhost:5001/status
-Invoke-RestMethod http://localhost:5002/status
-Invoke-RestMethod http://localhost:5003/status
-Invoke-RestMethod http://localhost:5004/status
-Invoke-RestMethod http://localhost:5005/status
-Invoke-RestMethod http://localhost:5006/status
-Invoke-RestMethod http://localhost:5007/status
+# OR for macOS/Linux (simple)
+curl -s http://localhost:5000/status | python3 -m json.tool
+curl -s http://localhost:5001/status | python3 -m json.tool
+curl -s http://localhost:5002/status | python3 -m json.tool
+curl -s http://localhost:5003/status | python3 -m json.tool
+curl -s http://localhost:5004/status | python3 -m json.tool
+curl -s http://localhost:5005/status | python3 -m json.tool
+curl -s http://localhost:5006/status | python3 -m json.tool
+curl -s http://localhost:5007/status | python3 -m json.tool
 
 # Detailed statistics (NEW - Thread Safety Stats)
 curl http://localhost:5000/stats | python3 -m json.tool
@@ -584,7 +584,7 @@ pkill -f mining_client.py
 
 # Check Python environment
 which python3
-source venv/bin/activate
+source .venv/bin/activate
 ```
 
 ### Thread Safety Issues

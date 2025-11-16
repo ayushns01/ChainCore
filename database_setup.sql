@@ -70,7 +70,30 @@ CREATE INDEX IF NOT EXISTS idx_mining_stats_duration ON mining_stats (mining_dur
 CREATE INDEX IF NOT EXISTS idx_mining_stats_hash_rate ON mining_stats (hash_rate);
 
 -- ================================
--- 4. ADDRESS_BALANCES TABLE
+-- 4. NODES TABLE
+-- Network nodes registration and tracking
+-- ================================
+CREATE TABLE IF NOT EXISTS nodes (
+    id SERIAL PRIMARY KEY,
+    node_id VARCHAR(255) UNIQUE NOT NULL,
+    node_url VARCHAR(255) NOT NULL,
+    api_port INTEGER NOT NULL,
+    p2p_port INTEGER,
+    status VARCHAR(50) NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'inactive')),
+    blocks_mined INTEGER NOT NULL DEFAULT 0,
+    total_rewards DECIMAL(20,8) NOT NULL DEFAULT 0,
+    last_seen TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Indexes for nodes table
+CREATE INDEX IF NOT EXISTS idx_nodes_node_id ON nodes (node_id);
+CREATE INDEX IF NOT EXISTS idx_nodes_status ON nodes (status);
+CREATE INDEX IF NOT EXISTS idx_nodes_last_seen ON nodes (last_seen);
+CREATE INDEX IF NOT EXISTS idx_nodes_blocks_mined ON nodes (blocks_mined DESC);
+
+-- ================================
+-- 5. ADDRESS_BALANCES TABLE
 -- Persistent table to store balances for all seen addresses
 -- ================================
 CREATE TABLE IF NOT EXISTS address_balances (
@@ -86,7 +109,7 @@ CREATE INDEX IF NOT EXISTS idx_address_balances_balance ON address_balances (bal
 CREATE INDEX IF NOT EXISTS idx_address_balances_updated ON address_balances (updated_at);
 
 -- ================================
--- 5. UPDATE BLOCKS TABLE (add missing columns if needed)
+-- 6. UPDATE BLOCKS TABLE (add missing columns if needed)
 -- ================================
 -- Add columns that might be missing from blocks table
 DO $$ 
@@ -121,7 +144,7 @@ CREATE INDEX IF NOT EXISTS idx_blocks_miner_node ON blocks (miner_node);
 CREATE INDEX IF NOT EXISTS idx_blocks_timestamp ON blocks (timestamp);
 
 -- ================================
--- 6. ADD_BLOCK STORED FUNCTION
+-- 7. ADD_BLOCK STORED FUNCTION
 -- ================================
 CREATE OR REPLACE FUNCTION add_block(
     p_block_index INTEGER,
@@ -155,7 +178,7 @@ END;
 $$ LANGUAGE plpgsql;
 
 -- ================================
--- 7. REFRESH MATERIALIZED VIEW FUNCTION
+-- 8. REFRESH MATERIALIZED VIEW FUNCTION
 -- ================================
 CREATE OR REPLACE FUNCTION refresh_address_balances() 
 RETURNS VOID AS $$

@@ -24,9 +24,9 @@ logger = logging.getLogger(__name__)
 
 # Database integration
 try:
-    from ..data.simple_connection import get_simple_db_manager
-    from ..data.block_dao import BlockDAO
-    from ..data.transaction_dao import TransactionDAO
+    from src.data.simple_connection import get_simple_db_manager
+    from src.data.block_dao import BlockDAO
+    from src.data.transaction_dao import TransactionDAO
     DATABASE_AVAILABLE = True
 except ImportError:
     DATABASE_AVAILABLE = False
@@ -68,7 +68,7 @@ class ThreadSafeUTXOSet:
         """Calculate balance for address"""
         balance = 0.0
         for utxo_key, utxo_data in self._utxos.items():
-            if utxo_data['address'] == address:
+            if utxo_data.get('recipient_address') == address:
                 balance += utxo_data['amount']
         return balance
     
@@ -77,7 +77,7 @@ class ThreadSafeUTXOSet:
         """Get all UTXOs for an address"""
         utxos = []
         for utxo_key, utxo_data in self._utxos.items():
-            if utxo_data['address'] == address:
+            if utxo_data.get('recipient_address') == address:
                 utxo_copy = copy.deepcopy(utxo_data)
                 utxo_copy['key'] = utxo_key
                 utxos.append(utxo_copy)
@@ -160,7 +160,7 @@ class ThreadSafeBlockchain:
         
         # Blockchain configuration - import from centralized config
         try:
-            from ..config import (
+            from src.config import (
                 BLOCKCHAIN_DIFFICULTY, BLOCK_REWARD, DIFFICULTY_ADJUSTMENT_ENABLED,
                 TARGET_BLOCK_TIME, DIFFICULTY_ADJUSTMENT_INTERVAL, MAX_DIFFICULTY_CHANGE,
                 MIN_DIFFICULTY, MAX_DIFFICULTY
@@ -332,33 +332,156 @@ class ThreadSafeBlockchain:
             return False
         
         try:
-            with self.db_manager.get_connection() as conn:
-                with conn.cursor() as cur:
-                    # Check if we have any blocks in database
-                    cur.execute("SELECT COUNT(*) FROM blocks")
-                    block_count = cur.fetchone()[0]
+            from src.data.block_dao import BlockDAO
+            from src.core.block import Block
+            from src.core.bitcoin_transaction import Transaction, TransactionOutput
+            
+            block_dao = BlockDAO()
+            
+            # Get all blocks from database
+            block_data_list = block_dao.get_all_blocks()
+            
+            if not block_data_list or len(block_data_list) == 0:
+                logger.info("[DATABASE] No blocks found in database - will create genesis")
+                return False
+            
+            logger.info(f"[DATABASE] Found {len(block_data_list)} blocks in database - restoring...")
+            
+            # Reconstruct blocks from database
+            loaded_blocks = []
+            for block_data in block_data_list:
+                try:
+                    # Parse the stored raw_data JSON (column is called raw_data, not block_data)
+                    import json
+                    block_json = json.loads(block_data['raw_data']) if isinstance(block_data['raw_data'], str) else block_data['raw_data']
                     
-                    if block_count > 0:
-                        # Load blocks in order
-                        cur.execute("SELECT block_data FROM blocks ORDER BY block_index ASC")
-                        block_rows = cur.fetchall()
+                    # Reconstruct transactions
+                    transactions = []
+                    for tx_data in block_json.get('transactions', []):
+                        # Reconstruct transaction inputs
+                        from src.core.bitcoin_transaction import TransactionInput
+                        inputs = []
+                        for inp in tx_data.get('inputs', []):
+                            tx_input = TransactionInput(
+                                tx_id=inp.get('tx_id', ''),
+                                output_index=inp.get('output_index', 0),
+                                signature=inp.get('signature'),
+                                script_sig=inp.get('script_sig', '')
+                            )
+                            inputs.append(tx_input)
                         
-                        # TODO: Implement full block reconstruction from database
-                        # For now, return False to force genesis creation
-                        logger.info(f"[DATABASE] Found {block_count} blocks in database")
-                        return False  # Skip database loading for now
+                        # Reconstruct transaction outputs
+                        outputs = [
+                            TransactionOutput(
+                                amount=out['amount'],
+                                recipient_address=out['recipient_address'],
+                                script_pubkey=out.get('script_pubkey', '')
+                            ) for out in tx_data.get('outputs', [])
+                        ]
+                        
+                        # Create transaction
+                        tx = Transaction(
+                            inputs=inputs,
+                            outputs=outputs,
+                            timestamp=tx_data.get('timestamp'),
+                            tx_id=tx_data.get('transaction_id') or tx_data.get('tx_id'),
+                            version=tx_data.get('version', 1)
+                        )
+                        transactions.append(tx)
                     
+                    # Reconstruct block
+                    block = Block(
+                        index=block_json['index'],
+                        transactions=transactions,
+                        previous_hash=block_json['previous_hash'],
+                        timestamp=block_json['timestamp'],
+                        nonce=block_json['nonce'],
+                        target_difficulty=block_json.get('target_difficulty', block_data['difficulty'])
+                    )
+                    block.hash = block_json['hash']
+                    block.merkle_root = block_json['merkle_root']
+                    
+                    # Restore mining metadata if available
+                    if 'mining_metadata' in block_json:
+                        block._mining_metadata = block_json['mining_metadata']
+                    
+                    loaded_blocks.append(block)
+                    
+                except Exception as block_error:
+                    logger.error(f"[DATABASE] Error reconstructing block {block_data.get('block_index', '?')}: {block_error}")
                     return False
+            
+            # Load blocks into the chain (with write lock)
+            with self._chain_lock.write_lock():
+                self._chain = loaded_blocks
+                logger.info(f"[DATABASE] ✅ Successfully restored {len(self._chain)} blocks from database")
+                logger.info(f"[DATABASE] Blockchain height: {len(self._chain)}")
+                logger.info(f"[DATABASE] Latest block: #{self._chain[-1].index} - {self._chain[-1].hash[:16]}...")
+            
+            # Rebuild UTXO set from loaded blocks
+            logger.info("[DATABASE] Rebuilding UTXO set from blockchain...")
+            utxo_updates = {}
+            utxo_count = 0
+            
+            for block in loaded_blocks:
+                for transaction in block.transactions:
+                    # Remove spent UTXOs (from inputs)
+                    if not transaction.is_coinbase():
+                        for tx_input in transaction.inputs:
+                            utxo_key = f"{tx_input.tx_id}:{tx_input.output_index}"
+                            utxo_updates[utxo_key] = None  # Mark for deletion
+                    
+                    # Add new UTXOs (from outputs)
+                    for i, output in enumerate(transaction.outputs):
+                        utxo_key = f"{transaction.tx_id}:{i}"
+                        utxo_updates[utxo_key] = {
+                            'amount': output.amount,
+                            'recipient_address': output.recipient_address,
+                            'tx_id': transaction.tx_id,
+                            'output_index': i
+                        }
+                        utxo_count += 1
+            
+            # Apply UTXO updates atomically
+            if self.utxo_set.atomic_update(utxo_updates):
+                # Count final UTXOs (only non-deleted ones)
+                final_utxo_count = sum(1 for v in utxo_updates.values() if v is not None)
+                logger.info(f"[DATABASE] ✅ UTXO set rebuilt: {final_utxo_count} unspent outputs")
+            else:
+                logger.warning("[DATABASE] ⚠️ UTXO set update conflict - retrying...")
+                # Force clear and rebuild
+                self.utxo_set._utxos.clear()
+                for key, value in utxo_updates.items():
+                    if value is not None:
+                        self.utxo_set._utxos[key] = value
+                logger.info(f"[DATABASE] ✅ UTXO set force rebuilt: {len(self.utxo_set._utxos)} unspent outputs")
+            
+            # Refresh address balances in database for consistency
+            if self.database_enabled:
+                try:
+                    from src.data.address_balance_dao import AddressBalanceDAO
+                    balance_dao = AddressBalanceDAO()
+                    if balance_dao.refresh_all_balances():
+                        logger.info("[DATABASE] ✅ Address balances refreshed from UTXO set")
+                    else:
+                        logger.warning("[DATABASE] ⚠️ Address balance refresh failed")
+                except Exception as e:
+                    logger.warning(f"[DATABASE] Could not refresh address balances: {e}")
+            
+            return True
+                    
         except Exception as e:
             logger.error(f"[DATABASE] Error loading blockchain: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
             return False
     
     def _create_genesis_block(self):
         """Create hardcoded genesis block for network consensus"""
         try:
-            from ..core.bitcoin_transaction import Transaction
-            from ..core.block import Block
-            from ..config.genesis_block import get_genesis_block, GENESIS_BLOCK_HASH
+            from src.core.bitcoin_transaction import Transaction
+            from src.core.block import Block
+            from src.config.genesis_block import get_genesis_block, GENESIS_BLOCK_HASH
         except ImportError:
             import sys, os
             sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
@@ -484,7 +607,7 @@ class ThreadSafeBlockchain:
                     return False
                 
                 # Verify signature
-                if not transaction.verify_input_signature(i, "", {"utxo_set": utxo_snapshot}):
+                if not transaction.verify_input_signature(i, "", utxo_snapshot):
                     logger.warning(f"Invalid signature for input {i}")
                     return False
             
@@ -496,7 +619,7 @@ class ThreadSafeBlockchain:
     
     def _calculate_new_difficulty(self) -> int:
         """Calculate new difficulty while respecting config baseline"""
-        from ..config import (
+        from src.config import (
             BLOCKCHAIN_DIFFICULTY, MIN_DIFFICULTY, MAX_DIFFICULTY
         )
         
@@ -730,7 +853,7 @@ class ThreadSafeBlockchain:
                 utxo_key = f"{transaction.tx_id}:{i}"
                 utxo_updates[utxo_key] = {
                     'amount': output.amount,
-                    'address': output.recipient_address,
+                    'recipient_address': output.recipient_address,
                     'tx_id': transaction.tx_id,
                     'output_index': i
                 }
@@ -933,6 +1056,19 @@ class ThreadSafeBlockchain:
             logger.info(f"   📊 New Chain Length: {len(new_chain)} blocks")
             logger.info(f"   🔗 Latest Block: {new_chain[-1].hash[:16]}...{new_chain[-1].hash[-8:]}")
             logger.info(f"   💰 Total UTXOs: {len(self.utxo_set._utxos)}")
+            
+            # Refresh address balances in database after chain replacement
+            if self.database_enabled:
+                try:
+                    from src.data.address_balance_dao import AddressBalanceDAO
+                    balance_dao = AddressBalanceDAO()
+                    if balance_dao.refresh_all_balances():
+                        logger.info("   💰 Address balances synchronized with new chain")
+                    else:
+                        logger.warning("   ⚠️ Balance sync failed after chain replacement")
+                except Exception as e:
+                    logger.warning(f"   ⚠️ Could not sync balances after chain replacement: {e}")
+            
             logger.info("   🔍 Checking for orphaned block recovery...")
             
             # Attempt to recover orphaned blocks after chain replacement
@@ -1007,7 +1143,7 @@ class ThreadSafeBlockchain:
         """
         try:
             # Import the new sync module
-            from ..core.blockchain_sync import BlockchainSync, SyncResult
+            from src.core.blockchain_sync import BlockchainSync, SyncResult
             
             logger.info(f"🔄 Starting smart sync with {peer_url}")
             
@@ -1287,7 +1423,7 @@ class ThreadSafeBlockchain:
     def get_fork_info(self) -> Dict:
         """Get information about any orphaned blocks (preserved mining history)"""
         try:
-            from ..core.blockchain_sync import BlockchainSync
+            from src.core.blockchain_sync import BlockchainSync
             sync_engine = BlockchainSync(self)
             orphaned_blocks = sync_engine.get_orphaned_blocks()
             
@@ -1405,12 +1541,7 @@ class ThreadSafeBlockchain:
                 continue
         
         # Create coinbase transaction
-        try:
-            from ..core.bitcoin_transaction import Transaction
-        except ImportError:
-            import sys, os
-            sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
-            from src.core.bitcoin_transaction import Transaction
+        from src.core.bitcoin_transaction import Transaction
         coinbase_tx = Transaction.create_coinbase_transaction(
             miner_address, 
             self.block_reward + total_fees,
@@ -1422,12 +1553,7 @@ class ThreadSafeBlockchain:
             all_transactions = [coinbase_tx] + transactions
             
             # Import Block from proper module
-            try:
-                from ..core.block import Block
-            except ImportError:
-                import sys, os
-                sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
-                from src.core.block import Block
+            from src.core.block import Block
             
             # Use current mining difficulty (from config), not genesis difficulty
             current_mining_difficulty = self._get_current_mining_difficulty()
@@ -1456,7 +1582,7 @@ class ThreadSafeBlockchain:
     
     def _get_current_mining_difficulty(self) -> int:
         """Get current mining difficulty from config with dynamic adjustment"""
-        from ..config import BLOCKCHAIN_DIFFICULTY
+        from src.config import BLOCKCHAIN_DIFFICULTY
         
         if not self.difficulty_adjustment_enabled:
             # Always use config when adjustment disabled
@@ -1468,7 +1594,7 @@ class ThreadSafeBlockchain:
     def refresh_config_settings(self):
         """Refresh difficulty settings from config (hot reload)"""
         try:
-            from ..config import BLOCKCHAIN_DIFFICULTY, DIFFICULTY_ADJUSTMENT_ENABLED
+            from src.config import BLOCKCHAIN_DIFFICULTY, DIFFICULTY_ADJUSTMENT_ENABLED
             
             old_difficulty = self.mining_difficulty
             self.mining_difficulty = BLOCKCHAIN_DIFFICULTY
@@ -1487,7 +1613,7 @@ class ThreadSafeBlockchain:
     
     def set_mining_difficulty(self, new_difficulty: int, force: bool = False) -> bool:
         """Set target difficulty with validation"""
-        from ..config import validate_difficulty
+        from src.config import validate_difficulty
         
         if not validate_difficulty(new_difficulty):
             logger.error(f"Invalid difficulty: {new_difficulty}")

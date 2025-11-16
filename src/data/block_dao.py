@@ -242,6 +242,21 @@ class BlockDAO:
                 logger.error(f"Database connection completely failed: {conn_e}")
             return 0
     
+    def get_all_blocks(self) -> List[Dict]:
+        """Get all blocks from database in order"""
+        try:
+            query = """
+                SELECT * FROM blocks 
+                ORDER BY block_index ASC
+            """
+            results = self.db.execute_query(query, fetch_all=True)
+            
+            return [dict(row) for row in results] if results else []
+            
+        except Exception as e:
+            logger.error(f"Error getting all blocks: {e}")
+            return []
+    
     def get_blocks_range(self, start_index: int, end_index: int) -> List[Dict]:
         """Get a range of blocks"""
         try:

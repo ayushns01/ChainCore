@@ -8,7 +8,7 @@ from typing import Dict, Any
 # Database connection settings
 DATABASE_CONFIG = {
     'host': os.getenv('DB_HOST', 'localhost'),
-    'port': int(os.getenv('DB_PORT', 5432)),
+    'port': int(os.getenv('DB_PORT', 5431)),
     'database': os.getenv('DB_NAME', 'chaincore_blockchain'),
     'user': os.getenv('DB_USER', 'chaincore_user'),
     'password': os.getenv('DB_PASSWORD', 'chaincore_secure_2024'),
