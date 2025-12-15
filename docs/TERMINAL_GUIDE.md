@@ -387,7 +387,7 @@ curl http://localhost:5000/peers | python3 -m json.tool
 curl http://localhost:5000/blockchain | python3 -m json.tool
 
 # Check transaction pool
-curl http://localhost:5000/transaction_pool | python3 -m json.tool
+curl http://localhost:5001/transaction_pool | python3 -m json.tool
 
 # Get balance
 curl http://localhost:5000/balance/ADDRESS | python3 -m json.tool

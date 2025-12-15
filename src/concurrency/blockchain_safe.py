@@ -389,7 +389,10 @@ class ThreadSafeBlockchain:
                         )
                         transactions.append(tx)
                     
-                    # Reconstruct block
+                    # Reconstruct block - preserve exact hash and merkle root from database
+                    # CRITICAL: We must preserve the stored hash exactly to maintain chain integrity
+                    # after restart. The stored hash was calculated when the block was first created
+                    # and must match exactly for the chain to be valid.
                     block = Block(
                         index=block_json['index'],
                         transactions=transactions,
@@ -398,8 +401,32 @@ class ThreadSafeBlockchain:
                         nonce=block_json['nonce'],
                         target_difficulty=block_json.get('target_difficulty', block_data['difficulty'])
                     )
+                    
+                    # CRITICAL FIX: Override calculated values with stored values to preserve chain integrity
+                    # The stored hash and merkle_root are the canonical values that were validated when
+                    # the block was originally accepted into the chain
                     block.hash = block_json['hash']
                     block.merkle_root = block_json['merkle_root']
+                    
+                    # Verify that the stored hash is valid (sanity check)
+                    if not block.hash or len(block.hash) != 64:
+                        logger.error(f"[DATABASE] Invalid hash format for block {block.index}: {block.hash}")
+                        return False
+                    
+                    # Verify block linkage - each block's previous_hash must match the previous block's hash
+                    if len(loaded_blocks) > 0:
+                        previous_block = loaded_blocks[-1]
+                        if block.previous_hash != previous_block.hash:
+                            logger.error(f"[DATABASE] ⚠️  Chain integrity error at block {block.index}:")
+                            logger.error(f"   Expected previous_hash: {previous_block.hash}")
+                            logger.error(f"   Actual previous_hash:   {block.previous_hash}")
+                            logger.error(f"   This indicates database corruption - likely from partial network restart")
+                            logger.warning(f"[DATABASE] 🔧 RECOVERY: Truncating chain at block {previous_block.index}")
+                            logger.warning(f"   Loaded {len(loaded_blocks)} valid blocks (0-{previous_block.index})")
+                            logger.warning(f"   Discarding corrupt blocks starting from #{block.index}")
+                            logger.warning(f"   Mining will continue from block #{previous_block.index + 1}")
+                            # Don't return False - instead break here and use the valid blocks we loaded
+                            break
                     
                     # Restore mining metadata if available
                     if 'mining_metadata' in block_json:
@@ -416,7 +443,9 @@ class ThreadSafeBlockchain:
                 self._chain = loaded_blocks
                 logger.info(f"[DATABASE] ✅ Successfully restored {len(self._chain)} blocks from database")
                 logger.info(f"[DATABASE] Blockchain height: {len(self._chain)}")
-                logger.info(f"[DATABASE] Latest block: #{self._chain[-1].index} - {self._chain[-1].hash[:16]}...")
+                if self._chain:
+                    logger.info(f"[DATABASE] Latest block: #{self._chain[-1].index} - {self._chain[-1].hash[:16]}...")
+                    logger.info(f"[DATABASE] Ready to mine block #{self._chain[-1].index + 1}")
             
             # Rebuild UTXO set from loaded blocks
             logger.info("[DATABASE] Rebuilding UTXO set from blockchain...")
@@ -943,9 +972,17 @@ class ThreadSafeBlockchain:
                     logger.warning(f"Fork detected at block {block.index}")
                     return False
             
-            # Check previous hash connection
+            # Check previous hash connection - CRITICAL for chain integrity
             if block.index > 0 and block.previous_hash != self._chain[-1].hash:
-                logger.warning(f"Block {block.index} previous hash mismatch")
+                logger.error(f"❌ Block {block.index} previous hash mismatch (CHAIN INTEGRITY ERROR)")
+                logger.error(f"   Expected previous_hash (from chain): {self._chain[-1].hash}")
+                logger.error(f"   Actual previous_hash (from block):  {block.previous_hash}")
+                logger.error(f"   Latest block in chain: #{self._chain[-1].index}")
+                logger.error(f"   This typically happens when:")
+                logger.error(f"   1. Network restart with stale mining template")
+                logger.error(f"   2. Database corruption during block storage")
+                logger.error(f"   3. Block template created before chain sync completed")
+                logger.error(f"   ACTION: Miner should fetch a fresh block template")
                 return False
             
             # Check index sequence - block should be the next block in sequence
@@ -1558,10 +1595,21 @@ class ThreadSafeBlockchain:
             # Use current mining difficulty (from config), not genesis difficulty
             current_mining_difficulty = self._get_current_mining_difficulty()
             
+            # Get the previous block's hash for proper chain linkage
+            previous_hash = self._chain[-1].hash if self._chain else "0" * 64
+            chain_length = len(self._chain)
+            
+            # Log chain state for debugging restart issues
+            if chain_length > 0:
+                latest_block = self._chain[-1]
+                logger.info(f"[TEMPLATE] Creating block #{chain_length} after restart check:")
+                logger.info(f"   Latest block: #{latest_block.index} (hash: {latest_block.hash[:16]}...)")
+                logger.info(f"   New block will use previous_hash: {previous_hash[:16]}...")
+            
             new_block = Block(
-                len(self._chain),
+                chain_length,
                 all_transactions,
-                self._chain[-1].hash if self._chain else "0" * 64,
+                previous_hash,
                 target_difficulty=current_mining_difficulty,  # ← Uses config value
                 mining_node=mining_node
             )

@@ -1,3 +1,0 @@
-i want you to check whether all the data such as balances transactions and transaction pool and everything which is required according to industry standard and currently in my project should be maintained or synced with all nodes like a real blockchain.
-
-such as i can use any node they all keep same ledger and all details
