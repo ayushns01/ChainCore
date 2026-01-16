@@ -1,6 +1,6 @@
 # ChainCore Blockchain - Complete Terminal Guide
 
-Complete step-by-step guide to run the ChainCore blockchain with **enterprise-grade thread safety**.
+Complete step-by-step guide to run the ChainCore blockchain with thread-safe operations.
 
 ## 🔧 Prerequisites
 
@@ -99,13 +99,13 @@ python3 src/clients/wallet_client.py send --wallet alice.json --node http://loca
 python3 src/clients/wallet_client.py history --wallet alice.json --node http://localhost:5000
 ```
 
-## ⛏️ Mining Operations (Consolidated Enterprise Client)
+## ⛏️ Mining Operations
 
 ### ✅ Correct Mining Workflow
 
 **Important**: Wait 2-3 seconds after starting network node before starting mining client.
 
-**Note**: The mining client now includes all enterprise features in a single consolidated `mining_client.py` file. No separate enhanced client needed.
+**Note**: The mining client includes all features in a single `mining_client.py` file.
 
 ### Terminal 6: Start First Miner
 
@@ -144,10 +144,10 @@ python src/clients/mining_client.py --wallet 1GukayKD1hRAXnQaJYKVwQcwCvVzsUbcJj 
 python src/clients/mining_client.py --wallet 18NDhHYAa3bx3jAZkc7HZf3vKr1JrwVXG3 --node http://localhost:5010
 ```
 
-### 🔍 Mining Command Options (Consolidated Enterprise Client)
+### 🔍 Mining Command Options
 
 ```bash
-# Basic mining (enterprise-grade with all security features)
+# Basic mining
 python3 src/clients/mining_client.py --wallet ADDRESS --node http://localhost:5001
 
 # Quiet mode (less output)
@@ -156,24 +156,24 @@ python3 src/clients/mining_client.py --wallet ADDRESS --node http://localhost:50
 # Show mining statistics (address sanitized for privacy)
 python3 src/clients/mining_client.py --wallet ADDRESS --node http://localhost:5001 --stats
 
-# Enterprise configuration with custom settings
+# Custom configuration with settings
 python3 src/clients/mining_client.py --wallet ADDRESS --node http://localhost:5001 \
   --timeout 120 --retries 5 --refresh-interval 30.0
 
-# Production security mode (requires HTTPS)
+# TLS security mode (requires HTTPS)
 python3 src/clients/mining_client.py --wallet ADDRESS --node https://node.example.com:5001 --require-tls
 
 # Advanced difficulty and performance tuning
 python3 src/clients/mining_client.py --wallet ADDRESS --node http://localhost:5001 \
   --difficulty-range 1,12 --timeout 180 --verbose
 
-# Complete enterprise configuration
+# Complete configuration example
 python3 src/clients/mining_client.py --wallet ADDRESS --node https://node.example.com:5001 \
   --require-tls --timeout 120 --retries 3 --refresh-interval 30.0 \
   --difficulty-range 2,10 --verbose
 ```
 
-### 🚨 Consolidated Enterprise Security Features
+### 🚨 Security Features
 
 **✅ ECDSA Wallet Address Validation**
 
@@ -185,19 +185,19 @@ python3 src/clients/mining_client.py --wallet ADDRESS --node https://node.exampl
 
 - Wallet addresses sanitized in all logs (e.g., `1Guk...bcJj`)
 - Full addresses never exposed in console output or log files
-- Privacy-compliant logging for production environments
+- Privacy-compliant logging
 
-**✅ Enterprise-Grade Logging Framework**
+**✅ Logging Framework**
 
 - Structured logging with timestamps, log levels, and categorization
 - Automatic log file rotation (`mining_client.log`)
 - Dual output: console + persistent file storage
-- Production monitoring and debugging support
+- Monitoring and debugging support
 
 **✅ Advanced Network Security**
 
 - Comprehensive URL validation with protocol enforcement
-- Optional TLS requirement for production environments (`--require-tls`)
+- Optional TLS requirement (`--require-tls`)
 - Security warnings for insecure HTTP connections to remote nodes
 - Connection timeout protection against slow/malicious nodes
 - Exponential backoff for network resilience
@@ -210,7 +210,7 @@ python3 src/clients/mining_client.py --wallet ADDRESS --node https://node.exampl
 - Thread-safe hash rate calculation with bounded memory management
 - Configurable mining timeouts and retry logic
 
-### 📊 Enterprise Mining Examples with Sanitized Output
+### 📊 Mining Examples
 
 ```bash
 # Standard mining with privacy protection
@@ -223,7 +223,7 @@ python3 src/clients/mining_client.py --wallet 1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa
 # FEATURES: Template refresh, exponential backoff, optimized PoW
 # SUCCESS: BLOCK ACCEPTED by network!
 
-# Production mining with all enterprise features
+# Mining with all features enabled
 python3 src/clients/mining_client.py --wallet 1BvBMSEYstWetqTFn5Au4m4GFg7xJaNVN2 \
   --node https://node.example.com:5001 --require-tls --timeout 180 \
   --retries 5 --refresh-interval 20.0 --verbose
@@ -317,8 +317,8 @@ python3 src/clients/mining_client.py --wallet YOUR_WALLET_ADDRESS --node http://
 #### Issue: Performance Problems
 
 ```bash
-# The mining client is now optimized for production performance
-# - 50-80% faster mining with optimized JSON serialization
+# The mining client is optimized for performance
+# - Faster mining with optimized JSON serialization
 # - Reduced memory usage with bounded statistics
 # - Random nonce starting points prevent miner collision
 # - Template staleness detection prevents wasted work
@@ -676,13 +676,13 @@ Your blockchain is working correctly when you see:
 7. **Network Sync**: All nodes show same blockchain length
 8. **Session Tracking**: Sessions are recorded and statistics updated
 
-**🚀 You now have a fully functional enterprise-grade blockchain network!**
+**🚀 You now have a fully functional blockchain network!**
 
 ## 🔥 Advanced Features
 
 ### Blockchain Core
 
-- **Enterprise Thread Safety**: Advanced reader-writer locks with deadlock detection
+- **Thread Safety**: Reader-writer locks with deadlock detection
 - **MVCC UTXO Management**: Snapshot isolation for concurrent operations
 - **Atomic Operations**: All blockchain state changes are atomic
 - **Connection Pooling**: Rate limiting and concurrent peer management
@@ -693,26 +693,26 @@ Your blockchain is working correctly when you see:
 - **Automatic Sync**: Nodes sync every 30 seconds with atomic operations
 - **Load Balancing**: Connect wallets to different nodes safely
 
-### Production Mining Client (NEW)
+### Mining Client Features
 
-- **ECDSA Address Validation**: Bitcoin Core-level wallet address verification
+- **ECDSA Address Validation**: Bitcoin-style wallet address verification
 - **Privacy Protection**: Address sanitization in all logs and console output
-- **Performance Optimization**: 50-80% faster mining with JSON pre-computation
+- **Performance Optimization**: Faster mining with JSON pre-computation
 - **Memory Management**: Bounded statistics prevent memory leaks in long sessions
 - **Network Security**: URL validation, HTTPS support, timeout protection
 - **Intelligent Retry**: Exponential backoff with fresh template refresh
 - **Template Staleness**: Automatic detection prevents wasted mining effort
 - **Random Nonce Ranges**: Prevents collision between competitive miners
-- **Structured Logging**: Production-grade logging with file rotation support
+- **Structured Logging**: Logging with file rotation support
 - **Error Recovery**: Comprehensive error handling for network issues
 
 ## 📈 Performance Benefits
 
 ### Blockchain Performance
 
-- **Zero Lock Contentions**: Perfect thread safety without performance loss
+- **Zero Lock Contentions**: Thread safety without performance loss
 - **Concurrent Operations**: Multiple API calls processed simultaneously
-- **Microsecond Lock Times**: Enterprise-grade lock acquisition performance
+- **Fast Lock Times**: Quick lock acquisition
 - **Scalable Architecture**: Handles multiple nodes and miners efficiently
 - **Fault Tolerant**: Deadlock detection and automatic recovery
 
@@ -725,9 +725,9 @@ Your blockchain is working correctly when you see:
 - **Network Resilience**: Exponential backoff reduces network overhead
 - **Hash Rate Accuracy**: Thread-safe statistics with proper accounting
 
-## 🚀 Production Mining Examples
+## 🚀 Mining Examples
 
-### Basic Production Mining
+### Basic Mining
 
 ```bash
 # Start with validated address and secure connection
@@ -767,4 +767,4 @@ For more advanced operations, see:
 - `src/concurrency/THREAD_SAFETY_GUIDE.md` - Complete thread safety documentation
 - `MINING_COMMANDS.md` - Mining operations guide
 - `PEER_MANAGEMENT_NETWORKING.md` - Network operations guide
-- `mining_client.log` - Production mining logs with structured output
+- `mining_client.log` - Mining logs with structured output

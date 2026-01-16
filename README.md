@@ -1,13 +1,13 @@
 # ChainCore
 
-A production-ready blockchain implementation built in Python with PostgreSQL database integration, thread-safe operations, multi-node networking, and enterprise-grade mining capabilities.
+A ground-up blockchain implementation in Python featuring PostgreSQL persistence, thread-safe operations, multi-node networking, and proof-of-work mining.
 
 ## 🚀 Project Overview
 
-ChainCore is a full-featured blockchain platform that implements a complete cryptocurrency system with:
+ChainCore is a learning-focused blockchain implementation that demonstrates core cryptocurrency concepts:
 
 - **Database-Driven Architecture**: PostgreSQL integration with comprehensive DAO layer
-- **Thread-Safe Operations**: Enterprise-grade concurrency control and blockchain safety
+- **Thread-Safe Operations**: Concurrency control with reader-writer locks and atomic operations
 - **Multi-Node Network**: P2P networking with automatic peer discovery and consensus
 - **Enhanced Mining Client**: Optimized proof-of-work with address validation and privacy protection
 - **Real-Time Monitoring**: Database monitoring and blockchain analytics
@@ -21,7 +21,7 @@ ChainCore is a full-featured blockchain platform that implements a complete cryp
 #### 1. Database Layer (`src/data/`)
 - **PostgreSQL Integration**: Complete database schema with tables for blocks, transactions, UTXOs, nodes, and mining stats
 - **DAO Pattern**: Data Access Objects for all blockchain entities (BlockDAO, TransactionDAO, NodeDAO, etc.)
-- **Connection Pooling**: Enterprise-grade database connection management
+- **Connection Pooling**: Database connection management with psycopg2
 - **Transaction Integrity**: ACID compliance and atomic operations
 
 #### 2. Network Nodes (`src/nodes/network_node.py`)
@@ -501,10 +501,17 @@ python tests/test_blockchain_sync.py
 - **Testing Environment**: Safe environment for blockchain experimentation
 - **Prototype Development**: Rapid blockchain prototype development
 
-### Production
-- **Private Networks**: Enterprise blockchain networks
-- **Consortium Chains**: Multi-organization blockchain networks
-- **Research Platforms**: Academic and corporate research environments
+## ⚠️ Known Limitations
+
+This is an educational project with intentional simplifications:
+
+- **Mining Coordinator**: Includes a coordinator to simplify local multi-terminal testing, which centralizes block production (trade-off for easier development/testing)
+- **Simplified P2P**: Uses HTTP polling rather than a full gossip protocol
+- **No SPV Support**: Merkle proofs exist but light client verification is not implemented
+- **Simplified Difficulty**: Basic leading-zeros difficulty rather than Bitcoin's full target calculation
+- **No Script System**: Transactions use simplified validation rather than Bitcoin Script
+
+These limitations are intentional to keep the codebase understandable while demonstrating core blockchain concepts.
 
 ## 📚 Documentation
 
@@ -540,7 +547,7 @@ Your ChainCore network is working correctly when you see:
 
 ---
 
-**ChainCore** - A modern, secure, and scalable blockchain platform built for education, development, and production use.
+**ChainCore** - A ground-up blockchain implementation in Python.
 
 ### Cryptographic Security
 
@@ -633,16 +640,8 @@ The project includes example configuration files:
 ### Development
 
 - **Blockchain application** development
-- **Smart contract** platform foundation
 - **Cryptocurrency** implementation
 - **P2P network** research
-
-### Production
-
-- **Private blockchain** networks
-- **Consortium chains** for organizations
-- **Testing environments** for blockchain applications
-- **Research platforms** for academic institutions
 
 ## > Contributing
 
@@ -685,4 +684,4 @@ For questions, issues, or contributions:
 
 ---
 
-**ChainCore** - A modern, secure, and scalable blockchain platform built for education, development, and production use.
+**ChainCore** - A ground-up blockchain implementation in Python.

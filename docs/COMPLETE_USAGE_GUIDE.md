@@ -184,7 +184,7 @@ Miner1  Miner2  Miner3           MinerN
 ✅ **wallet_client.py** - Secure wallet management  
 ✅ **Unlimited miners** - Support for 100+ miners  
 ✅ **Peer discovery** - Automatic network formation  
-✅ **Thread safety** - Enterprise-grade concurrency  
+✅ **Thread safety** - Concurrency control with locks  
 ✅ **UTXO model** - Prevents double-spending  
 ✅ **Bitcoin cryptography** - Industry-standard security  
 

@@ -1,9 +1,3 @@
-#!/usr/bin/env python3
-"""
-ChainCore Configuration Module
-Centralized configuration for blockchain parameters
-"""
-
 # ==========================================
 # BLOCKCHAIN CONFIGURATION
 # ==========================================
@@ -28,13 +22,13 @@ DEFAULT_TRANSACTION_FEE = 0.01
 # Network settings
 DEFAULT_API_PORT = 5000
 DEFAULT_P2P_PORT = 8000
-PEER_DISCOVERY_RANGE = (5000, 5100)  # Extended range for 100+ nodes
+PEER_DISCOVERY_RANGE = (5000, 5100)
 
-# Enhanced peer management settings (optimized for local multi-terminal)
+# Peer management settings (optimized for local multi-terminal)
 MIN_PEERS = 2          # Minimum peers to maintain for consensus
 TARGET_PEERS = 6       # Optimal for 3-8 terminal testing  
 MAX_PEERS = 12         # Prevent connection overload in local testing
-CONTINUOUS_DISCOVERY_INTERVAL = 10  # Fast discovery for local network
+CONTINUOUS_DISCOVERY_INTERVAL = 10      # Look for new peers every 10 seconds
 
 # Peer discovery optimization
 DISCOVERY_TIMEOUT = 3.0          # Fast timeout for peer discovery
@@ -82,6 +76,4 @@ def get_all_config() -> dict:
         'deadlock_detection_enabled': DEADLOCK_DETECTION_ENABLED,
     }
 
-# Backwards compatibility - keep the original variable name
-# This allows existing code to work without changes
 BLOCKCHAIN_DIFFICULTY = BLOCKCHAIN_DIFFICULTY
