@@ -1,13 +1,11 @@
 #!/usr/bin/env python3
 """
-ChainCore Consensus Module
-Local network consensus mechanisms for multi-terminal testing
+ChainCore Services Module
+Blockchain services and utilities
+
+Note: Mining coordination has been removed - miners compete independently
+using Bitcoin-style consensus (longest valid chain wins).
+Fork resolution is handled in src/core/blockchain_sync.py
 """
 
-from .mining_coordinator import LocalMiningCoordinator, get_mining_coordinator, mining_coordinator
-
-__all__ = [
-    'LocalMiningCoordinator', 
-    'get_mining_coordinator',
-    'mining_coordinator'
-]
+__all__ = []

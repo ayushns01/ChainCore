@@ -28,13 +28,8 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(__file__))))
 
 from src.crypto.ecdsa_crypto import double_sha256, validate_address
 
-# Import mining coordination
-try:
-    from src.services import get_mining_coordinator
-    MINING_COORDINATION_AVAILABLE = True
-except ImportError:
-    MINING_COORDINATION_AVAILABLE = False
-    print("Mining coordination not available, using independent mining")
+# Mining coordination removed - miners now compete independently like real Bitcoin
+# Forks are resolved via longest chain rule in blockchain_sync.py
 
 # Safe config import with validation and proper error handling
 CONFIG_IMPORT_SUCCESS = False
@@ -859,19 +854,10 @@ class MiningClient:
         logger.info(f"Session: {time.strftime('%Y-%m-%d %H:%M:%S')}")
         logger.info("-" * 60)
         
-        # Register with mining coordinator if available
-        mining_coordinator = None
-        miner_id = f"miner_{self.wallet_address[:8]}"
-        
-        if MINING_COORDINATION_AVAILABLE:
-            try:
-                mining_coordinator = get_mining_coordinator()
-                mining_coordinator.register_miner(miner_id)
-                print(f"[OK] Registered with mining coordinator as: {miner_id}")
-                logger.info(f"Mining coordination enabled: {miner_id}")
-            except Exception as e:
-                logger.warning(f"Mining coordination failed: {e}")
-                mining_coordinator = None
+        # Independent mining mode - all miners compete simultaneously
+        # Forks resolved via longest chain rule (Bitcoin-style consensus)
+        print("[MODE] Independent mining - competing with all network miners")
+        print("[INFO] Forks will be resolved automatically via longest chain rule")
         
         try:
             while self._is_mining_active():
@@ -886,39 +872,7 @@ class MiningClient:
                     time.sleep(10)
                     continue
                 
-                # Check mining coordination
-                should_mine = True
-                mining_status = {}
-                
-                if mining_coordinator:
-                    try:
-                        # Get current blockchain height
-                        node_status = requests.get(f"{self.node_url}/status", timeout=5).json()
-                        current_height = node_status.get('blockchain_length', 0)
-                        
-                        # Check if we should mine now
-                        mining_status = mining_coordinator.should_mine_now(miner_id, current_height)
-                        should_mine = mining_status.get('should_mine', True)
-                        
-                        if not should_mine:
-                            time_remaining = mining_status.get('time_remaining', 0)
-                            designated_miner = mining_status.get('designated_miner', 'unknown')
-                            
-                            if time_remaining > 1:
-                                print(f"⏳ Mining round: {designated_miner} has priority "
-                                     f"({time_remaining:.1f}s remaining)")
-                                time.sleep(min(time_remaining, 5.0))  # Wait but check periodically
-                                continue
-                        elif mining_status.get('is_designated', False):
-                            print(f"[MINER] Mining round: We are designated miner!")
-                        elif mining_status.get('is_backup', False):
-                            print(f"[BACKUP] Mining round: Backup mining activated")
-                            
-                    except Exception as e:
-                        logger.debug(f"Mining coordination check failed: {e}")
-                        # Continue with normal mining if coordination fails
-                
-                # Mine with retry logic
+                # Mine with retry logic (no coordination - true competition)
                 success = self.mine_with_retry()
                 
                 if success:
@@ -926,15 +880,6 @@ class MiningClient:
                     session_time = time.time() - self.start_time
                     avg_time = session_time / self.blocks_mined
                     avg_hash_rate = self.get_average_hash_rate()
-                    
-                    # Report to mining coordinator
-                    if mining_coordinator:
-                        try:
-                            node_status = requests.get(f"{self.node_url}/status", timeout=5).json()
-                            current_height = node_status.get('blockchain_length', 0)
-                            mining_coordinator.report_block_mined(miner_id, current_height)
-                        except Exception as e:
-                            logger.debug(f"Failed to report block to coordinator: {e}")
                     
                     print("SUCCESS: BLOCK SUCCESSFULLY MINED!")
                     print(f"   Session Stats:")
@@ -949,12 +894,15 @@ class MiningClient:
                     time.sleep(1)
                 else:
                     # Longer pause after failures to let network stabilize
-                    print("ERROR: Mining Attempt Failed")
+                    print("INFO: Mining attempt did not produce accepted block")
                     print("   Possible causes:")
+                    print("      * Another miner found block first (normal competition)")
                     print("      * Stale block template")
-                    print("      * Network connectivity issues") 
-                    print("      * Another miner found block first")
-                    print("   Waiting 5 seconds before retry...")
+                    print("      * Network connectivity issues")
+                    print("   Refreshing template and continuing...")
+                    
+                    logger.info("Block not accepted - another miner may have won. Continuing...")
+                    time.sleep(2)  # Shorter pause - this is normal in competitive mining
                     
                     logger.warning("Mining cycle failed, waiting before retry...")
                     time.sleep(5)

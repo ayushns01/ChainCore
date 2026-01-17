@@ -43,10 +43,8 @@ from src.network import (
 )
 from src.network.connection_cleaner import start_connection_cleanup, stop_connection_cleanup
 
-# Import consensus mechanisms
-from src.services import (
-    get_mining_coordinator
-)
+# Consensus handled via fork resolution in blockchain_sync.py
+# Mining coordination removed - miners compete independently (Bitcoin-style)
 
 # Import data access objects
 from src.data.node_dao import NodeDAO
@@ -1889,13 +1887,7 @@ class ThreadSafeNetworkNode:
             stop_connection_cleanup()
             logger.info("Connection cleanup stopped")
             
-            # Unregister from mining coordinator if we were mining
-            try:
-                mining_coordinator = get_mining_coordinator()
-                # This will be used if this node was also mining
-                # mining_coordinator.unregister_miner(f"node_{self.node_id}")
-            except:
-                pass
+            # No coordinator cleanup needed - miners operate independently
             
             # Force final cleanup
             from network.connection_cleaner import get_connection_cleaner

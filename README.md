@@ -29,20 +29,28 @@ ChainCore is a learning-focused blockchain implementation that demonstrates core
 - **Thread-safe Operations**: Blockchain operations with comprehensive locking
 - **Database Integration**: All blockchain state persisted to PostgreSQL
 - **RESTful API**: HTTP endpoints for all blockchain operations
+- **Fork Resolution**: Bitcoin-style longest/heaviest chain consensus
 
 #### 3. Enhanced Mining Client (`src/clients/mining_client.py`)
+- **Competitive Mining**: Miners compete independently (no coordinator)
 - **Address Validation**: Bitcoin-style ECDSA address verification
 - **Privacy Protection**: Address sanitization in logs and console output
 - **Performance Optimization**: 50-80% faster mining with optimized serialization
 - **Network Security**: URL validation, timeout protection, and retry logic
 
-#### 4. Wallet Client (`src/clients/wallet_client.py`)
+#### 4. Blockchain Sync (`src/core/blockchain_sync.py`)
+- **Fork Resolution**: Enhanced fork handling using cumulative work comparison
+- **Chain Reorganization**: Automatic reorg when longer valid chain is found
+- **Mining Attribution**: Preserves miner information during chain switches
+- **UTXO Consistency**: Maintains balance integrity through reorgs
+
+#### 5. Wallet Client (`src/clients/wallet_client.py`)
 - **Wallet Management**: Create, manage, and operate blockchain wallets
 - **Transaction Creation**: Send funds with proper UTXO management
 - **Balance Queries**: Real-time balance and transaction history
 - **Multi-node Support**: Connect to any node in the network
 
-#### 5. Real-time Monitoring (`src/monitoring/`)
+#### 6. Real-time Monitoring (`src/monitoring/`)
 - **Database Monitor**: Real-time blockchain database monitoring
 - **Network Analytics**: Multi-node network health and consensus tracking
 - **Mining Statistics**: Performance metrics and mining distribution analysis
@@ -505,7 +513,6 @@ python tests/test_blockchain_sync.py
 
 This is an educational project with intentional simplifications:
 
-- **Mining Coordinator**: Includes a coordinator to simplify local multi-terminal testing, which centralizes block production (trade-off for easier development/testing)
 - **Simplified P2P**: Uses HTTP polling rather than a full gossip protocol
 - **No SPV Support**: Merkle proofs exist but light client verification is not implemented
 - **Simplified Difficulty**: Basic leading-zeros difficulty rather than Bitcoin's full target calculation
