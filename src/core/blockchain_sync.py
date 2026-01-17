@@ -14,15 +14,15 @@ from enum import Enum
 from .block import Block
 from .bitcoin_transaction import Transaction
 
+# Import genesis block hash for checkpoint validation
+from src.config.genesis_block import GENESIS_BLOCK_HASH
+
 logger = logging.getLogger(__name__)
 
-# SECURITY: Blockchain checkpoints to prevent long-range attacks
+# Genesis checkpoint ensures all nodes are on the same network
+# Unlike fake "future" checkpoints, this one is real and verifiable
 BLOCKCHAIN_CHECKPOINTS = {
-    # Block height: expected block hash
-    10: None,   # Will be set dynamically
-    50: None,   # Will be set dynamically  
-    100: None,  # Will be set dynamically
-    # Add more checkpoints as network grows
+    0: GENESIS_BLOCK_HASH,  # Genesis block - network identity
 }
 
 class SyncResult(Enum):
