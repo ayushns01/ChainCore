@@ -50,10 +50,10 @@ def print_feature_summary():
    - Automatic peer discovery every 60 seconds
 
 [SECURITY] Performance:
-   - Advanced reader-writer locks
+   - Reader-writer locks
    - Deadlock detection and prevention
    - Memory barriers and atomic operations
-   - Enterprise-grade thread safety
+   - Thread safety mechanisms
 
 [MINING] System:
    - Proof-of-Work with configurable difficulty

@@ -320,7 +320,7 @@ class NetworkBlockchainMonitor:
             if coinbase_tx['outputs']:
                 miner_address = coinbase_tx['outputs'][0]['recipient_address']
             
-            # CRITICAL: Read actual mining node from block metadata (industry standard)
+            # CRITICAL: Read actual mining node from block metadata
             mining_node = "unknown"
             
             # Priority 1: Check mining_metadata (complete attribution info)

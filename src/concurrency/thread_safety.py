@@ -1,9 +1,4 @@
 #!/usr/bin/env python3
-"""
-Enterprise-Grade Thread Safety Module for ChainCore Blockchain
-Implements industry-standard locking patterns used by major blockchain networks
-"""
-
 import threading
 import time
 import functools
@@ -20,7 +15,7 @@ logger = logging.getLogger(__name__)
 
 class LockOrder(Enum):
     """
-    Lock ordering hierarchy to prevent deadlocks (Bitcoin Core pattern)
+    Lock ordering hierarchy to prevent deadlocks
     Always acquire locks in this order, release in reverse order
     """
     BLOCKCHAIN = 1      # Highest priority - blockchain state
@@ -40,11 +35,7 @@ class LockStats:
     deadlock_attempts: int = 0
     
 class DeadlockDetector:
-    """
-    Advanced deadlock detection system
-    Used by enterprise blockchains like Hyperledger Fabric
-    """
-    
+
     def __init__(self):
         self._lock_graph: Dict[int, Set[int]] = {}  # thread_id -> set of lock_ids
         self._waiting_for: Dict[int, int] = {}      # thread_id -> lock_id
@@ -107,7 +98,6 @@ class DeadlockDetector:
 class AdvancedRWLock:
     """
     Reader-Writer lock with priority queuing and starvation prevention
-    Based on PostgreSQL's lock manager design
     """
     
     def __init__(self, name: str, lock_order: LockOrder):
@@ -238,7 +228,6 @@ class AtomicCounter:
 class TransactionQueue:
     """
     Lock-free transaction queue using atomic operations
-    Based on Michael & Scott's non-blocking queue algorithm
     """
     
     def __init__(self, maxsize: int = 10000):

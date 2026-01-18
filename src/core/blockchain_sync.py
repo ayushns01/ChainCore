@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Industry-Standard Blockchain Synchronization Module
-Implements Bitcoin-style blockchain sync with proper fork resolution
+Blockchain Synchronization Module
+Implements blockchain sync with fork resolution
 Preserves mining history and follows longest valid chain rule
 """
 
@@ -55,8 +55,8 @@ class ChainComparison:
 
 class BlockchainSync:
     """
-    Industry-standard blockchain synchronization engine
-    Implements proper consensus rules and mining history preservation
+    Blockchain synchronization engine
+    Implements consensus rules and mining history preservation
     """
     
     def __init__(self, blockchain):
@@ -185,7 +185,7 @@ class BlockchainSync:
                         tx.timestamp = tx_data['timestamp']
                     transactions.append(tx)
                 
-                # INDUSTRY STANDARD: Use Block.from_dict for proper mining attribution preservation
+                # Use Block.from_dict for proper mining attribution preservation
                 block = Block.from_dict(block_data)
                 
                 # Enhance with sync metadata
@@ -197,7 +197,7 @@ class BlockchainSync:
                 block._mining_metadata['preserved_from_sync'] = True
                 block._mining_metadata['sync_timestamp'] = time.time()
                 
-                # INDUSTRY STANDARD: Store complete mining provenance
+                # Store complete mining provenance
                 if block.transactions and len(block.transactions) > 0 and block.transactions[0].outputs:
                     miner_address = block.transactions[0].outputs[0].recipient_address
                     mining_reward = block.transactions[0].outputs[0].amount
@@ -383,7 +383,7 @@ class BlockchainSync:
             logger.error("❌ Peer's fork contains invalid blocks")
             return SyncResult.INVALID_CHAIN
         
-        # Step 2: BITCOIN CORE STANDARD: Apply cumulative work rule (not just length)
+        # Step 2: Apply cumulative work rule (not just length)
         current_chain = self.blockchain.get_chain_copy()
         local_work = self.calculate_cumulative_work(current_chain[:comparison.fork_point]) if comparison.fork_point > 0 else 0
         peer_work = self.calculate_cumulative_work(peer_blocks[:comparison.fork_point]) if comparison.fork_point > 0 else 0
@@ -682,7 +682,7 @@ class BlockchainSync:
             return False
     
     def calculate_cumulative_work(self, blocks: List[Block]) -> int:
-        """Calculate total cumulative work for chain (Bitcoin Core standard)"""
+        """Calculate total cumulative work for chain"""
         total_work = 0
         for block in blocks:
             total_work += block.calculate_block_work()
@@ -749,7 +749,7 @@ class BlockchainSync:
         return True
     
     def header_first_sync(self, peer_url: str) -> Tuple[SyncResult, SyncStats]:
-        """Industry-standard header-first synchronization (Bitcoin Core pattern)"""
+        """Header-first synchronization"""
         import time
         start_time = time.time()
         

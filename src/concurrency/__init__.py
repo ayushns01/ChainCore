@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 ChainCore Thread Safety Module
-Enterprise-grade concurrency and race condition prevention
+Concurrency and race condition prevention
 
 Usage:
     from src.concurrency import ThreadSafeBlockchain, ThreadSafePeerManager, ThreadSafeMiner

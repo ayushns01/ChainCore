@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Thread-Safe Mining System with Work Coordination
-Enterprise-grade mining with duplicate prevention and work coordination
+Mining with duplicate prevention and work coordination
 """
 
 import threading

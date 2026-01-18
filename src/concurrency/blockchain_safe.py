@@ -1,8 +1,6 @@
 #!/usr/bin/env python3
 """
 Thread-Safe Blockchain Implementation
-Replaces the original Blockchain class with enterprise-grade thread safety
-With PostgreSQL persistence
 """
 
 import threading
@@ -43,7 +41,6 @@ class ChainStats:
 class ThreadSafeUTXOSet:
     """
     Thread-safe UTXO set with optimistic locking and snapshot isolation
-    Based on Bitcoin Core's UTXO management
     """
     
     def __init__(self):
@@ -1175,8 +1172,8 @@ class ThreadSafeBlockchain:
     
     def smart_sync_with_peer_chain(self, peer_chain_data: List[Dict], peer_url: str) -> bool:
         """
-        Industry-standard blockchain sync that preserves mining history
-        Uses proper fork resolution and doesn't destroy local mining attribution
+        Blockchain sync that preserves mining history
+        Uses fork resolution and doesn't destroy local mining attribution
         """
         try:
             # Import the new sync module

@@ -97,7 +97,7 @@ class ThreadSafeNetworkNode:
         self.peer_network_manager = self.peer_network_manager
         self.peer_manager = self.peer_network_manager
         
-        # BOOTSTRAP CHAIN VALIDATION: Industry-standard immediate sync for late joiners
+        # BOOTSTRAP CHAIN VALIDATION: Immediate sync for late joiners
         if self.bootstrap_nodes:
             logger.info(f"[BOOTSTRAP] Bootstrap nodes detected: {len(self.bootstrap_nodes)}")
             # Schedule immediate chain validation after initialization completes
@@ -552,7 +552,7 @@ class ThreadSafeNetworkNode:
         @self.app.route('/blockchain/headers', methods=['GET'])
         @synchronized("api_blockchain_headers", LockOrder.NETWORK, mode='read')
         def get_blockchain_headers():
-            """Get blockchain headers for header-first sync (industry standard)"""
+            """Get blockchain headers for header-first sync"""
             self._increment_api_calls()
             
             try:
@@ -1946,7 +1946,7 @@ class ThreadSafeNetworkNode:
                         logger.error(f"Error creating block from sync data: {e}")
                         return
                 
-                # Use industry-standard smart sync instead of destructive replace_chain
+                # Use smart sync instead of destructive replace_chain
                 if self.blockchain.smart_sync_with_peer_chain(chain_data, peer_url_result):
                     new_length = self.blockchain.get_chain_length()
                     logger.info(f"🎉 Smart Blockchain Sync Successful!")
@@ -2094,7 +2094,7 @@ class ThreadSafeNetworkNode:
                 logger.info(f"📊 Current chain length: {current_length}")
                 logger.info(f"📊 Peer chain length: {len(chain_data)}")
                 
-                # Use industry-standard smart sync with enhanced features
+                # Use smart sync with enhanced features
                 if self.blockchain.smart_sync_with_peer_chain(chain_data, peer_url_result):
                     new_length = self.blockchain.get_chain_length()
                     logger.info(f"🎉 Blockchain Sync Successful!")
@@ -2141,8 +2141,7 @@ class ThreadSafeNetworkNode:
 
     def _perform_bootstrap_chain_validation(self):
         """
-        Industry-standard immediate chain validation after bootstrap connection
-        Follows Bitcoin Core IBD and Ethereum fast sync patterns
+        Immediate chain validation after bootstrap connection
         """
         logger.info("[BOOTSTRAP] Performing immediate chain validation with bootstrap peers...")
         print("[BOOTSTRAP] Validating blockchain state with network...")
@@ -2179,8 +2178,7 @@ class ThreadSafeNetworkNode:
     
     def _validate_bootstrap_chain_consensus(self):
         """
-        Validate chain consensus with bootstrap peers using industry-standard approach
-        Similar to Bitcoin Core's consensus validation and Ethereum's chain weight checks
+        Validate chain consensus with bootstrap peers
         """
         try:
             peers = self.peer_network_manager.get_active_peers()
@@ -2194,11 +2192,10 @@ class ThreadSafeNetworkNode:
             
             logger.info(f"[BOOTSTRAP] Validating consensus with {len(peers)} peers")
             
+            logger.info(f"[BOOTSTRAP] Validating consensus with {len(peers)} peers")
+
             # Check ALL available peers for comprehensive bootstrap validation
-            # Similar to Bitcoin Core's initial block download peer selection
             for peer_url in peers[:15]:  # Check up to 15 peers for thorough bootstrap validation
-                try:
-                    response = requests.get(f"{peer_url}/status", timeout=8)
                     if response.status_code == 200:
                         peer_status = response.json()
                         peer_length = peer_status.get('blockchain_length', 0)
@@ -2245,16 +2242,15 @@ class ThreadSafeNetworkNode:
     def _perform_comprehensive_bootstrap_sync(self, target_length: int, available_peers: List[str]) -> bool:
         """
         Perform comprehensive sync using existing blockchain sync infrastructure
-        Leverages the existing BlockchainSync class (industry-standard approach)
+    def _perform_comprehensive_bootstrap_sync(self, target_length: int, available_peers: List[str]) -> bool:
+        """
+        Perform comprehensive sync using existing blockchain sync infrastructure
         """
         try:
             logger.info(f"[BOOTSTRAP] Starting comprehensive sync to reach {target_length} blocks")
-            
-            # Try multiple peers for redundancy (Bitcoin Core approach)
+
+            # Try multiple peers for redundancy
             for peer_url in available_peers[:5]:  # Try top 5 peers
-                try:
-                    logger.info(f"[BOOTSTRAP] Attempting sync with {peer_url}")
-                    
                     # Get peer's complete chain data
                     response = requests.get(f"{peer_url}/blockchain", timeout=20)
                     if response.status_code == 200:
@@ -2265,7 +2261,7 @@ class ThreadSafeNetworkNode:
                             logger.info(f"[BOOTSTRAP] Using peer chain with {len(peer_chain)} blocks")
                             
                             # Use existing enhanced sync mechanism from blockchain_sync.py
-                            # This preserves mining attribution and follows industry standards
+                            # This preserves mining attribution
                             sync_success = self.blockchain.smart_sync_with_peer_chain(
                                 peer_chain_data=peer_chain,
                                 peer_url=peer_url
@@ -2353,7 +2349,7 @@ def main():
             import sys
             import os
             sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))))
-            from tests.startup_banner import startup_network_node
+            from scripts.debug.startup_banner import startup_network_node
             startup_network_node(args.node_id, args.api_port, args.p2p_port)
         except ImportError:
             print("🌟 ChainCore Network Node Starting...")

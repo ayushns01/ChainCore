@@ -1704,7 +1704,7 @@ Examples:
         # Show startup banner unless quiet mode
         if not args.quiet and not args.stats:
             try:
-                from tests.startup_banner import startup_mining_client
+                from scripts.debug.startup_banner import startup_mining_client
                 startup_mining_client(args.wallet, args.node)
             except ImportError:
                 print("MINING: ChainCore Mining Client Starting...")
