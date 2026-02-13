@@ -2191,11 +2191,11 @@ class ThreadSafeNetworkNode:
             peer_lengths = []
             
             logger.info(f"[BOOTSTRAP] Validating consensus with {len(peers)} peers")
-            
-            logger.info(f"[BOOTSTRAP] Validating consensus with {len(peers)} peers")
 
             # Check ALL available peers for comprehensive bootstrap validation
             for peer_url in peers[:15]:  # Check up to 15 peers for thorough bootstrap validation
+                try:
+                    response = requests.get(f"{peer_url}/status", timeout=5)
                     if response.status_code == 200:
                         peer_status = response.json()
                         peer_length = peer_status.get('blockchain_length', 0)
@@ -2242,15 +2242,13 @@ class ThreadSafeNetworkNode:
     def _perform_comprehensive_bootstrap_sync(self, target_length: int, available_peers: List[str]) -> bool:
         """
         Perform comprehensive sync using existing blockchain sync infrastructure
-    def _perform_comprehensive_bootstrap_sync(self, target_length: int, available_peers: List[str]) -> bool:
-        """
-        Perform comprehensive sync using existing blockchain sync infrastructure
         """
         try:
             logger.info(f"[BOOTSTRAP] Starting comprehensive sync to reach {target_length} blocks")
 
             # Try multiple peers for redundancy
             for peer_url in available_peers[:5]:  # Try top 5 peers
+                try:
                     # Get peer's complete chain data
                     response = requests.get(f"{peer_url}/blockchain", timeout=20)
                     if response.status_code == 200:
