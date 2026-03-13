@@ -6,6 +6,7 @@ from cryptography.hazmat.backends import default_backend
 import base58
 import json
 
+
 class ECDSAKeyPair:
     """Bitcoin-style ECDSA key pair"""
     
